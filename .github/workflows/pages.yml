@@ -46,7 +46,7 @@ jobs:
           mkdir -p _site
           cp dist/GEOkalkulus-1.0.html _site/index.html
           cp dist/GEOkalkulus-1.0.html _site/GEOkalkulus-1.0.html
-          test ! -e _site/.nojekyll && touch _site/.nojekyll || true
+          touch _site/.nojekyll
           ls -l _site
           echo "A közzétett fájl bájtjai: $(stat -c%s _site/index.html)"
           if grep -qE '(src|href)="https?:' _site/index.html; then
