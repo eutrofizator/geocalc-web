@@ -23,7 +23,7 @@ import type { Issue, Point, Section } from './core/types';
 import { ISZKA_COORDINATES, ISZKA_GMJ } from './network-sample';
 import { ISZKA_RAW_GMJ } from './network-sample-raw';
 import { downloadReport, onMeta, renderCover } from './report-view';
-import { $, download, el, readText, renderSection, storage, svgElement } from './ui';
+import { $, csvButton, download, el, readText, renderSection, storage, svgElement } from './ui';
 
 const STORAGE_KEY = 'geocalc-web.network';
 const NET_TITLE = 'VÍZSZINTES HÁLÓZAT KIEGYENLÍTÉSE';
@@ -91,7 +91,7 @@ function render(issues: Issue[], output: Output | null): void {
   const c = result.counts;
   status.textContent = `Kiszámítva ${new Date().toLocaleTimeString('hu-HU')} · ${c.new} új pont · ${c.directions} irány, ${c.distances} távolság · σ₀ = ${
     result.sigma0Posterior === null ? '–' : result.sigma0Posterior.toFixed(2)
-  }″ · a mérés sorára kattintva kizárhatod a kiegyenlítésből`;
+  }″ · a mérések a jegyzőkönyv jelölőnégyzeteivel zárhatók ki a kiegyenlítésből`;
 
   const button = (text: string, onClick: () => void) => {
     const b = el('button', undefined, text);
@@ -117,6 +117,7 @@ function render(issues: Issue[], output: Output | null): void {
   });
   if (averagedGmj) button('Középelt GMJ (.gmj)', () => download('kozepelt.gmj', averagedGmj));
   button('Jegyzőkönyv (.txt)', () => downloadReport('halozat_jegyzokonyv.txt', NET_TITLE, sections));
+  downloads.append(csvButton('halozat_tablazatok', () => sections));
 }
 
 export function initNetworkView(): void {
@@ -156,7 +157,12 @@ export function initNetworkView(): void {
   let timer: number | undefined;
 
   const updateExcludedLabel = () => {
-    exclCount.textContent = excluded.length === 0 ? 'Nincs kézzel kizárt mérés.' : `Kézzel kizárt mérések (${excluded.length}): ${excluded.map((k) => k.replace(':dir', ' irány').replace(':dist', ' táv.')).join(', ')}`;
+    exclCount.textContent =
+      excluded.length === 0
+        ? 'Nincs kézzel kizárt mérés: a kizárás a jegyzőkönyv „Mérések kizárása a kiegyenlítésből” táblázatának jelölőnégyzeteivel végezhető.'
+        : `Kézzel kizárt mérések (${excluded.length}): ${excluded
+            .map((k) => k.replace('>', ' → ').replace(':dir', ' irány').replace(':dist', ' távolság'))
+            .join(', ')}`;
   };
 
   const readSettings = (): HorizontalSettings => ({
@@ -327,16 +333,31 @@ export function initNetworkView(): void {
   for (const e of [dirWeight, distWeight, prob, prec, hOn, hWeight, hFree, detailsOn, avgOn, sketchOn, freeOn]) e.addEventListener('change', compute);
   for (const e of [datumAnchor, datumY, datumX, datumRot, datumSecond, datumAz, traverseInput]) e.addEventListener('input', schedule);
 
-  // A mérési jegyzőkönyv sorára kattintva a mérés kizárható a kiegyenlítésből (és vissza), mint a GeoCalc-ban.
-  $('net-results').addEventListener('click', (event) => {
-    const td = (event.target as HTMLElement).closest('td');
-    const tr = td?.closest('tr');
-    const key = tr?.dataset.key;
-    if (!td || !tr || !key) return;
-    const col = (td as HTMLTableCellElement).cellIndex;
-    if (col === 0 || td.textContent === '') return;
-    const full = `${key}:${col <= 7 ? 'dir' : 'dist'}`; // az 1–7. oszlop az irány, a 8–13. a távolság
-    excluded = excluded.includes(full) ? excluded.filter((k) => k !== full) : [...excluded, full];
+  // A mérés kizárása a kiegyenlítésből a „Mérések kizárása” táblázat jelölőnégyzetével történik
+  // (mint a GeoCalc-ban: súgó 42. o.). A bejelölt mérés kimarad, a kijelölt visszakerül.
+  const toggle = (key: string, on: boolean) => {
+    excluded = on ? (excluded.includes(key) ? excluded : [...excluded, key]) : excluded.filter((k) => k !== key);
+    updateExcludedLabel();
+    compute();
+  };
+  $('net-results').addEventListener('change', (event) => {
+    const box = (event.target as HTMLElement).closest<HTMLInputElement>('input[data-check]');
+    if (!box || box.disabled) return;
+    toggle(box.dataset.check!, box.checked);
+  });
+  /** A jelenleg kizárható (nem automatikusan kihagyott) mérések azonosítói. */
+  const measurableKeys = (): string[] =>
+    [...$('net-results').querySelectorAll<HTMLInputElement>('input[data-check]')]
+      .filter((b) => !b.disabled)
+      .map((b) => b.dataset.check!);
+
+  $('net-excl-all').addEventListener('click', () => {
+    excluded = [...new Set([...excluded, ...measurableKeys()])];
+    updateExcludedLabel();
+    compute();
+  });
+  $('net-excl-none').addEventListener('click', () => {
+    excluded = [];
     updateExcludedLabel();
     compute();
   });

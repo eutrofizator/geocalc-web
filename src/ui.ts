@@ -1,3 +1,4 @@
+import { csvFileName, sectionsToCsv } from './core/csv';
 import type { Section } from './core/types';
 
 /** Közös felületi segédek a számítási és a transzformációs nézethez. */
@@ -67,18 +68,35 @@ export function renderSection(s: Section): HTMLElement {
   const card = el('section', s.columns.length === 0 && !s.footer ? 'card title-only' : 'card');
   card.append(el('h3', undefined, s.title));
   if (s.columns.length > 0) {
+    const hasCheck = s.rows.some((r) => r.check);
     const wrap = el('div', 'table-wrap');
     const table = el('table');
     const head = el('tr');
     for (const c of s.columns) head.append(el('th', undefined, c));
+    if (hasCheck) head.firstElementChild?.classList.add('check-col');
     const thead = el('thead');
     thead.append(head);
     table.append(thead);
     const body = el('tbody');
     for (const r of s.rows) {
-      const tr = el('tr', r.role);
+      const tr = el('tr', [r.role, r.check ? 'check-row' : ''].filter((c) => c).join(' '));
       if (r.key) tr.dataset.key = r.key;
-      r.cells.forEach((c) => tr.append(el('td', NUM.test(c) ? 'num' : undefined, c)));
+      r.cells.forEach((c, i) => {
+        if (i === 0 && r.check) {
+          const td = el('td', 'check-cell');
+          const box = el('input');
+          box.type = 'checkbox';
+          box.checked = r.check.checked;
+          box.disabled = r.check.disabled ?? false;
+          box.dataset.check = r.check.key;
+          box.title = r.check.label;
+          box.setAttribute('aria-label', r.check.label);
+          td.append(box);
+          tr.append(td);
+          return;
+        }
+        tr.append(el('td', NUM.test(c) ? 'num' : undefined, c));
+      });
       body.append(tr);
     }
     table.append(body);
@@ -87,4 +105,13 @@ export function renderSection(s: Section): HTMLElement {
   }
   for (const f of s.footer ?? []) card.append(el('p', 'footer', f));
   return card;
+}
+
+/** „Táblázatok (.csv)” gomb: a megadott szakaszok mentése táblázatkezelőbe. */
+export function csvButton(baseName: string, sections: () => Section[]): HTMLButtonElement {
+  const b = el('button', undefined, 'Táblázatok (.csv)');
+  b.type = 'button';
+  b.title = 'A táblázatok mentése táblázatkezelőbe (pontosvesszős CSV, UTF-8)';
+  b.addEventListener('click', () => download(csvFileName(baseName), sectionsToCsv(sections()), 'text/csv'));
+  return b;
 }

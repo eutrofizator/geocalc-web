@@ -6,6 +6,7 @@ import { MODULES } from './modules-info';
 import { initDescriptorView, refreshDescriptor } from './descriptor-view';
 import { initExchangeView, refreshExchange } from './exchange-view';
 import { DEFAULT_LOGO_SVG, logoDataUri } from './core/logo';
+import { parseSession, serializeSession, sessionFileName } from './core/session';
 import { initNetworkView } from './network-view';
 import { initNetSettingsView } from './net-settings-view';
 import { initRecorderView } from './recorder-view';
@@ -15,7 +16,7 @@ import { initTransformApplyView } from './transform-apply-view';
 import { initTransformView } from './transform-view';
 import { initExchangeFileView } from './exchange-file-view';
 import { initAkgView } from './akg-view';
-import { $, download, el, readText, renderSection, storage } from './ui';
+import { $, csvButton, download, el, readText, renderSection, storage } from './ui';
 
 /* ---------- tárolás (csak kényelmi funkció, hiba esetén is működik az oldal) ---------- */
 const DRAFT_KEY = 'geocalc-web.draft';
@@ -119,6 +120,7 @@ function render(result: RunResult): void {
     b.addEventListener('click', () => download(f.name, f.content));
     downloads.append(b);
   }
+  if (result.sections.length > 0) downloads.append(csvButton('szamitas_tablazatok', () => result.sections));
   for (const note of notes) downloads.append(el('span', 'fmt-note', note));
 }
 
@@ -241,10 +243,38 @@ $('btn-txt').addEventListener('click', () => {
 });
 $('btn-print').addEventListener('click', () => window.print());
 
+/** Gépelés közben (szövegmezőben) csak a szerkesztőre vonatkozó gyorsbillentyűk hatnak. */
+const typingInForm = (): boolean => {
+  const t = document.activeElement;
+  return !!t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+};
+
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'F5' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (e.key === 'F5' || (e.key === 'Enter' && ctrl)) {
     e.preventDefault();
     compute();
+    return;
+  }
+  if (!ctrl || e.altKey) return;
+  const key = e.key.toLowerCase();
+  // A menükben kiírt gyorsbillentyűk (Fájl, Szerkesztés) valóban működnek.
+  if (key === 's') {
+    e.preventDefault();
+    download('munka.gcd', editor.value);
+  } else if (key === 'o') {
+    e.preventDefault();
+    fileOpen.click();
+  } else if (key === 'n') {
+    e.preventDefault();
+    $<HTMLButtonElement>('btn-new').click();
+  } else if (key === 'p') {
+    e.preventDefault();
+    window.print();
+  } else if (key === 'a' && (!typingInForm() || document.activeElement === editor)) {
+    e.preventDefault();
+    editor.focus();
+    editor.select();
   }
 });
 
@@ -274,6 +304,57 @@ function renderCoordsPreview(result: RunResult | null): void {
   );
 }
 
+/* ---------- munkamenet (.gcs): a teljes munkaterület egy fájlban ---------- */
+function sessionSave(): void {
+  let all: Record<string, string> = {};
+  let available = true;
+  try {
+    for (const key of Object.keys(localStorage)) all[key] = localStorage.getItem(key) ?? '';
+  } catch {
+    available = false;
+  }
+  const iso = new Date().toISOString();
+  const name = sessionFileName(iso);
+  download(name, serializeSession(all, iso), 'application/json');
+  shell.setHint(
+    available
+      ? `A munkamenet mentve: ${name} (${Object.keys(all).filter((k) => k.startsWith('geocalc-web.')).length} munkalap).`
+      : 'A böngésző tárolója nem érhető el, ezért a munkamenet nem tartalmaz munkalapot.',
+  );
+}
+
+function sessionLoad(): void {
+  let existing = 0;
+  try {
+    existing = Object.keys(localStorage).filter((k) => k.startsWith('geocalc-web.')).length;
+  } catch {
+    /* a tároló hiánya nem akadály */
+  }
+  if (existing > 0 && !confirm('A munkamenet betöltése felülírja a jelenlegi munkalapok tartalmát. Folytatod?')) return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.gcs,.json,application/json';
+  input.addEventListener('change', async () => {
+    const f = input.files?.[0];
+    if (!f) return;
+    const parsed = parseSession(await readText(f));
+    if (!parsed.ok) {
+      shell.setHint(`A munkamenet betöltése nem sikerült: ${parsed.error}`);
+      alert(`A munkamenet betöltése nem sikerült.\n\n${parsed.error}`);
+      return;
+    }
+    try {
+      for (const [key, value] of parsed.entries) localStorage.setItem(key, value);
+    } catch {
+      shell.setHint('A böngésző tárolója nem érhető el, ezért a munkamenet nem tölthető be.');
+      return;
+    }
+    shell.setHint(`A munkamenet betöltve (${parsed.entries.length} munkalap) – az oldal újratöltődik.`);
+    location.reload();
+  });
+  input.click();
+}
+
 /* ---------- a burok: menüsor, ikonsáv, munkalapok, állapotsor ---------- */
 setCodeProvider(() => MODULES.map((m) => ({ id: m.code, name: m.name })));
 
@@ -283,6 +364,8 @@ const shell = initShell({
   save: () => download('munka.gcd', editor.value),
   print: () => window.print(),
   run: () => compute(),
+  'session-save': sessionSave,
+  'session-load': sessionLoad,
   'select-all': () => {
     editor.focus();
     editor.select();

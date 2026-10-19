@@ -625,5 +625,48 @@ function buildSections(r: HorizontalResult, s: HorizontalSettings, stations: Net
       footer: [`zk = ${formatDms(r.orientations.get(st.id)!)}`],
     });
   }
+
+  // Mérések kizárása jelölőnégyzettel (súgó 42. o., 7.14 „Kizárás a kiegyenlítésből”): a valódi
+  // program a mérési lista jelölőnégyzeteivel végzi, nem a sorra kattintással.
+  const exclusionRows: Row[] = [];
+  for (const o of r.observations) {
+    const dir = o.kind === 'direction';
+    const key = `${o.station}>${o.target}:${dir ? 'dir' : 'dist'}`;
+    const kindText = dir ? 'irány' : 'távolság';
+    const state = o.excluded ? (o.manual ? 'kizárva' : 'kihagyva') : 'kiegyenlítésben';
+    exclusionRows.push({
+      cells: [
+        state,
+        o.station,
+        o.target,
+        kindText,
+        dir ? formatDms(o.observed) : `${fix(o.observed, 3)} m`,
+        dir ? `${fix(o.residual, 0)}″` : `${fix(o.residual, 0)} mm`,
+        o.excluded && !o.manual ? 'durva hiba miatt a program hagyta ki' : '',
+      ],
+      role: o.excluded ? 'input' : 'base',
+      check: {
+        key,
+        checked: o.excluded,
+        label: `${o.station} → ${o.target} ${kindText}${o.excluded ? ' (kizárva)' : ''}`,
+        disabled: o.excluded && !o.manual,
+      },
+    });
+  }
+  const manualCount = r.observations.filter((o) => o.manual).length;
+  sections.push({
+    kind: 'net-exclusions',
+    title: 'Mérések kizárása a kiegyenlítésből',
+    columns: ['Kizárva', 'Álláspont', 'Irányzott pont', 'Fajta', 'Mért érték', 'Javítás', 'Megjegyzés'],
+    rows: exclusionRows,
+    footer: [
+      'A jelölőnégyzet bekapcsolásával a mérés kimarad a kiegyenlítésből, kikapcsolásával visszakerül (a javítások és a próbák azonnal újraszámolódnak).',
+      manualCount === 0 ? 'Jelenleg nincs kézzel kizárt mérés.' : `${manualCount} mérést zártál ki kézzel.`,
+      r.counts.excluded - manualCount > 0
+        ? `${r.counts.excluded - manualCount} mérést a durva hiba miatti automatikus szűrés hagyott ki (ezek jelölőnégyzete nem kapcsolható).`
+        : '',
+    ].filter((t) => t !== ''),
+  });
+
   return sections;
 }

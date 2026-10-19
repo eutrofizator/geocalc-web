@@ -33,8 +33,8 @@ telepítés nélkül, webfont és hálózat nélkül; `npm run build` készíti)
 | Adatrögzítő/Beállítások | **működik** (rögzítőtípus, távolságredukció, TVET.TXT, átlagok) |
 | Hálózatkiegyenlítés/Munkaterület | **működik** (vízszintes beillesztett és önálló, magassági, részletpontok, sokszögvonal-előzetes, mérési vázlat, hálózati dátum) |
 | Hálózatkiegyenlítés/Beállítások | **működik** (középhibák, súlyok, statisztikai próbák, hibahatár-előbeállítás, számítás élessége) |
-| Térbeli transzformáció/Paraméterek számítása | **működik** |
-| Térbeli transzformáció/Átszámítás | **működik** (megadott paraméterekkel, kimeneti formátumokkal) |
+| Térbeli transzformáció/Paraméterek számítása | **működik** (7 paraméteres illesztés, keresősugár, kétlépcsős módszer, **interpoláció**) |
+| Térbeli transzformáció/Átszámítás | **működik** (megadott paraméterekkel, **interpolációval**, kimeneti formátumokkal) |
 | Mérési adatok és koordináták | **működik** (állományok + beolvasott pontok) |
 | Adatcsere/Koordináta kezelő | **működik** (válogatás, mezők, feltétel, export) |
 | Adatcsere/Koordináta állomány készítése | **működik** (kézi jegyzék + GeoCalc-DB / .PYX / földrajzi kimenet) |
@@ -44,6 +44,21 @@ telepítés nélkül, webfont és hálózat nélkül; `npm run build` készíti)
 A menüsor, az ikonsáv és a munkalap-nevek a valódi program szerintiek; ahol a webes változat a súgó
 képére vagy nem közölt részletre támaszkodik, a munkalap **fenntartást** ír ki (lásd a
 „Megjegyzések” szakaszt).
+
+### Gyorsbillentyűk, munkamenet és táblázatkezelői kimenet
+
+- **Gyorsbillentyűk** – a menükben kiírt billentyűk működnek: `F5` vagy `Ctrl+Enter` (számítás
+  futtatása), `Ctrl+N` (új munkaterület), `Ctrl+O` (megnyitás), `Ctrl+S` (mentés `.gcd` állományba),
+  `Ctrl+P` (nyomtatás), `Ctrl+A` (minden kijelölése a szerkesztőben), `F10` (menüsor), `Esc` (menü).
+  A gépelést nem zavarják: a `Ctrl+A` csak a szerkesztőben és a menükben érvényesül.
+- **Munkamenet (`.gcs`)** – a Fájl menü „Munkamenet mentése…” parancsa a **teljes munkaterületet**
+  (minden munkalap beállítását és tartalmát) egyetlen, önmagát leíró JSON-fájlba gyűjti; a
+  „Munkamenet betöltése…” visszatölti és újratölti az oldalt. Így a munka hálózat és szerver nélkül
+  átvihető másik böngészőbe vagy gépre.
+- **Táblázatok (.csv)** – a számítási, hálózati, adatrögzítő és átszámítási munkalapok
+  „Táblázatok (.csv)” gombja a jegyzőkönyv összes táblázatát táblázatkezelőbe adja: **pontosvesszős**
+  elválasztás, **UTF-8 bájt-sorrendjel (BOM)** és idézőjeles mezők – így a magyar Excel is azonnal
+  helyesen nyitja.
 
 ### Adatleíró (súgó 44. o.)
 
@@ -122,6 +137,29 @@ A terepi adatrögzítők feldolgozásának beállításai és a mért adatok red
 > redukciót alkalmazza a súgóban megadott állandókkal; a **bájtos egyezés nem igazolt**. A jegyzőkönyv
 > ezt a megjegyzést mindig kiírja.
 
+### Térbeli transzformáció/Paraméterek számítása (súgó 65–69. o.)
+
+A közös pontokból illesztett **hét paraméteres hasonlósági transzformáció** (WGS 84 geocentrikus
+`X, Y, Z`, illetve EOV `Y, X, M`), a paraméterek középhibaival, a pontonkénti javításokkal, a
+**keresősugárral** (a közös pontok kiválasztása térbeli távolság alapján) és a **kétlépcsős
+módszerrel** (a közös pontok listájának bővítése egy kijelölt pont átszámítása után).
+
+- **Interpoláció** – bekapcsolva a súgó 65. oldala szerint a közös pontok javításaiból az
+  átszámítandó ponthoz **legközelebb eső három közös pont** pontra rögzített topocentrikus
+  rendszerében **komponensenként külön síkot** illeszt, és a sík értékét adja a pont transzformált
+  geocentrikus koordinátáihoz. A jegyzőkönyv pontonként kiírja az alkalmazott `vX, vY, vZ` javítást
+  és a felhasznált közös pontokat. A paraméterszámításnál az interpoláció bekapcsolása a kiválasztott
+  közös pontokat is átadja az átszámítás munkalapnak. Keresősugárral együtt nem alkalmazható (a
+  felület erről tájékoztat), és 3-nál kevesebb közeli pontnál a **súlypont** (nulla javítással)
+  fiktív pontként vesz részt az illesztésben; ha a pontok egy egyenesbe esnek, a javítások átlaga
+  kerül a korrekcióba.
+
+> **Fenntartás:** a súgó 68. oldali mintapéldáján az `A` pont javítása és interpolált koordinátája
+> **pontosan** adódik (`604155.242 213879.061 177.085`), a `B` pont közölt értéke viszont a
+> dokumentált eljárással nem reprodukálható (a webes változat `612902.435 212831.043 160.053`-t ad a
+> súgó `612902.442 212831.092 160.084` értéke helyett); a `tests/interpolate.test.ts` mindkettőt
+> rögzíti.
+
 ### Térbeli transzformáció/Átszámítás (súgó 63–64. o.)
 
 A kiszámított (vagy kézzel megadott) hét paraméterrel végzi a pontok átszámítását.
@@ -172,6 +210,14 @@ A 61/2009. (V. 14.) FVM rendelet szerinti mérési és számítási jegyzőköny
 > beállításaival) a valódi programot igényli; az `AKG_CELPRGSZOVEG` rendelet szerinti szövege nem
 > generálható, ezért kézzel adható meg.
 
+### Hálózatkiegyenlítés/Munkaterület (súgó 42. o.)
+
+A kiegyenlítés a **mérések kizárása** táblázatból vezérelhető: minden irány és távmérés egy-egy
+jelölőnégyzetes sor (`álláspont>célzott pont:dir`, illetve `:dist`), a durva hiba miatt kihagyott
+mérések bejelölve, de zárolva jelennek meg. A **„Minden mérés kizárása”** és **„Minden mérés
+visszavétele”** gombok a teljes listát állítják, a kiegyenlítés pedig azonnal újrafut. A számított
+eredmények (jegyzőkönyv, `Táblázatok (.csv)`, nyomtatás) a kizárásokat is tartalmazzák.
+
 ### Hálózatkiegyenlítés/Beállítások (súgó 62. o.)
 
 A középhibák, súlyok és statisztikai beállítások a Munkaterülettel **közösek**. Új elem a
@@ -188,8 +234,20 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 377 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 403 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
+```
+
+### Böngészős végpróba
+
+A kész, önálló fájl valódi böngészőben is végigmegy **212 ellenőrzésen** (menük, munkalapok,
+állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma, hibakezelés,
+gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome kell:
+
+```
+chrome.exe --headless=new --remote-debugging-port=9222 --user-data-dir=%TEMP%\geocalc-chrome about:blank
+npm run build
+npm run browser-check     # 1-es kilépési kód, ha bármelyik ellenőrzés elbukik
 ```
 
 ## Mit tud a számítómag
@@ -198,7 +256,7 @@ npm run build    # éles változat a dist/ mappába (önálló HTML)
   SV (nyitott, beillesztett, tájékozatlan és kétoldalt tájékozott), SM, KP, VP, EK, AF, HE.
 - **Hálózatkiegyenlítés** (GMJ jegyzőkönyvből): vízszintes hálózat (**beillesztett vagy önálló**;
   irány- és távmérés, előzetes koordináták, durva hibák kiszűrése, súlyozás, statisztikai próbák,
-  hibaellipszis, a mérések kézi kizárása a sorra kattintva), trigonometrikus magassági hálózat
+  hibaellipszis, a mérések kézi kizárása a jegyzőkönyv jelölőnégyzetével – súgó 42. o.), trigonometrikus magassági hálózat
   (beillesztett vagy önálló), részletpontok számítása, **sokszögvonal-előzetes** (nyitott, beillesztett
   és zárt poligon a hátra-/előreirányokból, szög- és vonalas záróhibával) és **hálózati dátum**
   (az önálló hálózat eltolása és forgatása). Új pont: a koordináta nélküli állomás vagy a megadott
@@ -209,6 +267,7 @@ npm run build    # éles változat a dist/ mappába (önálló HTML)
   pontokból számított 7 paraméteres hasonlósági transzformációval (a paraméterek középhibaival és a
   javításokkal), **keresősugárral** (a közös pontok kiválasztása térbeli távolság alapján), a
   **kétlépcsős módszerrel** (a közös pontok listájának bővítése egy kijelölt pont átszámítása után),
+  **interpolációval** (a legközelebbi három közös pont javításaiból illesztett sík a pontban),
   valamint **átszámítás megadott paraméterekkel** (kézi megadás vagy átvétel a paraméterszámításból,
   Leica SKI előjellel) Koordináta / Földrajzi / GeoCalc-DB kimenettel.
 - **Adatrögzítő**: a tíz rögzítőtípus beállítása, a **vetületi távolságredukció**
@@ -270,7 +329,8 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a Windows-hű burok: menüsor, ikonsáv, MDI-ablakkezelő, állapotsor, munkalap-regiszter |
-| `tests/` | 28 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 32 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |
 
 ## Megjegyzések
@@ -290,8 +350,11 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
   egyezik: új pontok ±1 cm, tájékozási szögek ±1″, javítások ±1″ / ±1 mm, `Stat.`, `f`, középhibák; a
   hibahatár-képletek tájékoztató (empirikus) értékek, a globális próba alsó határa a χ² eloszlásból
   adódik (a GeoCalc alsó határa eltér).
-- Nem támogatott: Gauss–Krüger, HDR, HÉR, HKR, sztereografikus, VNR rendszerek; interpoláció; a
-  hálózatkiegyenlítésben a mérési vázlat kizárása jelölőnégyzettel (helyette a sorra kattintás).
+- Nem támogatott: Gauss–Krüger, HDR, HÉR, HKR, sztereografikus, VNR rendszerek; a hálózati vázlat
+  GIS-forrásból (a webes változat a súgóban leírt kézi utat dolgozza fel).
+- **Interpoláció:** a súgó 68. oldali mintapéldájából az `A` pont javítása pontosan adódik, a `B`
+  pont közölt értéke azonban a dokumentált eljárással nem reprodukálható (lásd a „Térbeli
+  transzformáció/Paraméterek számítása” szakasz fenntartását).
 - A **hálózati beállítások** a Munkaterülettel közösek. A hibahatár-előbeállítások közül csak az
   **V. rendű** igazolt a súgó 62. oldali mintapéldájából (10″ / 5 mm), a többi érték becsült, és a
   felületen „– becsült” jelölést kap. A **számítás élessége** (cm / mm / tized mm) a jegyzőkönyvi

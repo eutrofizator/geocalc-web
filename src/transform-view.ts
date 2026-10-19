@@ -1,13 +1,14 @@
 import { CalcError } from './core/errors';
 import { appendLine, transformWithRadius, twoStepCommon } from './core/geo/radius';
 import { paramsToFields } from './core/geo/apply';
+import { interpolationSection, type InterpolationAnchor } from './core/geo/interpolate';
 import { parseCoordinateList, spatialTransform, type SpatialResult } from './core/geo/spatial';
 import { SYSTEMS, SYSTEM_IDS, type SystemId } from './core/geo/systems';
 import type { Row, Section } from './core/types';
 import { TRANSFORM_SAMPLE } from './transform-sample';
 import { downloadReport, onMeta, renderCover } from './report-view';
 import { setCommonAppender, setFittedParams } from './transform-store';
-import { $, download, el, renderSection, storage } from './ui';
+import { $, csvButton, download, el, renderSection, storage } from './ui';
 
 const STORAGE_KEY = 'geocalc-web.transform';
 const TR_TITLE = 'TÉRBELI TRANSZFORMÁCIÓ';
@@ -18,6 +19,7 @@ interface FormState {
   twoD: boolean;
   radiusOn?: boolean;
   radius?: number;
+  interpolate?: boolean;
   commonFrom: string;
   commonTo: string;
   points: string;
@@ -76,6 +78,7 @@ export function initTransformView(): void {
   const dim2 = $<HTMLInputElement>('tr-2d');
   const radiusOn = $<HTMLInputElement>('tr-radius-on');
   const radiusInput = $<HTMLInputElement>('tr-radius');
+  const interpolateOn = $<HTMLInputElement>('tr-interp');
   const twoStepId = $<HTMLInputElement>('tr-2step-id');
   const twoStepH = $<HTMLInputElement>('tr-2step-h');
   const commonFrom = $<HTMLTextAreaElement>('tr-common-from');
@@ -98,6 +101,7 @@ export function initTransformView(): void {
     twoD: dim2.checked,
     radiusOn: radiusOn.checked,
     radius: Number(radiusInput.value) || 0,
+    interpolate: interpolateOn.checked,
     commonFrom: commonFrom.value,
     commonTo: commonTo.value,
     points: points.value,
@@ -108,6 +112,7 @@ export function initTransformView(): void {
     dim2.checked = s.twoD;
     dim3.checked = !s.twoD;
     radiusOn.checked = s.radiusOn ?? false;
+    interpolateOn.checked = s.interpolate ?? false;
     if (s.radius) radiusInput.value = String(s.radius);
     commonFrom.value = s.commonFrom;
     commonTo.value = s.commonTo;
@@ -149,15 +154,24 @@ export function initTransformView(): void {
         commonFrom: parseCoordinateList(s.commonFrom, s.from, s.twoD),
         commonTo: parseCoordinateList(s.commonTo, s.to, s.twoD),
         points: parseCoordinateList(s.points, s.from, s.twoD),
+        interpolate: s.interpolate ?? false,
       };
       const radiusMode = s.radiusOn && request.points.length > 0;
+      if (radiusMode && s.interpolate) {
+        const row = el('div', 'issue info');
+        row.append(
+          el('span', 'tag', 'Info'),
+          el('span', undefined, 'Keresősugár mellett minden pont a saját környezetének közös pontjaiból számol, ezért az interpoláció itt nem kerül alkalmazásra.'),
+        );
+        issues.append(row);
+      }
       let sections: Section[];
       let converted: { id: string; input: string[]; output: string[] }[];
       let commonCount: number;
       let paramLines: string[];
 
       if (radiusMode) {
-        const rr = transformWithRadius(request, s.radius ?? 0);
+        const rr = transformWithRadius({ ...request, interpolate: false }, s.radius ?? 0);
         sections = rr.sections;
         converted = rr.points.map((p) => ({ id: p.id, input: p.input, output: p.output }));
         commonCount = request.commonFrom.length;
@@ -175,6 +189,8 @@ export function initTransformView(): void {
       } else {
         const result = spatialTransform(request);
         sections = buildSections(result, s.from, s.to, s.twoD);
+        const interp = interpolationSection(result.interpolations);
+        if (interp) sections.push(interp);
         converted = result.converted;
         commonCount = result.commonCount;
         paramLines = result.summary.labels.map(
@@ -187,6 +203,14 @@ export function initTransformView(): void {
           fields: paramsToFields(result.fit.params),
           commonCount: result.commonCount,
           sigma0: result.fit.sigma0,
+          anchors: result.residuals.map<InterpolationAnchor>((v) => ({
+            id: v.id,
+            xyz: SYSTEMS[s.to].toGeocentric(
+              parseCoordinateList(s.commonTo, s.to, s.twoD).find((p) => p.id === v.id)!.coords,
+              s.twoD,
+            ),
+            residual: [v.vX, v.vY, v.vZ],
+          })),
         });
       }
 
@@ -220,6 +244,7 @@ export function initTransformView(): void {
       j.type = 'button';
       j.addEventListener('click', () => downloadReport('transzformacio_jegyzokonyv.txt', TR_TITLE, sections));
       downloads.append(j);
+      downloads.append(csvButton('transzformacio_tablazatok', () => sections));
     } catch (e) {
       if (e instanceof CalcError) showError(e.message);
       else showError(`A számítás nem futott le: ${e instanceof Error ? e.message : String(e)}`);
@@ -231,7 +256,7 @@ export function initTransformView(): void {
   };
 
   for (const e of [commonFrom, commonTo, points, radiusInput]) e.addEventListener('input', schedule);
-  for (const e of [fromSel, toSel, dim2, dim3, radiusOn]) e.addEventListener('change', compute);
+  for (const e of [fromSel, toSel, dim2, dim3, radiusOn, interpolateOn]) e.addEventListener('change', compute);
 
   // Kétlépcsős módszer: a kijelölt pont átszámítása után a közös pontok listájára fűzés.
   $('tr-2step-add').addEventListener('click', () => {

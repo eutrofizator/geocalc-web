@@ -13,11 +13,24 @@ export interface Point {
 
 export type RowRole = 'base' | 'input' | 'result';
 
+/** Jelölőnégyzet egy táblázatsorban (a felületi műveletekhez, pl. mérés kizárása a kiegyenlítésből). */
+export interface RowCheck {
+  /** A művelet azonosítója (a nézet a `data-check` attribútumból olvassa ki). */
+  key: string;
+  checked: boolean;
+  /** Rövidített leírás (a négyzet címkéje és a képernyőolvasó szövege). */
+  label: string;
+  /** Kiszámított (nem kézzel beállítható) állapot. */
+  disabled?: boolean;
+}
+
 export interface Row {
   cells: string[];
   role?: RowRole;
   /** Azonosító a felületi műveletekhez (pl. mérés kizárása a kiegyenlítésből). */
   key?: string;
+  /** Jelölőnégyzet a sor első cellája helyén; a `cells[0]` szövege a szöveges jegyzőkönyvbe kerül. */
+  check?: RowCheck;
 }
 
 /** Egy számítás eredményének megjeleníthető része (táblázat). */

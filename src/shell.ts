@@ -85,7 +85,12 @@ export const SHEETS: Sheet[] = [
     desc:
       'A valódi GeoCalc 3.5 teljes súgója (4791 sor) a docs/sugo_geocalc35.txt állományban olvasható: ' +
       'rendszerkövetelmények, a 6 modul leírása, a 18 geodéziai számítás pontos kódolása és mintapéldái, ' +
-      'az adatrögzítő-formátumok, a hálózatkiegyenlítés és a térbeli transzformáció.',
+      'az adatrögzítő-formátumok, a hálózatkiegyenlítés és a térbeli transzformáció. ' +
+      'Gyorsbillentyűk: F5 vagy Ctrl+Enter – számítás futtatása; Ctrl+N – új munkaterület; Ctrl+O – megnyitás; ' +
+      'Ctrl+S – mentés .gcd állományba; Ctrl+P – nyomtatás; Ctrl+A – minden kijelölése; F10 – menüsor; Esc – menü bezárása. ' +
+      'A Fájl menü „Munkamenet mentése…”/„Munkamenet betöltése…” parancsa a teljes munkaterületet egyetlen .gcs ' +
+      'fájlba gyűjti (minden munkalap beállítása és tartalma), a „Táblázatok (.csv)” gombok pedig a jegyzőkönyv ' +
+      'táblázatait adják táblázatkezelőbe (pontosvesszős, UTF-8-as CSV).',
   },
 ];
 
@@ -145,6 +150,9 @@ export const MENUS: Menu[] = [
       { label: 'Megnyitás…', action: 'open', accel: 'Ctrl+O' },
       { label: 'Mentés .gcd állományba', action: 'save', accel: 'Ctrl+S' },
       { label: '', sep: true },
+      { label: 'Munkamenet mentése…', action: 'session-save' },
+      { label: 'Munkamenet betöltése…', action: 'session-load' },
+      { label: '', sep: true },
       { label: 'Adatbázis beolvasása…', action: 'db-open' },
       { label: 'Adatbázis mentése konvertálás után…', action: 'db-save' },
       { label: '', sep: true },
@@ -154,7 +162,7 @@ export const MENUS: Menu[] = [
   {
     label: 'Szerkesztés',
     items: [
-      { label: 'Minden kijelölése', action: 'select-all' },
+      { label: 'Minden kijelölése', action: 'select-all', accel: 'Ctrl+A' },
       { label: 'Kód beszúrása', codes: true },
     ],
   },

@@ -28,7 +28,7 @@ import {
 } from './core/recorder';
 import type { Section } from './core/types';
 import { downloadReport, onMeta, renderCover } from './report-view';
-import { $, download, el, readText, renderSection, storage } from './ui';
+import { $, csvButton, download, el, readText, renderSection, storage } from './ui';
 
 /**
  * Az Adatrögzítő/Beállítások munkalap (súgó 12–15. o.).
@@ -383,6 +383,7 @@ export function initRecorderView(): void {
       j.type = 'button';
       j.addEventListener('click', () => downloadReport('adatrogzito_jegyzokonyv.txt', RC_TITLE, sections));
       downloads.append(j);
+      downloads.append(csvButton('adatrogzito_tablazatok', () => sections));
     } catch (e) {
       if (e instanceof CalcError) showError(e.message);
       else showError(`A feldolgozás nem futott le: ${e instanceof Error ? e.message : String(e)}`);

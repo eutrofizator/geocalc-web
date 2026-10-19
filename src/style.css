@@ -793,13 +793,21 @@ tr.input td {
   color: var(--title-1);
 }
 
-tr[data-key] td:not(:first-child) {
-  cursor: pointer;
+/* Jelölőnégyzetes táblázat (pl. mérések kizárása a hálózatkiegyenlítésből, súgó 42. o.). */
+.table-wrap td.check-cell,
+.table-wrap th.check-col {
+  width: 1px;
+  padding-right: 4px;
+  text-align: center;
 }
 
-tr[data-key]:hover td:not(:first-child) {
-  text-decoration: line-through;
-  text-decoration-color: #a3231a;
+.table-wrap td.check-cell input[type='checkbox'] {
+  margin: 0;
+  vertical-align: middle;
+}
+
+.table-wrap td.check-cell input[type='checkbox']:disabled {
+  cursor: not-allowed;
 }
 
 .card .footer {

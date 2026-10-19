@@ -1,5 +1,6 @@
 import { geocentricToGeodetic, type Xyz } from './ellipsoid';
 import { applyHelmert, applyHelmertInverse, toArcsec, type Helmert3dParams } from './helmert3d';
+import { applyCorrection, interpolationAt, type Interpolation, type InterpolationAnchor } from './interpolate';
 import type { ConvertedPoint, NamedCoords } from './spatial';
 import { SYSTEMS, type SystemId } from './systems';
 
@@ -59,6 +60,11 @@ export interface ApplyRequest {
   twoD: boolean;
   params: Helmert3dParams;
   points: NamedCoords[];
+  /**
+   * Interpoláció: a közös pontok helye és javítása (a paraméterszámítás munkalapról átvéve).
+   * Ha meg van adva, a pontok javítása a súgó 65. oldala szerint interpolálódik.
+   */
+  anchors?: InterpolationAnchor[];
 }
 
 export interface ApplyResult {
@@ -68,6 +74,8 @@ export interface ApplyResult {
   geocentric: Xyz[];
   /** A transzformált pontok földrajzi koordinátái a cél rendszer ellipszoidján: φ, λ [fok], h [m]. */
   geographic: [number, number, number][];
+  /** Az interpoláció eredménye pontonként (csak ha voltak közös pontok). */
+  interpolations: Interpolation[];
 }
 
 const DEG = Math.PI / 180;
@@ -80,8 +88,17 @@ export function applyTransform(req: ApplyRequest): ApplyResult {
   const convertedValues: NamedCoords[] = [];
   const geocentric: Xyz[] = [];
   const geographic: [number, number, number][] = [];
+  const interpolations: Interpolation[] = [];
   for (const p of req.points) {
-    const x = applyHelmert(req.params, src.toGeocentric(p.coords, req.twoD));
+    const base = applyHelmert(req.params, src.toGeocentric(p.coords, req.twoD));
+    let x = base;
+    if (req.anchors && req.anchors.length > 0) {
+      const it = interpolationAt(p.id, base, dst.ellipsoid, req.anchors);
+      if (it) {
+        interpolations.push(it);
+        x = applyCorrection(base, it.v);
+      }
+    }
     const out = dst.fromGeocentric(x, req.twoD);
     const g = geocentricToGeodetic(dst.ellipsoid, x);
     converted.push({ id: p.id, input: src.format(p.coords), output: dst.format(out) });
@@ -89,7 +106,7 @@ export function applyTransform(req: ApplyRequest): ApplyResult {
     geocentric.push(x);
     geographic.push([g.phi / DEG, g.lam / DEG, req.twoD ? 0 : g.h]);
   }
-  return { converted, convertedValues, geocentric, geographic };
+  return { converted, convertedValues, geocentric, geographic, interpolations };
 }
 
 /** A paraméterek ellenőrzése (a kézi megadáshoz): az eltolás és a forgatás véges, a méretarány a valósághoz közeli. */

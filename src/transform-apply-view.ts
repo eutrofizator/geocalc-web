@@ -9,12 +9,13 @@ import {
   type ParamFields,
 } from './core/geo/apply';
 import { toPyx2 } from './core/export';
+import { interpolationSection, type InterpolationAnchor } from './core/geo/interpolate';
 import { parseCoordinateList } from './core/geo/spatial';
 import { SYSTEMS, SYSTEM_IDS, type SystemId } from './core/geo/systems';
 import type { Point, Row, Section } from './core/types';
 import { downloadReport, onMeta, renderCover } from './report-view';
 import { appendCommonPoint, getFittedParams } from './transform-store';
-import { $, download, el, renderSection, storage } from './ui';
+import { $, csvButton, download, el, renderSection, storage } from './ui';
 
 /**
  * A Térbeli transzformáció/Átszámítás munkalap (súgó 63–64. o.).
@@ -35,6 +36,8 @@ interface FormState {
   twoD: boolean;
   fields: ParamFields;
   ski: boolean;
+  /** Interpoláció a közös pontok javításaiból (a paraméterszámítás munkalapjáról átvéve). */
+  interpolate?: boolean;
   points: string;
   saveKind: SaveKind;
 }
@@ -60,6 +63,7 @@ export function initTransformApplyView(): void {
   const dim3 = $<HTMLInputElement>('ta-3d');
   const dim2 = $<HTMLInputElement>('ta-2d');
   const ski = $<HTMLInputElement>('ta-ski');
+  const interpolateOn = $<HTMLInputElement>('ta-interp');
   const points = $<HTMLTextAreaElement>('ta-points');
   const saveKind = $<HTMLSelectElement>('ta-save-kind');
   const stepId = $<HTMLInputElement>('ta-2step-id');
@@ -105,6 +109,7 @@ export function initTransformApplyView(): void {
     twoD: dim2.checked,
     fields: readFields(),
     ski: ski.checked,
+    interpolate: interpolateOn.checked,
     points: points.value,
     saveKind: saveKind.value as SaveKind,
   });
@@ -115,9 +120,22 @@ export function initTransformApplyView(): void {
     dim2.checked = s.twoD;
     dim3.checked = !s.twoD;
     ski.checked = s.ski;
+    interpolateOn.checked = s.interpolate ?? false;
     writeFields(s.fields);
     points.value = s.points;
     saveKind.value = s.saveKind;
+  };
+
+  /** Az interpolációhoz használható közös pontok (ha a paramétereket átvettük). */
+  const interpolationAnchors = (s: FormState): { ok: true; anchors: InterpolationAnchor[] } | { ok: false; reason: string } => {
+    const fitted = getFittedParams();
+    if (!fitted || !fitted.anchors || fitted.anchors.length === 0) {
+      return { ok: false, reason: 'Nincs átvehető közös pont: az interpolációhoz a „Paraméterek átvétele” gombbal kell behozni a paraméterszámítás munkalapjának közös pontjait.' };
+    }
+    if (fitted.from !== s.from || fitted.to !== s.to || fitted.twoD !== s.twoD) {
+      return { ok: false, reason: `Az átvett közös pontok más rendszerekhez tartoznak (${fitted.from} → ${fitted.to}, ${fitted.twoD ? '2D' : '3D'}), mint a jelenlegi beállítás.` };
+    }
+    return { ok: true, anchors: fitted.anchors };
   };
 
   const updateHints = () => {
@@ -214,11 +232,24 @@ export function initTransformApplyView(): void {
     }
     try {
       const list = parseCoordinateList(s.points, s.from, s.twoD);
-      const r = applyTransform({ from: s.from, to: s.to, twoD: s.twoD, params: fieldsToParams(f), points: list });
+      let anchors: InterpolationAnchor[] | undefined;
+      if (s.interpolate) {
+        const a = interpolationAnchors(s);
+        if (!a.ok) {
+          showError(a.reason);
+          return;
+        }
+        anchors = a.anchors;
+      }
+      const r = applyTransform({ from: s.from, to: s.to, twoD: s.twoD, params: fieldsToParams(f), points: list, anchors });
       const sections = buildSections(s, f, r.converted, r.geographic);
+      const interp = interpolationSection(r.interpolations);
+      if (interp) sections.push(interp);
       for (const section of sections) results.append(renderSection(section));
       results.prepend(renderCover(TA_TITLE));
-      status.textContent = `Kiszámítva ${new Date().toLocaleTimeString('hu-HU')} · ${r.converted.length} átszámított pont`;
+      status.textContent = `Kiszámítva ${new Date().toLocaleTimeString('hu-HU')} · ${r.converted.length} átszámított pont${
+        r.interpolations.length > 0 ? ' · interpolációval' : ''
+      }`;
 
       const values = r.convertedValues.map((c) => c.coords);
       const out = formatOutput(s, r.converted, values, r.geographic);
@@ -230,6 +261,7 @@ export function initTransformApplyView(): void {
       j.type = 'button';
       j.addEventListener('click', () => downloadReport('atszamitas_jegyzokonyv.txt', TA_TITLE, sections));
       downloads.append(j);
+      downloads.append(csvButton('atszamitas_tablazatok', () => sections));
     } catch (e) {
       if (e instanceof CalcError) showError(e.message);
       else showError(`Az átszámítás nem futott le: ${e instanceof Error ? e.message : String(e)}`);
@@ -242,7 +274,7 @@ export function initTransformApplyView(): void {
   };
 
   points.addEventListener('input', schedule);
-  for (const e of [saveKind, ski, dim2, dim3, ...Object.values(fields)]) e.addEventListener('change', compute);
+  for (const e of [saveKind, ski, dim2, dim3, interpolateOn, ...Object.values(fields)]) e.addEventListener('change', compute);
   for (const e of Object.values(fields)) e.addEventListener('input', schedule);
 
   // A paraméterszámításból átvett paraméterek.

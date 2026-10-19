@@ -653,12 +653,15 @@
                     </p>
                     <p class="hint" id="net-excl-count"></p>
                     <div class="btnrow">
+                      <button id="net-excl-all" type="button" class="small" title="Minden irány- és távolságmérés kizárása a kiegyenlítésből">Minden mérés kizárása</button>
+                      <button id="net-excl-none" type="button" class="small" title="Minden kézzel kizárt mérés visszavétele">Minden mérés visszavétele</button>
                       <button id="net-clear-excl" type="button" class="small">Kézi kizárások törlése</button>
                       <button id="net-open-settings" type="button" class="small">Beállítások…</button>
                     </div>
                     <p class="hint">
                       A kiegyenlítés középhibái, súlyai, a hibahatár, a valószínűségi szint és a számítás élessége a
-                      „Hálózatkiegyenlítés/Beállítások” munkalapon adhatók meg.
+                      „Hálózatkiegyenlítés/Beállítások” munkalapon adhatók meg. A mérések kizárása a Jegyzőkönyv
+                      „Mérések kizárása a kiegyenlítésből” táblázatának jelölőnégyzeteivel történik.
                     </p>
                   </details>
                 </div>
@@ -865,6 +868,20 @@
                       A keresősugár általában 5–8 km. A kétlépcsős módszerrel egy (pl. GPS-ből ismert, szintezett
                       magasságú) pontot előbb átszámítunk, majd a közös pontok listájára fűzünk, hogy a további
                       transzformációkban már ismert pontként szerepeljen.
+                    </p>
+                  </fieldset>
+                  <fieldset class="dims column">
+                    <legend>Interpoláció</legend>
+                    <label class="check">
+                      <input id="tr-interp" type="checkbox" />
+                      <span>
+                        A közös pontok javításaiból interpolált korrekció az átszámítandó pontokra
+                      </span>
+                    </label>
+                    <p class="hint">
+                      A súgó (65. o.) szerint az átszámítandó ponthoz legközelebb eső 3 közös pont javításaiból a
+                      pontra rögzített topocentrikus rendszerben síkot illesztünk, és a pontra annak értékét adjuk a
+                      transzformált geocentrikus koordinátákhoz. Vetület nélküli rendszerben ez tiszta eltolást jelent.
                     </p>
                   </fieldset>
                   <label>
@@ -1084,10 +1101,12 @@
                       <label>&nbsp;<button id="ta-null" type="button" class="wide">Paraméterek nullázása</button></label>
                     </div>
                     <label class="check"><input id="ta-ski" type="checkbox" /><span>A forgatási szögek Leica SKI előjellel értendők (fordított előjel)</span></label>
+                    <label class="check"><input id="ta-interp" type="checkbox" /><span>Interpoláció a közös pontok javításaiból (a paraméterszámítás munkalapról átvéve)</span></label>
                     <p class="hint">
                       A paraméterek pozíció-vektor értelmezésűek: X′ = T + (1 + s)·(X + R × X). A súgó 63. oldala
                       szerint a Leica SKI programmal számított forgatási szögek az X, Y és Z tengelynél ellentétes
-                      előjelűek, az eltolás és a méretarány (mm/km) azonos.
+                      előjelűek, az eltolás és a méretarány (mm/km) azonos. Az interpolációhoz (súgó 65. o.) a
+                      „Paraméterek átvétele” gombbal kell behozni a közös pontok javításait is.
                     </p>
                   </details>
                   <label>

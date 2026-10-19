@@ -2,6 +2,7 @@ import { CalcError } from '../errors';
 import { splitFields } from '../parser';
 import { geocentricToGeodetic, type Xyz } from './ellipsoid';
 import { applyHelmert, applyHelmertInverse, fitHelmert, toArcsec, type Helmert3dFit, type Helmert3dParams } from './helmert3d';
+import { interpolationAt, applyCorrection, type Interpolation, type InterpolationAnchor } from './interpolate';
 import { SYSTEMS, type SystemId } from './systems';
 
 export interface NamedCoords {
@@ -45,6 +46,8 @@ export interface SpatialRequest {
   commonFrom: NamedCoords[];
   commonTo: NamedCoords[];
   points: NamedCoords[];
+  /** Interpoláció: az átszámítandó pontok javítása a közös pontok javításaiból (súgó 65. o.). */
+  interpolate?: boolean;
 }
 
 export interface ResidualRow {
@@ -81,6 +84,10 @@ export interface SpatialResult {
   converted: ConvertedPoint[];
   /** Az átszámított pontok számszerű eredménye (a letöltéshez). */
   convertedValues: NamedCoords[];
+  /** Az interpoláció eredménye pontonként (csak ha kértük). */
+  interpolations: Interpolation[];
+  /** Az átszámított pontok geocentrikus koordinátái (a cél rendszer ellipszoidján). */
+  geocentric: Xyz[];
 }
 
 /**
@@ -121,10 +128,24 @@ export function spatialTransform(req: SpatialRequest): SpatialResult {
 
   const converted: ConvertedPoint[] = [];
   const convertedValues: NamedCoords[] = [];
+  const interpolations: Interpolation[] = [];
+  const geocentric: Xyz[] = [];
+  // Az interpolációhoz a közös pontok cél rendszerbeli helye és javítása kell (súgó 65. o.).
+  const anchors: InterpolationAnchor[] = pairs.map((p, i) => ({ id: p.id, xyz: dstXyz[i]!, residual: fit.residuals[i]! }));
   for (const p of req.points) {
-    const out = dst.fromGeocentric(applyHelmert(fit.params, src.toGeocentric(p.coords, req.twoD)), req.twoD);
+    const base = applyHelmert(fit.params, src.toGeocentric(p.coords, req.twoD));
+    let x = base;
+    if (req.interpolate) {
+      const it = interpolationAt(p.id, base, dst.ellipsoid, anchors);
+      if (it) {
+        interpolations.push(it);
+        x = applyCorrection(base, it.v);
+      }
+    }
+    const out = dst.fromGeocentric(x, req.twoD);
     converted.push({ id: p.id, input: src.format(p.coords), output: dst.format(out) });
     convertedValues.push({ id: p.id, coords: out });
+    geocentric.push(x);
   }
 
   const { t, r, s } = fit.params;
@@ -142,6 +163,8 @@ export function spatialTransform(req: SpatialRequest): SpatialResult {
     residuals,
     converted,
     convertedValues,
+    interpolations,
+    geocentric,
   };
 }
 

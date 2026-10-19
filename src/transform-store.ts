@@ -1,4 +1,5 @@
 import type { ParamFields } from './core/geo/apply';
+import type { InterpolationAnchor } from './core/geo/interpolate';
 import type { SystemId } from './core/geo/systems';
 
 /**
@@ -17,6 +18,8 @@ export interface FittedParams {
   commonCount: number;
   /** Az illesztés középhibája [m]. */
   sigma0: number;
+  /** A közös pontok helye (a cél rendszerben) és javítása az interpolációhoz. */
+  anchors?: InterpolationAnchor[];
 }
 
 let last: FittedParams | null = null;
