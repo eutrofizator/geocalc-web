@@ -1,5 +1,9 @@
 # GEOkalkulus 1.0
 
+[![GitHub Pages](https://github.com/eutrofizator/geocalc-web/actions/workflows/pages.yml/badge.svg)](https://github.com/eutrofizator/geocalc-web/actions/workflows/pages.yml)
+
+**Élő változat (telepítés nélkül):** <https://eutrofizator.github.io/geocalc-web/>
+
 A **GEOkalkulus 1.0** a valódi GeoCalc 3.5 földmérési program webes változata. A cél nem egy „modern
 újraírás”, hanem az eredeti program **küllemének és működésének** követése: a felület egy klasszikus
 Windows/Delphi alkalmazás (menüsor, ikonsáv, MDI munkalap-ablakok, állapotsor), a bemenet és a
@@ -10,8 +14,12 @@ számítások nem keveredhetnek össze, és újraindítás sem kell.
 
 ## Használat
 
+**Böngészőben:** <https://eutrofizator.github.io/geocalc-web/> – a GitHub Pages a `main` ág minden
+változásánál újraépíti és közzéteszi az oldalt (lásd a „Közzététel” szakaszt).
+
 **Duplakattintással:** nyisd meg a `dist/GEOkalkulus-1.0.html` fájlt (egyetlen önálló fájl, szerver és
-telepítés nélkül, webfont és hálózat nélkül; `npm run build` készíti).
+telepítés nélkül, webfont és hálózat nélkül; `npm run build` készíti). Ugyanez a fájl a közzétett
+oldalról is letölthető: <https://eutrofizator.github.io/geocalc-web/GEOkalkulus-1.0.html>.
 
 ## Felület (a valódi program szerkezete)
 
@@ -250,6 +258,23 @@ npm run build
 npm run browser-check     # 1-es kilépési kód, ha bármelyik ellenőrzés elbukik
 ```
 
+A közzétett oldal ugyanezzel a próbával ellenőrizhető (a helyi fájl helyett a megadott címet tölti be):
+
+```
+GEOKALKULUS_URL=https://eutrofizator.github.io/geocalc-web/ npm run browser-check
+```
+
+## Közzététel (GitHub Pages)
+
+A `.github/workflows/pages.yml` minden `main` ágra került változtatásnál (és kézi indításra is)
+lefuttatja a típusellenőrzést és a teszteket, újraépíti az önálló HTML-t, majd közzéteszi:
+
+- <https://eutrofizator.github.io/geocalc-web/> – a program (`index.html`),
+- <https://eutrofizator.github.io/geocalc-web/GEOkalkulus-1.0.html> – ugyanaz a fájl letöltésre.
+
+A workflow a közzététel előtt ellenőrzi, hogy a fájl **nem tartalmaz külső hivatkozást**, ezért a
+közzétett oldal hálózat és webfont nélkül is működik; a `_site` könyvtárba a `.nojekyll` is bekerül.
+
 ## Mit tud a számítómag
 
 - **Geodéziai számítások** (a valódi `.gcd` bemenettel): IT, PO, EM, EB, ET, KM, DK, TE, TO, ZK, TJ,
@@ -331,6 +356,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/shell.ts` | a Windows-hű burok: menüsor, ikonsáv, MDI-ablakkezelő, állapotsor, munkalap-regiszter |
 | `tests/` | 32 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
+| `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |
 
 ## Megjegyzések

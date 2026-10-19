@@ -13,8 +13,9 @@
  *
  * Ha bármelyik ellenőrzés elbukik, a program 1-es kilépési kóddal áll le.
  * Környezeti változók: `CDP_PORT` (alapértelmezés 9222), `GEOKALKULUS_HTML`
- * (alapértelmezés `dist/GEOkalkulus-1.0.html`). A letöltések a rendszer ideiglenes mappájába
- * (`geocalc-web-browser-check`) kerülnek.
+ * (alapértelmezés `dist/GEOkalkulus-1.0.html`), `GEOKALKULUS_URL` (ha meg van adva, a próba ezt a
+ * címet tölti be a helyi fájl helyett – pl. a közzétett GitHub Pages oldalt). A letöltések a
+ * rendszer ideiglenes mappájába (`geocalc-web-browser-check`) kerülnek.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,11 +25,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.CDP_PORT ?? 9222);
 const HTML = resolve(process.env.GEOKALKULUS_HTML ?? join(ROOT, 'dist', 'GEOkalkulus-1.0.html'));
-if (!existsSync(HTML)) {
+const REMOTE = process.env.GEOKALKULUS_URL?.trim();
+if (!REMOTE && !existsSync(HTML)) {
   console.error(`Nincs meg a próbálandó fájl: ${HTML}\nElőbb futtasd: npm run build`);
   process.exit(1);
 }
-const URL_TO_LOAD = pathToFileURL(HTML).href;
+const URL_TO_LOAD = REMOTE || pathToFileURL(HTML).href;
 const DL = join(tmpdir(), 'geocalc-web-browser-check');
 
 // az ikonsáv gombjainak sorrendje (a 15 parancsikon)
