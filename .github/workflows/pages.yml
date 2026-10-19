@@ -1,0 +1,72 @@
+name: GitHub Pages (GEOkalkulus 1.0)
+
+# A kész, önálló egyfájlos alkalmazást teszi közzé minden main ágra került változtatásnál:
+#   https://eutrofizator.github.io/geocalc-web/
+# A közzétételi csomag a CI-ben újraépített, bájt-ellenőrzött GEOkalkulus-1.0.html.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Építés és csomagolás
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Függőségek
+        run: npm ci
+
+      - name: Típusellenőrzés és teszt
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Éles build (önálló HTML)
+        run: npm run build
+
+      - name: A közzétételi könyvtár összeállítása
+        run: |
+          mkdir -p _site
+          cp dist/GEOkalkulus-1.0.html _site/index.html
+          cp dist/GEOkalkulus-1.0.html _site/GEOkalkulus-1.0.html
+          test ! -e _site/.nojekyll && touch _site/.nojekyll || true
+          ls -l _site
+          echo "A közzétett fájl bájtjai: $(stat -c%s _site/index.html)"
+          if grep -qE '(src|href)="https?:' _site/index.html; then
+            echo "HIBA: a közzétett fájl külső hivatkozást tartalmaz."; exit 1
+          fi
+          echo "Nincs külső hivatkozás: az oldal hálózat nélkül is működik."
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Közzététel
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
