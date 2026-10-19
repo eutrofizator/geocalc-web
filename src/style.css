@@ -1,0 +1,1689 @@
+/* GEOkalkulus 1.0 – Windows-hű (Win32/Delphi) megjelenés.
+   A méretezés 11 px-es Tahoma köré épül, a 3D-s keretek kiemelés/besüllyesztés párokból állnak. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --face: #d4d0c8; /* a klasszikus gomb- és ablakszín */
+  --face-hi: #ffffff; /* 3D-s keret világos éle */
+  --face-sh: #808080; /* 3D-s keret sötét éle */
+  --face-sh2: #404040;
+  --field: #ffffff;
+  --text: #000000;
+  --text-dim: #4a4a4a;
+  --disabled: #808080;
+  --select: #000080;
+  --select-text: #ffffff;
+  --title-1: #0a246a;
+  --title-2: #3a6ea5;
+  --title-3: #6f9fd0;
+  --accent: #0a246a;
+  --mdi-bg: #808080;
+  --font: Tahoma, "Segoe UI", Verdana, sans-serif;
+  --mono: "Consolas", "Lucida Console", "Courier New", monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--mdi-bg);
+  color: var(--text);
+  font: 11px/1.45 var(--font);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.icon,
+.tb-icon,
+.mdiwin-icon,
+.titlebar-icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* ---------------- ablak és címsor ---------------- */
+
+.window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--face);
+  border: 1px solid;
+  border-color: var(--face-hi) var(--face-sh2) var(--face-sh2) var(--face-hi);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 3px 3px 6px;
+  background: linear-gradient(90deg, var(--title-1), var(--title-2) 72%, var(--title-3));
+  color: #fff;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.titlebar-icon {
+  color: #dbe7f5;
+}
+
+.titlebar-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titlebar-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.wbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 17px;
+  background: var(--face);
+  color: #000;
+  border: 1px solid;
+  border-color: var(--face-hi) var(--face-sh2) var(--face-sh2) var(--face-hi);
+  font-size: 10px;
+}
+
+.wbtn.close {
+  background: #d94f3d;
+  border-color: #f0a79c #7a2318 #7a2318 #f0a79c;
+  color: #fff;
+}
+
+/* ---------------- menüsor ---------------- */
+
+.menubar {
+  display: flex;
+  align-items: stretch;
+  background: var(--face);
+  border-bottom: 1px solid var(--face-sh);
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 40;
+}
+
+.menu-btn {
+  position: relative;
+  padding: 3px 9px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 0;
+  font: inherit;
+  color: var(--text);
+  cursor: default;
+  box-shadow: none;
+}
+
+.menu-btn:hover,
+.menu-btn:focus-visible {
+  border-color: var(--face-hi) var(--face-sh) var(--face-sh) var(--face-hi);
+  background: var(--face);
+}
+
+.menu-btn.open {
+  background: var(--select);
+  color: var(--select-text);
+  border-color: var(--select);
+}
+
+.menu-drop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 240px;
+  padding: 2px;
+  background: var(--face);
+  border: 1px solid;
+  border-color: var(--face-hi) var(--face-sh2) var(--face-sh2) var(--face-hi);
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.35);
+  z-index: 60;
+  text-align: left;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 8px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+
+.menu-item:hover:not(.disabled),
+.menu-item:focus-visible {
+  background: var(--select);
+  color: var(--select-text);
+}
+
+.menu-item.disabled {
+  color: var(--disabled);
+}
+
+.menu-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.menu-accel,
+.menu-arrow {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.menu-check {
+  width: 12px;
+  flex: 0 0 12px;
+}
+
+.menu-sep {
+  height: 0;
+  margin: 3px 2px;
+  border-top: 1px solid var(--face-sh);
+  border-bottom: 1px solid var(--face-hi);
+}
+
+.menu-sub {
+  top: -3px;
+  left: 100%;
+  display: none;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.menu-sub.visible {
+  display: block;
+}
+
+/* ---------------- ikonsáv ---------------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 4px;
+  background: var(--face);
+  border-bottom: 1px solid var(--face-sh);
+  flex: 0 0 auto;
+  overflow-x: auto;
+}
+
+.tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 25px;
+  padding: 0;
+  background: var(--face);
+  color: #2b2b2b;
+  border: 1px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: default;
+}
+
+.tb-btn:hover {
+  border-color: var(--face-hi) var(--face-sh) var(--face-sh) var(--face-hi);
+  background: var(--face);
+}
+
+.tb-btn:active {
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+}
+
+.tb-sep {
+  width: 0;
+  height: 20px;
+  margin: 0 4px;
+  border-left: 1px solid var(--face-sh);
+  border-right: 1px solid var(--face-hi);
+}
+
+/* ---------------- MDI munkaterület ---------------- */
+
+.client {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mdi-bg);
+}
+
+.mdiwin {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--face);
+  border: 2px solid;
+  border-color: var(--face-hi) var(--face-sh2) var(--face-sh2) var(--face-hi);
+  box-shadow: 3px 3px 8px rgba(0, 0, 0, 0.4);
+}
+
+.mdiwin.maximized {
+  box-shadow: none;
+}
+
+.mdiwin-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 3px 2px 5px;
+  background: linear-gradient(90deg, #7f7f7f, #b8b8b8 72%, #d0d0d0);
+  color: #1a1a1a;
+  font-weight: 700;
+  flex: 0 0 auto;
+  user-select: none;
+  touch-action: none;
+}
+
+.mdiwin.active > .mdiwin-title {
+  background: linear-gradient(90deg, var(--title-1), var(--title-2) 72%, var(--title-3));
+  color: #fff;
+}
+
+.mdiwin-caption {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mdiwin-buttons {
+  display: flex;
+  gap: 2px;
+}
+
+.mdiwin-buttons button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 15px;
+  padding: 0;
+  background: var(--face);
+  color: #000;
+  border: 1px solid;
+  border-color: var(--face-hi) var(--face-sh2) var(--face-sh2) var(--face-hi);
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 9px;
+  line-height: 1;
+  cursor: default;
+}
+
+.mdiwin-buttons button:hover {
+  background: #e6e3dc;
+}
+
+.mdiwin-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ---------------- elrendezés a munkalapokon ---------------- */
+
+.split {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sidepanel {
+  flex: 0 0 236px;
+  width: 236px;
+  overflow: auto;
+  padding: 6px;
+  background: var(--face);
+  border-right: 1px solid var(--face-sh);
+}
+
+.panel-head {
+  margin: 4px 0 3px;
+  padding: 2px 4px;
+  background: linear-gradient(90deg, var(--title-1), var(--title-2));
+  color: #fff;
+  font-weight: 700;
+}
+
+.panes {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane {
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--face);
+}
+
+.editor-pane,
+.transform-form,
+.network-form {
+  border-right: 1px solid var(--face-sh);
+}
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 6px;
+  background: var(--face);
+  border-bottom: 1px solid var(--face-sh);
+  flex: 0 0 auto;
+}
+
+.pane-head h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pane-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* ---------------- gombok ---------------- */
+
+button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  background: var(--face);
+  color: var(--text);
+  border: 1px solid;
+  border-color: var(--face-hi) var(--face-sh2) var(--face-sh2) var(--face-hi);
+  border-radius: 0;
+  font: inherit;
+  cursor: default;
+}
+
+button:hover:not(:disabled) {
+  background: #e6e3dc;
+}
+
+button:active:not(:disabled) {
+  border-color: var(--face-sh2) var(--face-hi) var(--face-hi) var(--face-sh2);
+  padding: 4px 8px 2px 10px;
+}
+
+button:disabled {
+  color: var(--disabled);
+  text-shadow: 1px 1px 0 var(--face-hi);
+}
+
+button.primary {
+  font-weight: 700;
+  border-color: var(--face-hi) var(--face-sh2) var(--face-sh2) var(--face-hi);
+  background: var(--face);
+}
+
+button.small {
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
+button.wide {
+  width: 100%;
+  justify-content: center;
+}
+
+:focus-visible {
+  outline: 1px dotted #000;
+  outline-offset: -4px;
+}
+
+/* ---------------- kódlista, állományok ---------------- */
+
+.hint {
+  margin: 4px 0 6px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.hint code {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.cols {
+  display: block;
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.files {
+  list-style: none;
+  margin: 3px 0;
+  padding: 0;
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  background: var(--field);
+  min-height: 26px;
+  max-height: 172px;
+  overflow: auto;
+}
+
+.files li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 6px;
+}
+
+.files li.empty {
+  color: var(--text-dim);
+  padding: 5px 6px;
+}
+
+.files .remove {
+  padding: 0 5px;
+  font-size: 10px;
+}
+
+.modules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.modules li {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.modules .insert {
+  flex: 1;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 2px 5px;
+  border-color: transparent;
+  background: none;
+}
+
+.modules .insert:hover:not(:disabled) {
+  border-color: var(--face-hi) var(--face-sh) var(--face-sh) var(--face-hi);
+  background: var(--face);
+}
+
+.modules .chip {
+  display: inline-block;
+  min-width: 26px;
+  padding: 0 3px;
+  background: var(--select);
+  color: var(--select-text);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: center;
+}
+
+.modules li.planned .chip {
+  background: var(--face-sh);
+}
+
+.modules li.planned .insert {
+  color: var(--disabled);
+}
+
+.modules .example {
+  padding: 0 5px;
+  font-size: 10px;
+}
+
+.modules .soon-tag {
+  align-self: center;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+/* ---------------- szerkesztő ---------------- */
+
+#editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  padding: 5px 7px;
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  background: var(--field);
+  color: var(--text);
+  font: 12px/1.5 var(--mono);
+  tab-size: 4;
+  resize: none;
+  white-space: pre;
+  overflow: auto;
+}
+
+#editor::placeholder {
+  color: #9a9a9a;
+}
+
+.commandbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  background: var(--face);
+  border-bottom: 1px solid var(--face-sh);
+  flex: 0 0 auto;
+}
+
+.commandbar .auto {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+
+/* ---------------- állapot, hibák ---------------- */
+
+.status {
+  padding: 4px 7px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--face-sh);
+  background: var(--face);
+  flex: 0 0 auto;
+}
+
+.status:not(:empty) {
+  background: #eef3fb;
+}
+
+.status.has-error {
+  background: #fdeceb;
+  color: #8a1f13;
+}
+
+.issues:empty {
+  display: none;
+}
+
+.issues {
+  flex: 0 0 auto;
+  max-height: 132px;
+  overflow: auto;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--face-sh);
+}
+
+.issue {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.issue .tag {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  color: #fff;
+  font-size: 10px;
+}
+
+.issue.error .tag {
+  background: #a3231a;
+}
+
+.issue.warning .tag {
+  background: #8a6100;
+}
+
+.issue.info .tag {
+  background: #234a7a;
+}
+
+.issue .goto {
+  padding: 0 5px;
+  font-size: 10px;
+}
+
+/* ---------------- eredmény: jegyzőkönyv ---------------- */
+
+.results {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+  background: #9c9c9c;
+}
+
+.card {
+  margin: 0 0 8px;
+  background: var(--field);
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+}
+
+.card h3 {
+  margin: 0;
+  padding: 3px 7px;
+  background: linear-gradient(90deg, #d8d4cd, var(--face));
+  border-bottom: 1px solid var(--face-sh);
+  color: var(--title-1);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.card.title-only h3 {
+  border-bottom: 0;
+}
+
+.table-wrap {
+  overflow: auto;
+  max-height: 46vh;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  padding: 2px 8px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid #e2ded7;
+}
+
+th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--face);
+  border-bottom: 1px solid var(--face-sh);
+  font-weight: 700;
+  text-align: right;
+}
+
+td:first-child,
+th:first-child {
+  text-align: left;
+}
+
+.table-wrap td:first-child {
+  position: sticky;
+  left: 0;
+  background: var(--field);
+}
+
+tbody tr:hover td {
+  background: #eef3fb;
+}
+
+tbody tr:hover td:first-child {
+  background: #eef3fb;
+}
+
+tr.result td {
+  font-weight: 700;
+}
+
+tr.base td {
+  color: var(--text-dim);
+}
+
+tr.input td {
+  color: var(--title-1);
+}
+
+tr[data-key] td:not(:first-child) {
+  cursor: pointer;
+}
+
+tr[data-key]:hover td:not(:first-child) {
+  text-decoration: line-through;
+  text-decoration-color: #a3231a;
+}
+
+.card .footer {
+  margin: 0;
+  padding: 3px 7px;
+  color: var(--text-dim);
+}
+
+.card .footer + .footer {
+  border-top: 1px solid #e2ded7;
+}
+
+/* ---------------- mérési vázlat (SVG) ---------------- */
+
+.sketch-svg {
+  display: block;
+  width: 100%;
+  max-width: 660px;
+  height: auto;
+  margin: 6px auto;
+  background: #fff;
+}
+
+.sk-frame {
+  fill: #fbfcfe;
+  stroke: var(--face-sh);
+  stroke-width: 1;
+}
+
+.sk-dist {
+  stroke: #4a4a4a;
+  stroke-width: 1.2;
+}
+
+.sk-ray {
+  stroke: #1a4a8a;
+  stroke-width: 1.2;
+  stroke-dasharray: 5 3;
+}
+
+.sk-known {
+  fill: var(--title-1);
+}
+
+.sk-new {
+  fill: #fff;
+  stroke: var(--title-1);
+  stroke-width: 2;
+}
+
+.sk-id {
+  font: 700 11px Tahoma, "MS Sans Serif", Arial, sans-serif;
+  fill: #202020;
+}
+
+.sk-mtext {
+  font: 11px Tahoma, "MS Sans Serif", Arial, sans-serif;
+  fill: #5a5a5a;
+  text-anchor: middle;
+}
+
+.sk-north {
+  fill: var(--title-1);
+}
+
+.sk-nlabel {
+  font: 700 11px Tahoma, "MS Sans Serif", Arial, sans-serif;
+  fill: var(--title-1);
+  text-anchor: middle;
+}
+
+.sk-scale {
+  stroke: #202020;
+  stroke-width: 1.5;
+}
+
+/* ---------------- jegyzőkönyv-előlap (borító) ---------------- */
+
+.cover {
+  padding: 16px 20px 12px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.cover-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 72px;
+  text-align: left;
+}
+
+.cover-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  flex: 0 0 auto;
+  background: #fff;
+  border: 1px solid var(--face-sh);
+  color: #8a857c;
+}
+
+.cover-logo img {
+  max-width: 92px;
+  max-height: 92px;
+}
+
+.cover-head-right {
+  text-align: right;
+  color: var(--text-dim);
+}
+
+.cover-msz {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.cover-title {
+  margin: 22px 0 4px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--title-1);
+}
+
+.cover-subtitle {
+  margin: 0 0 20px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.cover-fields {
+  display: inline-block;
+  margin: 0 auto 24px;
+  text-align: left;
+}
+
+.cover-fields > div {
+  padding: 1px 0;
+}
+
+.cover-foot {
+  padding-top: 6px;
+  border-top: 1px solid #c9c4ba;
+  color: var(--text-dim);
+  font-size: 10px;
+  text-align: left;
+}
+
+.logo-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  margin: 3px 0;
+}
+
+.logo-preview img {
+  max-width: 96px;
+  max-height: 96px;
+  border: 1px solid var(--face-sh);
+}
+
+.cover-logo-box {
+  padding: 0 4px;
+}
+
+.empty {
+  margin: 0;
+  padding: 10px;
+  color: #2b2b2b;
+  text-align: center;
+}
+
+
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 5px 6px;
+  border-top: 1px solid var(--face-sh);
+  background: var(--face);
+  flex: 0 0 auto;
+}
+
+.downloads:empty {
+  display: none;
+}
+
+.fmt-note {
+  flex-basis: 100%;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+/* ---------------- űrlapok ---------------- */
+
+.form {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.form label {
+  display: block;
+  font-weight: 700;
+}
+
+.form > label > .label-text {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.form input[type='number'],
+.form input[type='text'],
+.form select,
+.form textarea {
+  width: 100%;
+  margin-top: 2px;
+  padding: 2px 5px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  border-radius: 0;
+  font: inherit;
+  font-weight: 400;
+}
+
+.form textarea {
+  font-family: var(--mono);
+  font-size: 11px;
+  resize: vertical;
+}
+
+.form input[readonly] {
+  background: var(--face);
+  color: var(--text);
+}
+
+.form input:focus,
+.form select:focus,
+.form textarea:focus {
+  outline: 1px solid var(--title-1);
+  outline-offset: -2px;
+}
+
+.form .row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.form .dims {
+  margin: 0;
+  padding: 4px 8px 6px;
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  display: flex;
+  gap: 16px;
+}
+
+.form .dims legend {
+  padding: 0 4px;
+  font-weight: 700;
+}
+
+.form .dims.column {
+  display: grid;
+  gap: 6px;
+}
+
+.form .dims .action {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.form .dims .action button {
+  width: 100%;
+}
+
+.form label.check,
+.form label.wide2 {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-weight: 400;
+}
+
+.form label.check input {
+  margin: 2px 0 0;
+}
+
+.form .settings {
+  border: 1px solid;
+  border-color: var(--face-hi) var(--face-sh) var(--face-sh) var(--face-hi);
+  padding: 2px;
+}
+
+.form .settings summary {
+  padding: 2px 5px;
+  background: linear-gradient(90deg, var(--title-1), var(--title-2));
+  color: #fff;
+  font-weight: 700;
+  cursor: default;
+}
+
+.form .settings summary:hover {
+  background: linear-gradient(90deg, var(--title-2), var(--title-3));
+}
+
+.form .grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 8px;
+  padding: 6px 4px;
+}
+
+.form .settings > label.check,
+.form .settings .hint,
+.form .settings > .small,
+.form .settings .btnrow {
+  margin: 0 4px 6px;
+}
+
+.btnrow {
+  display: flex;
+  gap: 5px;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--title-1);
+}
+
+input[type='radio'] {
+  margin: 0 4px 0 0;
+}
+
+/* ---------------- állapotsor ---------------- */
+
+.statusbar {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  padding: 2px 3px;
+  background: var(--face);
+  border-top: 1px solid var(--face-hi);
+  flex: 0 0 auto;
+}
+
+.sb-panel {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 3px 7px;
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sb-grip {
+  flex: 0 0 14px;
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  background-image: linear-gradient(135deg, transparent 45%, var(--face-sh) 45%, var(--face-sh) 55%, transparent 55%);
+}
+
+/* ---------------- szűkebb képernyő ---------------- */
+
+@media (max-width: 1000px) {
+  .panes {
+    flex-direction: column;
+  }
+
+  .pane {
+    flex: 1 1 auto;
+  }
+
+  .editor-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--face-sh);
+  }
+
+  .split {
+    flex-direction: column;
+  }
+
+  .sidepanel {
+    flex: 0 0 auto;
+    width: auto;
+    max-height: 160px;
+    border-right: 0;
+    border-bottom: 1px solid var(--face-sh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------- Adatleíró (súgó 44. o.) ---------------- */
+
+.picklist {
+  list-style: none;
+  margin: 3px 0 8px;
+  padding: 0;
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  background: var(--field);
+  max-height: 150px;
+  overflow: auto;
+}
+
+.picklist li {
+  border-bottom: 1px solid var(--face-hi);
+}
+
+.picklist li:last-child {
+  border-bottom: 0;
+}
+
+.picklist li.empty {
+  padding: 5px 6px;
+  color: var(--text-dim);
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 400;
+  text-align: left;
+}
+
+.pick:active:not(:disabled) {
+  padding: 2px 6px;
+}
+
+.pick:hover:not(:disabled) {
+  background: #eef3fb;
+}
+
+.pick.on,
+.pick[aria-pressed='true'] {
+  background: var(--title-1);
+  color: #fff;
+}
+
+.pick-id {
+  font-weight: 700;
+}
+
+.pick-tag {
+  padding: 0 4px;
+  font-size: 10px;
+  background: var(--face-hi);
+  border: 1px solid var(--face-sh);
+}
+
+.pick.on .pick-tag {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.pick-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  font-weight: 400;
+}
+
+.pick-check:hover {
+  background: #eef3fb;
+}
+
+.pick-check input {
+  margin: 0;
+}
+
+.pick-dir {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.obs-table td {
+  padding: 1px 4px;
+}
+
+.obs-table td:first-child,
+.table-wrap.obs-table td:first-child {
+  position: static;
+  background: transparent;
+}
+
+.obs-table input {
+  width: 100%;
+  min-width: 58px;
+  padding: 1px 4px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  border-radius: 0;
+  font: inherit;
+  font-weight: 400;
+}
+
+.obs-table select {
+  width: 100%;
+  min-width: 92px;
+  padding: 1px 2px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  border-radius: 0;
+  font: inherit;
+  font-weight: 400;
+}
+
+.obs-table input.xf-cell {
+  min-width: 96px;
+  font-family: var(--mono);
+}
+
+.btnrow.pad {
+  padding: 5px 6px;
+}
+
+.glyph {
+  min-width: 18px;
+  justify-content: center;
+  padding: 0 4px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.descriptor-obs .table-wrap {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.descriptor-obs {
+  display: flex;
+  flex-direction: column;
+}
+
+.descriptor-form {
+  border-left: 1px solid var(--face-sh);
+}
+
+/* ---------------- Adatrögzítő: kézi mérési táblázat ---------------- */
+
+.rc-table {
+  max-height: 34vh;
+  margin: 0 4px 6px;
+}
+
+.rc-table th {
+  font-size: 11px;
+  text-align: left;
+  vertical-align: bottom;
+  line-height: 1.25;
+}
+
+.rc-table th span {
+  display: block;
+  color: var(--text-dim);
+  font-weight: 400;
+  font-size: 9.5px;
+}
+
+.rc-table th.rc-no {
+  width: 1%;
+  text-align: right;
+}
+
+.rc-table th.rc-calc {
+  color: #1f4c1f;
+}
+
+.rc-table td {
+  vertical-align: top;
+}
+
+.rc-table td.rc-no input {
+  min-width: 26px;
+  max-width: 34px;
+  text-align: right;
+}
+
+.rc-table input.rc-num {
+  font-family: var(--mono);
+  text-align: right;
+}
+
+.rc-table input.rc-invalid {
+  background: #ffe6e3;
+  border-color: #a3231a;
+}
+
+.rc-dms {
+  display: block;
+  padding: 0 1px;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.rc-table td.rc-calc {
+  background: #eef1e6;
+}
+
+.rc-out {
+  display: block;
+  min-width: 58px;
+  padding: 1px 4px;
+  color: #1f4c1f;
+  font-family: var(--mono);
+  font-weight: 700;
+  text-align: right;
+}
+
+.rc-out:empty::before {
+  content: '–';
+  color: #8a8a7a;
+  font-weight: 400;
+}
+
+.rc-table td.rc-calc.ext .rc-out {
+  color: var(--title-1);
+}
+
+/* ---------------- Koordináta kezelő (súgó 72. o.) ---------------- */
+
+.mini {
+  width: 100%;
+  font-size: 11px;
+}
+
+.mini td {
+  padding: 1px 3px;
+  border-bottom: 0;
+}
+
+.mini input[type='checkbox'] {
+  margin: 0;
+}
+
+.mini .row-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.sidepanel .mode {
+  display: block;
+  margin: 2px 0 5px;
+  font-weight: 700;
+}
+
+.sidepanel .mode select,
+.cond-row select {
+  width: 100%;
+  margin-top: 2px;
+  padding: 1px 3px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  border-radius: 0;
+  font: inherit;
+  font-weight: 400;
+}
+
+.conds {
+  margin: 3px 0;
+}
+
+.cond {
+  margin-bottom: 4px;
+  padding: 4px;
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  background: var(--field);
+}
+
+.cond-kw {
+  display: inline-block;
+  margin-bottom: 2px;
+  padding: 0 4px;
+  background: var(--title-1);
+  color: #fff;
+  font-weight: 700;
+  font-size: 10px;
+}
+
+.cond-row {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.cond input[type='text'] {
+  width: 100%;
+  margin-top: 3px;
+  padding: 1px 4px;
+  background: var(--field);
+  color: var(--text);
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  border-radius: 0;
+  font: inherit;
+  font-weight: 400;
+}
+
+.form.inline-form {
+  flex: 0 0 auto;
+  overflow: visible;
+  border-bottom: 1px solid var(--face-sh);
+}
+
+.form.inline-form .grid2 {
+  grid-template-columns: 1fr 90px;
+}
+
+.widths {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.widths-title {
+  font-weight: 700;
+}
+
+.widths-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.width-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 400;
+}
+
+.form .width-item input[type='number'] {
+  width: 52px;
+  margin: 0;
+}
+
+.count {
+  color: #fff;
+  font-weight: 400;
+}
+
+#ex-preview .table-wrap {
+  max-height: 40vh;
+}
+
+@media (max-width: 1000px) {
+  .descriptor-form {
+    border-left: 0;
+    border-top: 1px solid var(--face-sh);
+  }
+}
+
+/* ---------------- nyomtatás: csak a jegyzék ---------------- */
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .window {
+    display: block;
+    height: auto;
+    border: 0;
+  }
+
+  .titlebar,
+  .menubar,
+  .toolbar,
+  .statusbar,
+  .sidepanel,
+  .editor-pane,
+  .transform-form,
+  .network-form,
+  #win-settings,
+  #win-descriptor,
+  #win-exchange-coords,
+  .commandbar,
+  .pane-head,
+  .downloads,
+  .issues,
+  .status {
+    display: none !important;
+  }
+
+  .client {
+    overflow: visible;
+    background: #fff;
+  }
+
+  .mdiwin {
+    position: static;
+    display: block;
+    border: 0;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  .mdiwin-title {
+    background: none;
+    color: #000;
+  }
+
+  .mdiwin-buttons {
+    display: none;
+  }
+
+  .panes,
+  .split,
+  .mdiwin-body {
+    display: block;
+    overflow: visible;
+  }
+
+  .results {
+    overflow: visible;
+    background: #fff;
+    padding: 0;
+  }
+
+  .table-wrap {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .card {
+    break-inside: avoid;
+    border-color: #999;
+  }
+
+  .cover {
+    break-after: page;
+  }
+
+  th {
+    position: static;
+  }
+}

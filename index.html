@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="hu">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta
+      name="description"
+      content="GEOkalkulus 1.0 – a GeoCalc 3.5 földmérési program webes, Windows-hű változata: geodéziai számítások, hálózatkiegyenlítés, térbeli transzformáció."
+    />
+    <title>GEOkalkulus 1.0</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230a246a'/%3E%3Cpath d='M16 7l9 16H7z' fill='none' stroke='white' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='7' r='2.4' fill='%2334d399'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <!-- Ikonkészlet (Lucide ihletésű, egységes vonalvastagság); a lapon belül hivatkozunk rá. -->
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <defs>
+        <symbol id="i-file-plus" viewBox="0 0 24 24">
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+          <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+          <path d="M9 15h6" />
+          <path d="M12 12v6" />
+        </symbol>
+        <symbol id="i-folder-open" viewBox="0 0 24 24">
+          <path
+            d="M6 14l1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"
+          />
+        </symbol>
+        <symbol id="i-save" viewBox="0 0 24 24">
+          <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+          <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+          <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+        </symbol>
+        <symbol id="i-play" viewBox="0 0 24 24">
+          <path d="M6 3l14 9-14 9Z" />
+        </symbol>
+        <symbol id="i-file-text" viewBox="0 0 24 24">
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+          <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+          <path d="M8 13h8" />
+          <path d="M8 17h8" />
+        </symbol>
+        <symbol id="i-printer" viewBox="0 0 24 24">
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+          <path d="M6 9V3h12v6" />
+          <rect x="6" y="14" width="12" height="8" rx="1" />
+        </symbol>
+        <symbol id="i-swap" viewBox="0 0 24 24">
+          <path d="M8 3 4 7l4 4" />
+          <path d="M4 7h16" />
+          <path d="m16 21 4-4-4-4" />
+          <path d="M20 17H4" />
+        </symbol>
+        <symbol id="i-sparkles" viewBox="0 0 24 24">
+          <path
+            d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0Z"
+          />
+        </symbol>
+        <symbol id="i-upload" viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <path d="m17 8-5-5-5 5" />
+          <path d="M12 3v12" />
+        </symbol>
+        <symbol id="i-arrow-right" viewBox="0 0 24 24">
+          <path d="M5 12h14" />
+          <path d="m12 5 7 7-7 7" />
+        </symbol>
+        <symbol id="i-network" viewBox="0 0 24 24">
+          <circle cx="12" cy="5" r="2.5" />
+          <circle cx="5" cy="19" r="2.5" />
+          <circle cx="19" cy="19" r="2.5" />
+          <path d="M12 7.5 6.5 17M12 7.5 17.5 17M7.5 19h9" />
+        </symbol>
+        <symbol id="i-calculator" viewBox="0 0 24 24">
+          <rect x="4" y="2" width="16" height="20" rx="2" />
+          <path d="M8 6h8" />
+          <path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h8" />
+        </symbol>
+        <symbol id="i-database" viewBox="0 0 24 24">
+          <ellipse cx="12" cy="5" rx="8" ry="3" />
+          <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+          <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+        </symbol>
+        <symbol id="i-gear" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.5-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10.2 4a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.5l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4Z"
+          />
+        </symbol>
+        <symbol id="i-table" viewBox="0 0 24 24">
+          <rect x="2" y="4" width="20" height="16" rx="1" />
+          <path d="M2 9h20M2 14h20M8 4v16M16 4v16" />
+        </symbol>
+        <symbol id="i-axes" viewBox="0 0 24 24">
+          <path d="M4 20V4M4 20h16" />
+          <path d="M9 20 20 9" />
+          <path d="M20 20V9" />
+        </symbol>
+        <symbol id="i-reader" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M7 8h10M7 12h6M7 16h8" />
+        </symbol>
+        <symbol id="i-form" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M7 7h6M7 12h4M7 17h6" />
+          <path d="M16 6h1M16 11h1" />
+        </symbol>
+        <symbol id="i-check-square" viewBox="0 0 24 24">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="m8 12 3 3 5-6" />
+        </symbol>
+        <symbol id="i-help" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M9.5 9a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8v.5" />
+          <path d="M12 17h.01" />
+        </symbol>
+      </defs>
+    </svg>
+
+    <div class="window" id="app">
+      <!-- Címsor (a valódi alkalmazás címsorának mintájára) -->
+      <div class="titlebar">
+        <svg class="titlebar-icon" aria-hidden="true" focusable="false"><use href="#i-axes" /></svg>
+        <span class="titlebar-text">GEOkalkulus 1.0 – <span id="workname">Névtelen</span></span>
+        <div class="titlebar-buttons" aria-hidden="true">
+          <span class="wbtn">&#8211;</span>
+          <span class="wbtn">&#9744;</span>
+          <span class="wbtn close">&#10005;</span>
+        </div>
+      </div>
+
+      <!-- Menüsor: a JS építi fel az ABLAKOK és a parancsok listájából -->
+      <div class="menubar" id="menubar" role="menubar" aria-label="Menüsor"></div>
+
+      <!-- Ikonsáv: a valódi program 15 parancsikonja (súgó 3. oldal) -->
+      <div class="toolbar" id="toolbar" role="toolbar" aria-label="Ikonsáv"></div>
+
+      <!-- MDI munkaterület: ide kerülnek a munkalap-ablakok -->
+      <div class="client" id="mdi">
+        <section class="mdiwin" id="win-calc" hidden aria-label="Geodéziai számítások/Munkaterület">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-calculator" /></svg>
+            <span class="mdiwin-caption">Geodéziai számítások/Munkaterület</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="split">
+              <aside class="sidepanel" aria-label="Számítási kódok">
+                <div class="panel-head">Kódok</div>
+                <p class="hint">A név beszúrja a kód vázát a kurzorhoz, a „példa” betölti a súgó mintáját.</p>
+                <ul id="module-list" class="modules"></ul>
+              </aside>
+              <div class="panes">
+                <section class="pane editor-pane" aria-label="Bemenet">
+                  <div class="pane-head">
+                    <h2>Munkaterület</h2>
+                    <div class="pane-actions">
+                      <button id="btn-run" type="button" class="primary" title="Számítás futtatása (F5 vagy Ctrl+Enter)">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-play" /></svg>
+                        <span>Számítás</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="commandbar" id="calc-toolbar" role="toolbar" aria-label="Munkaterület műveletei">
+                    <button id="btn-new" type="button" title="Új, üres munkaterület">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-plus" /></svg>
+                      <span>Új</span>
+                    </button>
+                    <button id="btn-open" type="button" title="Bemeneti állomány megnyitása (.gcd, .txt)">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                      <span>Megnyitás</span>
+                    </button>
+                    <button id="btn-save" type="button" title="A bemenet mentése .gcd állományba">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save" /></svg>
+                      <span>Mentés</span>
+                    </button>
+                    <label class="auto">
+                      <input id="auto" type="checkbox" checked />
+                      <span>Automatikus számítás</span>
+                    </label>
+                  </div>
+                  <textarea
+                    id="editor"
+                    data-autofocus
+                    spellcheck="false"
+                    autocapitalize="off"
+                    autocomplete="off"
+                    wrap="off"
+                    aria-label="Geodéziai számítások kódolása"
+                    placeholder="k_&#10;1 , 3817.26 , 7339.75&#10;5 , 2852.34 , 6562.88&#10;;;&#10;it&#10;1&#10;5&#10;;;"
+                  ></textarea>
+                </section>
+
+                <section class="pane result-pane" aria-label="Eredmény">
+                  <div class="pane-head">
+                    <h2>Jegyzőkönyv</h2>
+                    <div class="pane-actions">
+                      <button id="btn-txt" type="button" title="Az eredmény mentése szövegként">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+                        <span>Szöveg</span>
+                      </button>
+                      <button id="btn-print" type="button" title="Nyomtatás vagy mentés PDF-be">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                        <span>Nyomtatás / PDF</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div id="status" class="status" role="status" aria-live="polite"></div>
+                  <div id="issues" class="issues"></div>
+                  <div id="results" class="results"></div>
+                  <div id="downloads" class="downloads"></div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-coords" hidden aria-label="Mérési adatok és koordináták">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-table" /></svg>
+            <span class="mdiwin-caption">Mérési adatok és koordináták</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="pane">
+              <div class="pane-head">
+                <h2>Koordináta-állományok</h2>
+                <div class="pane-actions">
+                  <button id="btn-files" type="button" class="primary">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-upload" /></svg>
+                    <span>Állomány feltöltése…</span>
+                  </button>
+                </div>
+              </div>
+              <p class="hint">
+                A <code>K_</code> sorban megadott állománynevekhez töltsd fel a fájlokat (a böngésző nem fér hozzá a
+                mappákhoz). A program a beolvasott koordinátákat a <code>K_</code> blokkba illeszti.
+              </p>
+              <ul id="file-list" class="files"></ul>
+              <div class="panel-head">Beolvasott pontok</div>
+              <div id="coords-preview" class="results"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-settings" hidden aria-label="Geodéziai számítások/Beállítások">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-gear" /></svg>
+            <span class="mdiwin-caption">Geodéziai számítások/Beállítások</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="pane">
+              <div class="pane-head">
+                <h2>Mérési jegyzőkönyv előlapja</h2>
+                <div class="pane-actions">
+                  <button id="set-import" type="button" title="Előlap betöltése borito.ini állományból">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                    <span>Betöltés…</span>
+                  </button>
+                  <button id="set-export" type="button" title="Előlap mentése borito.ini állományba">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save" /></svg>
+                    <span>Mentés…</span>
+                  </button>
+                </div>
+              </div>
+              <p class="hint">
+                Az itt megadott adatok a generált jegyzőkönyvek előlapjára kerülnek (a valódi program a projekt
+                <code>borito.ini</code> állományában, illetve a <code>GC35.INI</code> <code>[MKJ]</code> szakaszában
+                tárolja őket).
+              </p>
+              <div class="form">
+                <div class="grid2">
+                  <label>Készítette<input id="set-keszitette" type="text" autocomplete="off" /></label>
+                  <label>Munkanév<input id="set-munkanev" type="text" autocomplete="off" /></label>
+                  <label>Munkaszám<input id="set-msz" type="text" autocomplete="off" placeholder="pl. 01/2025" /></label>
+                  <label>Település<input id="set-telepules" type="text" autocomplete="off" /></label>
+                  <label>Megye<input id="set-megye" type="text" autocomplete="off" /></label>
+                  <label>Év<input id="set-ev" type="text" autocomplete="off" placeholder="pl. 2025" /></label>
+                  <label>Dátum<input id="set-datum" type="text" autocomplete="off" placeholder="pl. 2025.11.28." /></label>
+                  <label>Vetület<input id="set-vetulet" type="text" list="set-vetulet-list" autocomplete="off" />
+                    <datalist id="set-vetulet-list">
+                      <option value="EOV"></option>
+                      <option value="HÉR"></option>
+                      <option value="Sztereografikus"></option>
+                      <option value="UTM"></option>
+                    </datalist>
+                  </label>
+                  <label>Magasság<input id="set-magassag" type="text" list="set-magassag-list" autocomplete="off" />
+                    <datalist id="set-magassag-list">
+                      <option value="Balti"></option>
+                      <option value="Adriai"></option>
+                      <option value="Ellipszoid feletti"></option>
+                    </datalist>
+                  </label>
+                  <label>Fekvés<input id="set-fekves" type="text" list="set-fekves-list" autocomplete="off" />
+                    <datalist id="set-fekves-list">
+                      <option value="Belterület"></option>
+                      <option value="Külterület"></option>
+                      <option value="Zártkert"></option>
+                    </datalist>
+                  </label>
+                </div>
+                <div class="cover-logo-box">
+                  <div class="label-text">Jelkép / céglogó</div>
+                  <div id="set-logo-preview" class="logo-preview"></div>
+                  <p class="hint" id="set-logo-status"></p>
+                  <div class="btnrow">
+                    <button id="set-logo" type="button" class="small">Logó tallózása…</button>
+                    <button id="set-logo-clear" type="button" class="small">Saját logó törlése</button>
+                  </div>
+                  <p class="hint">
+                    Logó nélkül az alapértelmezett geodéziai jelkép kerül az előlapra. A valódi program BMP,
+                    JPG, PNG vagy WMF formátumú, négyzetes alapú logót vár.
+                  </p>
+                </div>
+              </div>
+              <div id="set-status" class="status" role="status" aria-live="polite"></div>
+              <div class="btnrow">
+                <button id="set-reset" type="button" class="small">Alapértékek</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-descriptor" hidden aria-label="Geodéziai számítások/Adatleíró">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-form" /></svg>
+            <span class="mdiwin-caption">Geodéziai számítások/Adatleíró</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="split">
+              <aside class="sidepanel" aria-label="Álláspontok és irányzott pontok">
+                <div class="panel-head">Álláspontok (AP / ID)</div>
+                <ul id="dp-stations" class="picklist"></ul>
+                <div class="panel-head">Irányzott pontok (IP)</div>
+                <ul id="dp-targets" class="picklist"></ul>
+                <p class="hint">Jelöld ki az irányzott pontokat. Ha egy sincs kijelölve, az álláspont minden irányát felhasználja.</p>
+              </aside>
+              <div class="panes">
+                <section class="pane descriptor-obs" aria-label="Mérési adatok">
+                  <div class="pane-head">
+                    <h2>Mérési adatok</h2>
+                    <div class="pane-actions">
+                      <button id="dp-load-meas" type="button" title="Mérési jegyzőkönyv beolvasása (álláspont, pont, irány, távolság)">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-upload" /></svg>
+                        <span>Mérési jegyzőkönyv…</span>
+                      </button>
+                      <button id="dp-load-coord" type="button" title="Koordináta állomány beolvasása az ismert pontokhoz">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                        <span>Koordináta állomány…</span>
+                      </button>
+                      <button id="dp-clear" type="button" title="Az összes mérési sor törlése">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-plus" /></svg>
+                        <span>Törlés</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="hint">
+                    <strong>Koordináta állomány:</strong> <span id="dp-coord-name">Nincs betöltve</span>.
+                    A méréseket kézzel is felveheted; az irány GeoCalc formátumú, pl. <code>182.0324</code>.
+                  </p>
+                  <div class="table-wrap obs-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Álláspont (AP)</th>
+                          <th>Irányzott pont (ID)</th>
+                          <th>Irány (leolvasás)</th>
+                          <th>Távolság [m]</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="dp-obs-body"></tbody>
+                    </table>
+                  </div>
+                  <div class="btnrow pad">
+                    <button id="dp-add" type="button" class="small">+ Mérési sor</button>
+                  </div>
+                </section>
+                <section class="pane descriptor-form" aria-label="Számítás előkészítése">
+                  <div class="pane-head">
+                    <h2>Számítás előkészítése</h2>
+                    <div class="pane-actions">
+                      <button id="dp-save" type="button" title="A kód mentése .gcd állományba">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save" /></svg>
+                        <span>Mentés</span>
+                      </button>
+                      <button id="dp-apply" type="button" class="primary" title="A kód beszúrása a Munkaterületre és futtatás">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+                        <span>Konverzió</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="hint" id="dp-hint" role="status" aria-live="polite">
+                    Válassz álláspontot, irányzott pontokat és számítási típust, majd készítsd el a kódot.
+                  </p>
+                  <div class="form">
+                    <div class="grid2">
+                      <label>Álláspont (AP)<input id="dp-station" type="text" readonly /></label>
+                      <label>Számítás típusa
+                        <select id="dp-type">
+                          <option value="TJ">TJ – Tájékozás</option>
+                          <option value="PO">PO – Poláris pont számítása</option>
+                          <option value="KP">KP – Központosítás</option>
+                          <option value="VP">VP – Vesztett pont</option>
+                          <option value="ET">ET – Előmetszés</option>
+                          <option value="IV">IV – Ív-/távolságmetszés</option>
+                          <option value="SV">SV – Sokszögvonal</option>
+                          <option value="SM">SM – Magassági sokszögvonal</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="grid2" id="dp-row-target">
+                      <label><span class="label-text" id="dp-target-label">Új pont száma</span><input id="dp-target" type="text" autocomplete="off" /></label>
+                    </div>
+                    <div class="grid2" id="dp-row-startdir">
+                      <label>Kezdő irány (FOK.PPMMSS)<input id="dp-start-dir" type="text" autocomplete="off" /></label>
+                    </div>
+                    <div class="grid2" id="dp-row-center">
+                      <label>Központra mért irány<input id="dp-center-dir" type="text" autocomplete="off" /></label>
+                      <label>Külpontosság R [m]<input id="dp-ecc" type="text" autocomplete="off" /></label>
+                    </div>
+                    <div class="btnrow">
+                      <button id="dp-generate" type="button" class="primary">Kód előállítása</button>
+                    </div>
+                    <p class="hint" id="dp-type-hint"></p>
+                    <label>Kód
+                      <textarea id="dp-code" spellcheck="false" wrap="off" rows="7" aria-label="Előállított kód"></textarea>
+                    </label>
+                    <details class="settings">
+                      <summary>Automatikus kódolás</summary>
+                      <div class="grid2">
+                        <label>Álláspont kódja
+                          <select id="dp-auto-station">
+                            <option value="tj">TJ – ismert ponton állunk fel</option>
+                            <option value="vp">VP – szabad álláspont</option>
+                          </select>
+                        </label>
+                        <label>Tájékozó irányok száma<input id="dp-auto-count" type="number" min="1" value="2" /></label>
+                      </div>
+                      <div class="btnrow">
+                        <button id="dp-auto" type="button" class="small">Automatikus kódolás</button>
+                      </div>
+                    </details>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+          <input id="dp-meas-file" type="file" accept=".txt,.gcd,.gmj,.csv,text/plain" hidden />
+          <input id="dp-coord-file" type="file" accept=".pyx,.pyx2,.txt,.gcd,text/plain" hidden />
+        </section>
+
+        <section class="mdiwin" id="win-exchange-coords" hidden aria-label="Adatcsere/Koordináta kezelő">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-table" /></svg>
+            <span class="mdiwin-caption">Adatcsere/Koordináta kezelő</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="split">
+              <aside class="sidepanel" aria-label="Mezők és feltételek">
+                <div class="panel-head">Mezők megadása</div>
+                <table class="mini">
+                  <tbody id="ex-fields-body"></tbody>
+                </table>
+                <div class="btnrow">
+                  <button id="ex-fields-reset" type="button" class="small" title="Az oszlopok alapértelmezett helyzete">Mező(k)</button>
+                </div>
+                <div class="panel-head">Feltétel (WHERE)</div>
+                <label class="mode">Kapcsolat
+                  <select id="ex-mode">
+                    <option value="and">AND – minden feltétel</option>
+                    <option value="or">OR – bármelyik feltétel</option>
+                  </select>
+                </label>
+                <div id="ex-cond-body" class="conds"></div>
+                <div class="btnrow">
+                  <button id="ex-cond-add" type="button" class="small">+ Feltétel</button>
+                </div>
+              </aside>
+              <div class="panes">
+                <section class="pane" aria-label="Válogatás és kimenet">
+                  <div class="pane-head">
+                    <h2>Koordináta kezelő</h2>
+                    <div class="pane-actions">
+                      <button id="ex-db-load" type="button" title="GeoCalc adatbázis beolvasása (.PYX, .PYX2, szöveg)">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-database" /></svg>
+                        <span>Adatbázis beolvasása…</span>
+                      </button>
+                      <button id="ex-db-clear" type="button" title="Vissza az utolsó futás pontjaihoz">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-swap" /></svg>
+                        <span>Utolsó futás</span>
+                      </button>
+                      <button id="ex-export" type="button" class="primary" title="A szűrt pontok kiírása állományba">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save" /></svg>
+                        <span>Állomány készítése</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p class="hint">
+                    Adatforrás: <strong id="ex-db-name">Az utolsó futás pontjai</strong>. <span id="ex-hint"></span>
+                  </p>
+                  <div class="form inline-form">
+                    <div class="grid2">
+                      <label>Elválasztó
+                        <select id="ex-sep">
+                          <option value=" ">szóköz</option>
+                          <option value=",">vessző</option>
+                          <option value=", ">vessző és szóköz</option>
+                          <option value=";">pontosvessző</option>
+                          <option value="&#9;">tab</option>
+                        </select>
+                      </label>
+                      <label>Tizedesek<input id="ex-dec" type="number" min="0" max="6" value="3" /></label>
+                    </div>
+                    <label class="check"><input id="ex-trim" type="checkbox" /><span>Üres helyeket levágni (a beállított hossztól függetlenül)</span></label>
+                    <label class="check"><input id="ex-flag" type="checkbox" /><span>Számított jelző oszlop (a <code>K&gt;</code> kimenet utolsó mezője)</span></label>
+                    <div class="widths">
+                      <span class="widths-title">Mezőhossz:</span>
+                      <div id="ex-widths" class="widths-items"></div>
+                    </div>
+                  </div>
+                  <div class="panel-head">Előnézet <span id="ex-count" class="count"></span></div>
+                  <div id="ex-preview" class="results"></div>
+                </section>
+              </div>
+            </div>
+          </div>
+          <input id="ex-db-file" type="file" accept=".pyx,.pyx2,.txt,.edb,text/plain" hidden />
+        </section>
+
+        <section class="mdiwin" id="win-network" hidden aria-label="Hálózatkiegyenlítés/Munkaterület">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-network" /></svg>
+            <span class="mdiwin-caption">Hálózatkiegyenlítés/Munkaterület</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="panes">
+              <section class="pane network-form" aria-label="Hálózat beállításai">
+                <div class="pane-head">
+                  <h2>Vízszintes hálózat kiegyenlítése</h2>
+                  <div class="pane-actions">
+                    <button id="net-sample" type="button" title="Valódi hálózat betöltése (Iszkahegy gyakorlat, kézzel javított jegyzőkönyv)">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
+                      <span>Mintapélda</span>
+                    </button>
+                    <button id="net-sample-raw" type="button" title="Ugyanaz a hálózat a nyers, kétállásos jegyzőkönyvvel (középelés)">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
+                      <span>Nyers minta</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="form">
+                  <label>
+                    <span class="label-text">Ismert pontok<span class="cols">pontszám, Y, X, [M], [jelölés]</span></span>
+                    <textarea id="net-coords" spellcheck="false" wrap="off" rows="7"></textarea>
+                    <button id="net-open-coords" type="button" class="small">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                      <span>Állomány megnyitása…</span>
+                    </button>
+                  </label>
+                  <label>
+                    <span class="label-text">Mérési jegyzőkönyv (GMJ)<span class="cols">állásponti sorok (…,-1) és mérések (…,-2); a „javított”, középelt jegyzőkönyv</span></span>
+                    <textarea id="net-gmj" spellcheck="false" wrap="off" rows="9"></textarea>
+                    <button id="net-open-gmj" type="button" class="small">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                      <span>Állomány megnyitása…</span>
+                    </button>
+                  </label>
+                  <p class="hint">
+                    A GMJ sorai a már <b>redukált vízszintes távolságot</b> tartalmazzák. A nyers mérések
+                    (vízszintes és magassági szög, ferde távolság) magassági és vetületi redukcióját az
+                    <b>Adatrögzítő</b> munkalap végzi; onnan a redukált értékek innen is átvehetők.
+                  </p>
+                  <div class="btnrow pad">
+                    <button id="net-open-recorder" type="button" class="small">Adatrögzítő megnyitása…</button>
+                  </div>
+                  <details class="settings" open>
+                    <summary>A hálózat összeállítása</summary>
+                    <div class="grid2">
+                      <label class="wide2">
+                        További új pontok (vesszővel; koordináta nélküli, nem álláspont pontok, amelyeket be kell vonni a
+                        kiegyenlítésbe)
+                        <input id="net-extra" type="text" placeholder="pl. 201, 202" />
+                      </label>
+                    </div>
+                    <label class="check">
+                      <input id="net-avg-on" type="checkbox" checked />
+                      <span>Középelés: a célpontonként többször (I. és II. állásban) mért irányok átlagolása</span>
+                    </label>
+                    <label class="check">
+                      <input id="net-details-on" type="checkbox" checked />
+                      <span>Részletpontok számítása (a koordináta nélküli, távolsággal mért pontok)</span>
+                    </label>
+                    <label class="check">
+                      <input id="net-sketch-on" type="checkbox" />
+                      <span>Mérési vázlat (mérethelyes rajz a jegyzőkönyv végén)</span>
+                    </label>
+                    <label class="wide2">
+                      Sokszögvonal-előzetes: a vonal pontjai sorrendben (a kezdő- és végponttal)
+                      <input id="net-traverse" type="text" autocomplete="off" placeholder="pl. 541017D 2 3 541440" />
+                    </label>
+                    <label class="check">
+                      <input id="net-free" type="checkbox" />
+                      <span>
+                        Önálló hálózat: az adott koordináták csak közelítő értékek, a hálózat belső megkötéssel
+                        egyenlítődik ki (súgó 55. o.)
+                      </span>
+                    </label>
+                    <div class="grid2" id="net-datum-row">
+                      <label>Hálózati dátum: horgonypont<input id="net-datum-anchor" type="text" autocomplete="off" placeholder="pl. 2" /></label>
+                      <label>Forgatás [fok, óramutató szerint]<input id="net-datum-rot" type="number" step="0.1" value="0" /></label>
+                      <label>Horgonypont kívánt Y<input id="net-datum-y" type="number" step="0.001" /></label>
+                      <label>Horgonypont kívánt X<input id="net-datum-x" type="number" step="0.001" /></label>
+                      <label>Irányzat: második pont<input id="net-datum-second" type="text" autocomplete="off" /></label>
+                      <label>Kívánt irányszög az első→második pontra [fok]<input id="net-datum-az" type="number" step="0.0001" /></label>
+                    </div>
+                    <p class="hint">
+                      Az önálló hálózat a szabad kiegyenlítés után a közelítő koordináták súlypontjában marad; a
+                      horgonypont kívánt koordinátáival és a forgatással helyezhető a kívánt rendszerbe. Ha a második
+                      pontot és a kívánt irányszöget is megadod, a forgatás abból adódik.
+                    </p>
+                    <p class="hint" id="net-excl-count"></p>
+                    <div class="btnrow">
+                      <button id="net-clear-excl" type="button" class="small">Kézi kizárások törlése</button>
+                      <button id="net-open-settings" type="button" class="small">Beállítások…</button>
+                    </div>
+                    <p class="hint">
+                      A kiegyenlítés középhibái, súlyai, a hibahatár, a valószínűségi szint és a számítás élessége a
+                      „Hálózatkiegyenlítés/Beállítások” munkalapon adhatók meg.
+                    </p>
+                  </details>
+                </div>
+              </section>
+              <section class="pane result-pane" aria-label="A kiegyenlítés eredménye">
+                <div class="pane-head">
+                  <h2>Jegyzőkönyv</h2>
+                  <div class="pane-actions">
+                    <button id="net-print" type="button" title="Nyomtatás vagy mentés PDF-be">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                      <span>Nyomtatás / PDF</span>
+                    </button>
+                  </div>
+                </div>
+                <div id="net-status" class="status" role="status" aria-live="polite"></div>
+                <div id="net-issues" class="issues"></div>
+                <div id="net-results" class="results"></div>
+                <div id="net-downloads" class="downloads"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-network-settings" hidden aria-label="Hálózatkiegyenlítés/Beállítások">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-gear" /></svg>
+            <span class="mdiwin-caption">Hálózatkiegyenlítés/Beállítások</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="pane network-form" aria-label="A kiegyenlítés beállításai">
+              <div class="pane-head">
+                <h2>A kiegyenlítés beállításai</h2>
+                <div class="pane-actions">
+                  <button id="net-reset" type="button" title="A beállítások visszaállítása az alapértékre">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-swap" /></svg>
+                    <span>Alapértékek</span>
+                  </button>
+                </div>
+              </div>
+              <p class="hint">
+                A súgó 62. oldali mintapéldája szerint az V. rendű hibahatárhoz 10″ irány- és 5 mm
+                távmérés-középhiba tartozik, 99 %-os valószínűségi szint és távolsággal arányos iránysúly mellett.
+                A többi hálózati rendűség értékei a webes változatban becsültek.
+              </p>
+              <div class="form">
+                <div class="grid2">
+                  <label>Hibahatár
+                    <select id="ns-limit"></select>
+                  </label>
+                  <label>Távmérés: távolságfüggő tag [mm/km]<input id="net-sigma-km" type="number" step="0.5" min="0" /></label>
+                </div>
+                <div class="btnrow">
+                  <button id="ns-apply-limit" type="button" class="small">A hibahatár alkalmazása a középhibákra</button>
+                </div>
+                <details class="settings" open>
+                  <summary>Vízszintes hálózat kiegyenlítése</summary>
+                  <div class="grid2">
+                    <label>Iránymérés középhibája [″]<input id="net-sigma-dir" type="number" step="0.1" min="0.1" /></label>
+                    <label>Átlagos távolság [m]<input id="net-avg" type="number" step="10" min="1" /></label>
+                    <label>Távmérés középhibája [mm]<input id="net-sigma-dist" type="number" step="1" min="0.1" /></label>
+                    <label>
+                      Iránymérés súlya
+                      <select id="net-dir-weight">
+                        <option value="proportional">távolsággal arányos (beillesztett hálózat)</option>
+                        <option value="equal">távolságtól független</option>
+                      </select>
+                    </label>
+                    <label>
+                      Távmérés súlya
+                      <select id="net-dist-weight">
+                        <option value="equal">távolságtól független</option>
+                        <option value="dependent">távolságfüggő</option>
+                      </select>
+                    </label>
+                    <label>
+                      Statisztikai próba szintje
+                      <select id="net-prob">
+                        <option value="0.9">90 %</option>
+                        <option value="0.95">95 %</option>
+                        <option value="0.99">99 %</option>
+                      </select>
+                    </label>
+                    <label>Durva hiba: irány [″]<input id="net-gross-dir" type="number" step="10" min="1" /></label>
+                    <label>Durva hiba: távolság [m]<input id="net-gross-dist" type="number" step="0.1" min="0.01" /></label>
+                  </div>
+                  <p class="hint">
+                    Az iránymérés középhibája az átlagos távolságnál értendő, és egyben a súlyegység középhibája.
+                    A vetületi redukció a távmérés középhibájában jelenik meg.
+                  </p>
+                </details>
+                <details class="settings" open>
+                  <summary>Magassági hálózat (trigonometrikus)</summary>
+                  <div class="grid2">
+                    <label class="check wide2">
+                      <input id="net-h-on" type="checkbox" />
+                      <span>Magassági hálózat kiegyenlítése is</span>
+                    </label>
+                    <label>Magasságkülönbség középhibája [cm]<input id="net-h-sigma" type="number" step="0.1" min="0.01" /></label>
+                    <label>Egységnyi súlyú távolság [m]<input id="net-h-unit" type="number" step="10" min="1" /></label>
+                    <label>
+                      Súly
+                      <select id="net-h-weight">
+                        <option value="equal">távolságtól független</option>
+                        <option value="proportional">távolsággal fordítottan arányos</option>
+                      </select>
+                    </label>
+                    <label class="check">
+                      <input id="net-h-free" type="checkbox" />
+                      <span>Önálló hálózat (az adott magasságok csak közelítők)</span>
+                    </label>
+                  </div>
+                  <p class="hint">
+                    Az adott magasságokat az ismert pontok listájának M oszlopa adja. A mért magasságkülönbség a jegyzőkönyv
+                    <code>dM</code> mezője.
+                  </p>
+                </details>
+                <details class="settings" open>
+                  <summary>Számítás élessége (a jegyzőkönyv kiírása)</summary>
+                  <div class="grid2">
+                    <label>Koordináta
+                      <select id="net-prec">
+                        <option value="cm">cm (2 tizedes)</option>
+                        <option value="mm">mm (3 tizedes)</option>
+                        <option value="tizedmm">tized mm (4 tizedes)</option>
+                      </select>
+                    </label>
+                    <label>Irány<input type="text" value="másodperc" readonly /></label>
+                    <label>Távolság<input type="text" value="mm" readonly /></label>
+                  </div>
+                  <p class="hint">
+                    A súgó 62. oldala szerint a számítás élessége: koordináta cm, irány másodperc, távolság mm.
+                    A webes változat az irányokat mindig szögmásodpercben, a távolságokat mm-ben írja ki; a koordináták
+                    élessége itt állítható.
+                  </p>
+                </details>
+                <div id="ns-status" class="status" role="status" aria-live="polite"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-transform" hidden aria-label="Térbeli transzformáció">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-axes" /></svg>
+            <span class="mdiwin-caption">Térbeli transzformáció/Transzformációs paraméterek számítása</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="panes">
+              <section class="pane transform-form" aria-label="Transzformáció beállításai">
+                <div class="pane-head">
+                  <h2>Térbeli transzformáció</h2>
+                  <div class="pane-actions">
+                    <button id="tr-swap" type="button" title="A két rendszer felcserélése">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-swap" /></svg>
+                      <span>Csere</span>
+                    </button>
+                    <button id="tr-sample" type="button" title="A súgó mintapéldájának betöltése">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
+                      <span>Mintapélda</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="form">
+                  <div class="row2">
+                    <label>Kiinduló rendszer <select id="tr-from"></select></label>
+                    <label>Cél rendszer <select id="tr-to"></select></label>
+                  </div>
+                  <fieldset class="dims">
+                    <legend>Magasságok</legend>
+                    <label><input type="radio" name="tr-dim" id="tr-3d" checked /> <span>3D – magasságokkal</span></label>
+                    <label><input type="radio" name="tr-dim" id="tr-2d" /> <span>2D – magasságok nélkül</span></label>
+                  </fieldset>
+                  <fieldset class="dims column">
+                    <legend>Közös pontok kiválasztása</legend>
+                    <label class="check">
+                      <input id="tr-radius-on" type="checkbox" />
+                      <span>
+                        Keresősugár – minden átszámítandó pont a saját környezetében lévő közös pontokból
+                        számol
+                      </span>
+                    </label>
+                    <div class="row2">
+                      <label>Sugár [m]<input id="tr-radius" type="number" step="500" min="1" value="8000" /></label>
+                      <label>Kétlépcsős módszer – pont száma<input id="tr-2step-id" type="text" autocomplete="off" /></label>
+                    </div>
+                    <div class="row2">
+                      <label>Szintezett magasság a célrendszerben [m]<input id="tr-2step-h" type="number" step="0.001" /></label>
+                      <label class="action">
+                        <span class="label-text">&nbsp;</span>
+                        <button id="tr-2step-add" type="button">Hozzáadás a közös pontokhoz</button>
+                      </label>
+                    </div>
+                    <p class="hint">
+                      A keresősugár általában 5–8 km. A kétlépcsős módszerrel egy (pl. GPS-ből ismert, szintezett
+                      magasságú) pontot előbb átszámítunk, majd a közös pontok listájára fűzünk, hogy a további
+                      transzformációkban már ismert pontként szerepeljen.
+                    </p>
+                  </fieldset>
+                  <label>
+                    <span class="label-text">Közös pontok – kiinduló rendszer<span class="cols" id="tr-from-cols"></span></span>
+                    <textarea id="tr-common-from" spellcheck="false" wrap="off" rows="6"></textarea>
+                  </label>
+                  <label>
+                    <span class="label-text">Közös pontok – cél rendszer<span class="cols" id="tr-to-cols"></span></span>
+                    <textarea id="tr-common-to" spellcheck="false" wrap="off" rows="6"></textarea>
+                  </label>
+                  <label>
+                    <span class="label-text">Átszámítandó pontok<span class="cols" id="tr-points-cols"></span></span>
+                    <textarea id="tr-points" spellcheck="false" wrap="off" rows="4"></textarea>
+                  </label>
+                </div>
+              </section>
+              <section class="pane result-pane" aria-label="Transzformáció eredménye">
+                <div class="pane-head">
+                  <h2>Jegyzőkönyv</h2>
+                  <div class="pane-actions">
+                    <button id="tr-print" type="button" title="Nyomtatás vagy mentés PDF-be">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                      <span>Nyomtatás / PDF</span>
+                    </button>
+                  </div>
+                </div>
+                <div id="tr-status" class="status" role="status" aria-live="polite"></div>
+                <div id="tr-issues" class="issues"></div>
+                <div id="tr-results" class="results"></div>
+                <div id="tr-downloads" class="downloads"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-recorder" hidden aria-label="Adatrögzítő/Beállítások">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-reader" /></svg>
+            <span class="mdiwin-caption">Adatrögzítő/Beállítások</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="panes">
+              <section class="pane network-form" aria-label="Az adatrögzítő beállításai">
+                <div class="pane-head">
+                  <h2>Adatrögzítő és távolságredukció</h2>
+                  <div class="pane-actions">
+                    <button id="rc-sample" type="button" title="Mintaadatok és a súgó mintapéldájának beállításai">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
+                      <span>Minta</span>
+                    </button>
+                    <button id="rc-print" type="button" title="Nyomtatás vagy mentés PDF-be">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                      <span>Nyomtatás / PDF</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="form">
+                  <div class="grid2">
+                    <label>Adatrögzítő típusa<select id="rc-type"></select></label>
+                    <label>Hiányzó távolságok<select id="rc-missing"></select></label>
+                  </div>
+                  <p class="hint" id="rc-type-note"></p>
+                  <details class="settings" open>
+                    <summary>Távolságredukció</summary>
+                    <div class="grid2">
+                      <label>Távolságredukció<select id="rc-reduction"></select></label>
+                      <label>Vetület<select id="rc-projection"></select></label>
+                    </div>
+                    <p class="hint" id="rc-reduction-note"></p>
+                    <div class="grid2">
+                      <label>Külső program<input id="rc-program" type="text" autocomplete="off" placeholder="pl. TVET.EXE" /></label>
+                      <label>&nbsp;<button id="rc-tvet-out" type="button" class="wide">TVET.TXT (bemenet) mentése</button></label>
+                      <label>Átlagos Y [m]<input id="rc-avgy" type="number" step="0.001" /></label>
+                      <label>Átlagos X [m]<input id="rc-avgx" type="number" step="0.001" /></label>
+                      <label>Átlagos M [m]<input id="rc-avgm" type="number" step="0.001" /></label>
+                      <label>&nbsp;<button id="rc-avg-load" type="button" class="wide">Átlagok koordináta-állományból…</button></label>
+                      <label>Redukciós koordináta
+                        <select id="rc-axis">
+                          <option value="x">X (a súgó szerint az EOV-nál)</option>
+                          <option value="y">Y</option>
+                        </select>
+                      </label>
+                      <label>Kezdőérték [m]<input id="rc-ref" type="number" step="1" /></label>
+                      <label>Méretarány k<input id="rc-k" type="number" step="0.00001" /></label>
+                      <label>Redukciós sugár R [m]<input id="rc-r" type="number" step="1" /></label>
+                    </div>
+                    <label class="check"><input id="rc-height" type="checkbox" /><span>Magassági redukció (tengerszintre) számítása</span></label>
+                    <p class="hint">
+                      Tv = Tf · sin(Zi) · (1 − M/R) · k · (1 + d²/(2R²)), ahol d a redukciós koordináta eltérése a
+                      kezdőértéktől. A súgó 62. oldala a képletet képként közli, ezért a webes változat a szabványos
+                      magassági és vetületi redukciót alkalmazza a súgóban megadott k és R állandókkal; a bájtos
+                      egyezés nem igazolt.
+                    </p>
+                  </details>
+                  <details class="settings" open>
+                    <summary>Mérési adatok (kézi bevitel)</summary>
+                    <p class="hint">
+                      Írd be a méréseket soronként a táblázatba. A <b>Hz</b> a vízszintes, a <b>Zi</b> a magassági
+                      szög – mindkettő a <b>GeoCalc FOK.PPMMSS</b> alakjában, például <code>91.2345</code> =
+                      91°23′45″ –, a <b>Tf</b> pedig a ferde távolság. A szürke <b>Tv</b> és <b>dM</b> oszlopot a
+                      program számolja, ugyanazok az értékek kerülnek a jegyzőkönyvbe is.
+                    </p>
+                    <div class="table-wrap obs-table rc-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th class="rc-no">#</th>
+                            <th>Hz<span>vízszintes szög<br />FOK.PPMMSS</span></th>
+                            <th>Zi<span>magassági szög<br />FOK.PPMMSS</span></th>
+                            <th>Tf<span>ferde távolság<br />[m]</span></th>
+                            <th class="rc-calc">Tv<span>vízszintes távolság<br />[m] · számolt</span></th>
+                            <th class="rc-calc">dM<span>magasságkülönbség<br />[m] · számolt</span></th>
+                            <th>Mj<span>jelmagasság<br />[m]</span></th>
+                            <th>Mm<span>műszermagasság<br />[m]</span></th>
+                            <th>Pkód<span>pont jellege</span></th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody id="rc-body"></tbody>
+                      </table>
+                    </div>
+                    <div class="btnrow">
+                      <button id="rc-add" type="button" class="small">+ Mérési sor</button>
+                      <button id="rc-clear" type="button" class="small">Összes törlése</button>
+                      <button id="rc-tvet-in" type="button" class="small">TVET.TXT (eredmény) beolvasása…</button>
+                    </div>
+                    <details class="settings">
+                      <summary>Szöveges bevitel (beillesztéshez)</summary>
+                      <label>
+                        <span class="label-text">Soronként: sorszám, Hz, Zi, Tf, Tv, dM, Mj, Mm, Pkód</span>
+                        <textarea id="rc-input" spellcheck="false" wrap="off" rows="8"></textarea>
+                      </label>
+                      <p class="hint">
+                        A táblázat tartalma itt szövegként is látszik. A beillesztett sorok azonnal átkerülnek a
+                        táblázatba; a „Beolvasás a táblázatba” gomb a szöveg szerint újraépíti azt.
+                      </p>
+                      <div class="btnrow">
+                        <button id="rc-text-apply" type="button" class="small">Beolvasás a táblázatba</button>
+                      </div>
+                    </details>
+                  </details>
+                </div>
+              </section>
+              <section class="pane result-pane" aria-label="A redukció jegyzőkönyve">
+                <div class="pane-head">
+                  <h2>Jegyzőkönyv</h2>
+                  <div class="pane-actions">
+                    <button id="rc-print2" type="button" title="Nyomtatás vagy mentés PDF-be">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                      <span>Nyomtatás / PDF</span>
+                    </button>
+                  </div>
+                </div>
+                <div id="rc-status" class="status" role="status" aria-live="polite"></div>
+                <div id="rc-issues" class="issues"></div>
+                <div id="rc-results" class="results"></div>
+                <div id="rc-downloads" class="downloads"></div>
+              </section>
+            </div>
+          </div>
+          <input id="rc-coord-file" type="file" accept=".eov,.pyx,.pyx2,.txt,text/plain" hidden />
+          <input id="rc-tvet-file" type="file" accept=".txt,text/plain" hidden />
+        </section>
+
+        <section class="mdiwin" id="win-transform-apply" hidden aria-label="Térbeli transzformáció/Átszámítás">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-swap" /></svg>
+            <span class="mdiwin-caption">Térbeli transzformáció/Átszámítás</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="panes">
+              <section class="pane transform-form" aria-label="Az átszámítás adatai">
+                <div class="pane-head">
+                  <h2>Átszámítás megadott paraméterekkel</h2>
+                  <div class="pane-actions">
+                    <button id="ta-take" type="button" title="Az utolsó paraméterszámításból átvett paraméterek">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+                      <span>Paraméterek átvétele</span>
+                    </button>
+                    <button id="ta-print" type="button" title="Nyomtatás vagy mentés PDF-be">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                      <span>Nyomtatás / PDF</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="form">
+                  <div class="grid2">
+                    <label>Kiinduló rendszer<select id="ta-from"></select></label>
+                    <label>Cél rendszer<select id="ta-to"></select></label>
+                  </div>
+                  <fieldset class="dims">
+                    <legend>Vetület jellege</legend>
+                    <label class="check"><input id="ta-3d" type="radio" name="ta-dim" value="3d" /><span>3D (geocentrikus, magassággal)</span></label>
+                    <label class="check"><input id="ta-2d" type="radio" name="ta-dim" value="2d" checked /><span>2D (a magasság 0)</span></label>
+                    <p class="hint" id="ta-cols"></p>
+                  </fieldset>
+                  <details class="settings" open>
+                    <summary>Transzformációs paraméterek (kézi megadás)</summary>
+                    <div class="grid2">
+                      <label>Eltolás X [m]<input id="ta-tx" type="number" step="0.0001" /></label>
+                      <label>Eltolás Y [m]<input id="ta-ty" type="number" step="0.0001" /></label>
+                      <label>Eltolás Z [m]<input id="ta-tz" type="number" step="0.0001" /></label>
+                      <label>Forgatás X [″]<input id="ta-rx" type="number" step="0.00001" /></label>
+                      <label>Forgatás Y [″]<input id="ta-ry" type="number" step="0.00001" /></label>
+                      <label>Forgatás Z [″]<input id="ta-rz" type="number" step="0.00001" /></label>
+                      <label>Méretarány [mm/km]<input id="ta-s" type="number" step="0.01" /></label>
+                      <label>&nbsp;<button id="ta-null" type="button" class="wide">Paraméterek nullázása</button></label>
+                    </div>
+                    <label class="check"><input id="ta-ski" type="checkbox" /><span>A forgatási szögek Leica SKI előjellel értendők (fordított előjel)</span></label>
+                    <p class="hint">
+                      A paraméterek pozíció-vektor értelmezésűek: X′ = T + (1 + s)·(X + R × X). A súgó 63. oldala
+                      szerint a Leica SKI programmal számított forgatási szögek az X, Y és Z tengelynél ellentétes
+                      előjelűek, az eltolás és a méretarány (mm/km) azonos.
+                    </p>
+                  </details>
+                  <label>
+                    <span class="label-text">Átszámítandó pontok</span>
+                    <span class="cols" id="ta-points-cols"></span>
+                    <textarea id="ta-points" spellcheck="false" wrap="off" rows="7"></textarea>
+                  </label>
+                  <details class="settings">
+                    <summary>Mentés és a közös pontokhoz fűzés</summary>
+                    <div class="grid2">
+                      <label>Kimenet
+                        <select id="ta-save-kind">
+                          <option value="szoveges">Koordináta (szöveges)</option>
+                          <option value="foldrajzi">Földrajzi (szöveges)</option>
+                          <option value="db">GeoCalc-DB (.pyx)</option>
+                        </select>
+                      </label>
+                      <label>Pontszám a közös pontokhoz<input id="ta-2step-id" type="text" autocomplete="off" /></label>
+                    </div>
+                    <div class="btnrow">
+                      <button id="ta-2step-add" type="button" class="small">Hozzáadás a közös pontokhoz</button>
+                    </div>
+                    <p class="hint">
+                      A „Hozzáadás a közös pontokhoz” a kétlépcsős módszer: az átszámított pont mindkét
+                      koordináta-listára rákerül, így a paraméterszámítás a megadott koordinátával számolhat tovább.
+                    </p>
+                  </details>
+                </div>
+              </section>
+              <section class="pane result-pane" aria-label="Az átszámítás eredménye">
+                <div class="pane-head">
+                  <h2>Eredmény</h2>
+                  <div class="pane-actions">
+                    <button id="ta-print2" type="button" title="Nyomtatás vagy mentés PDF-be">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                      <span>Nyomtatás / PDF</span>
+                    </button>
+                  </div>
+                </div>
+                <div id="ta-status" class="status" role="status" aria-live="polite"></div>
+                <div id="ta-issues" class="issues"></div>
+                <div id="ta-results" class="results"></div>
+                <div id="ta-downloads" class="downloads"></div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-exchange-file" hidden aria-label="Adatcsere/Koordináta állomány készítése">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+            <span class="mdiwin-caption">Adatcsere/Koordináta állomány készítése</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="panes">
+              <section class="pane" aria-label="A pontok jegyzéke és a kimenet">
+                <div class="pane-head">
+                  <h2>Koordináta jegyzék készítése</h2>
+                  <div class="pane-actions">
+                    <button id="xf-load" type="button" title="Meglévő koordináta-állomány betöltése">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                      <span>Betöltés…</span>
+                    </button>
+                    <button id="xf-add" type="button" title="Új pont hozzáadása a jegyzékhez">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-plus" /></svg>
+                      <span>Új pont</span>
+                    </button>
+                    <button id="xf-save-db" type="button" class="primary" title="GeoCalc formátumú adatbázis készítése">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-database" /></svg>
+                      <span>Állomány készítése</span>
+                    </button>
+                  </div>
+                </div>
+                <p class="hint">
+                  A pontok típusa oszlopban a szokásos Y, X, M; az X, Y, Z (WGS 84 geocentrikus) vagy a földrajzi
+                  koordináták formában adhatók meg. Földrajzi koordinátáknál a bevitel „áldecimális” alakú, például
+                  <code>19.182231643</code> = 19°18′22.31643″.
+                </p>
+                <div class="table-wrap obs-table">
+                  <table class="obs-table">
+                    <thead>
+                      <tr>
+                        <th>Pontszám</th>
+                        <th>Típus</th>
+                        <th id="xf-h1">Y</th>
+                        <th id="xf-h2">X</th>
+                        <th id="xf-h3">M</th>
+                        <th>&nbsp;</th>
+                      </tr>
+                    </thead>
+                    <tbody id="xf-body"></tbody>
+                  </table>
+                </div>
+                <div class="btnrow pad">
+                  <button id="xf-del" type="button" class="small">Utolsó pont törlése</button>
+                  <button id="xf-clear" type="button" class="small">Összes törlése</button>
+                  <button id="xf-save-pyx" type="button" class="small" title="GeoCalc fix szélességű .PYX formátuma">Kimenet .PYX-ként</button>
+                  <button id="xf-save-geo" type="button" class="small" title="Földrajzi koordináták szöveges listája">Kimenet földrajziként</button>
+                </div>
+                <div class="panel-head">Előnézet <span id="xf-count" class="count"></span></div>
+                <div id="xf-status" class="status" role="status" aria-live="polite"></div>
+                <div id="xf-issues" class="issues"></div>
+                <div id="xf-preview" class="results"></div>
+                <div id="xf-downloads" class="downloads"></div>
+              </section>
+            </div>
+          </div>
+          <input id="xf-file" type="file" accept=".pyx,.pyx2,.txt,.eov,text/plain" hidden />
+        </section>
+
+        <section class="mdiwin" id="win-exchange-akg" hidden aria-label="Adatcsere/AKG jegyzőkönyv">
+          <div class="mdiwin-title">
+            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-check-square" /></svg>
+            <span class="mdiwin-caption">Adatcsere/AKG jegyzőkönyv</span>
+            <div class="mdiwin-buttons">
+              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
+              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
+              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
+            </div>
+          </div>
+          <div class="mdiwin-body">
+            <div class="panes">
+              <section class="pane network-form" aria-label="Az AKG jegyzőkönyv adatai">
+                <div class="pane-head">
+                  <h2>AKG jegyzőkönyv (61/2009. FVM rendelet)</h2>
+                  <div class="pane-actions">
+                    <button id="akg-sample" type="button" title="Mintaadatok betöltése">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
+                      <span>Minta</span>
+                    </button>
+                    <button id="akg-open-coords" type="button" title="Koordináta-állomány beolvasása">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                      <span>Koordináták…</span>
+                    </button>
+                    <button id="akg-open-ams" type="button" title="AMS leíró állomány beolvasása">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                      <span>AMS leíró…</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="form">
+                  <label>
+                    <span class="label-text">Koordináta-állomány (PSZ, Y, X)</span>
+                    <textarea id="akg-coords" spellcheck="false" wrap="off" rows="6"></textarea>
+                  </label>
+                  <label>
+                    <span class="label-text">AMS leíró állomány (parcellánként <code>#</code> … <code>;;</code>)</span>
+                    <textarea id="akg-ams" spellcheck="false" wrap="off" rows="6"></textarea>
+                  </label>
+                  <details class="settings" open>
+                    <summary>Parcella leíró adatai (AKG_*)</summary>
+                    <div class="grid2">
+                      <label>Parcella<select id="akg-parcel"></select></label>
+                      <label>AKG_ID<input id="akg-id" type="text" autocomplete="off" /></label>
+                      <label>AKG_REGSZ<input id="akg-regsz" type="text" autocomplete="off" /></label>
+                      <label>AKG_BLOKK<input id="akg-block" type="text" autocomplete="off" /></label>
+                      <label>AKG_FOLDH<input id="akg-foldh" type="text" autocomplete="off" /></label>
+                      <label>AKG_JELOLOPONT<input id="akg-jelolo" type="text" autocomplete="off" /></label>
+                      <label>AKG_CELPRG<input id="akg-celprg" type="text" autocomplete="off" placeholder="pl. a ad 1" /></label>
+                      <label>AKG_KIVETT<input id="akg-kivett" type="text" autocomplete="off" /></label>
+                      <label class="wide2">AKG_CELPRGSZOVEG<input id="akg-celprg-text" type="text" autocomplete="off" /></label>
+                    </div>
+                    <div class="btnrow">
+                      <button id="akg-normalize" type="button" class="small">A célprogram azonosítójának kiegészítése</button>
+                    </div>
+                    <p class="hint">
+                      A célprogram azonosítóját elég üres hellyel beírni, például <code>a ad 1</code> – a program
+                      <code>a) ad) 1.</code> alakban egészíti ki. A kivett területnél a hozzá tartozó parcella AKG_ID
+                      azonosítóját kell megadni.
+                    </p>
+                  </details>
+                  <details class="settings" open>
+                    <summary>Közös adatok</summary>
+                    <div class="grid2">
+                      <label>Mérést végző<input id="akg-mero" type="text" autocomplete="off" /></label>
+                      <label>Mérés ideje<input id="akg-ido" type="text" autocomplete="off" /></label>
+                      <label>Mérőműszer azonosítója<input id="akg-muszer" type="text" autocomplete="off" /></label>
+                      <label>Település<input id="akg-telepules" type="text" autocomplete="off" /></label>
+                    </div>
+                  </details>
+                </div>
+              </section>
+              <section class="pane result-pane" aria-label="Az AKG jegyzőkönyv">
+                <div class="pane-head">
+                  <h2>Jegyzőkönyv</h2>
+                  <div class="pane-actions">
+                    <button id="akg-print" type="button" title="Nyomtatás vagy mentés PDF-be">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                      <span>Nyomtatás / PDF</span>
+                    </button>
+                  </div>
+                </div>
+                <div id="akg-status" class="status" role="status" aria-live="polite"></div>
+                <div id="akg-issues" class="issues"></div>
+                <div id="akg-results" class="results"></div>
+                <div id="akg-downloads" class="downloads"></div>
+              </section>
+            </div>
+          </div>
+          <input id="akg-coords-file" type="file" accept=".txt,.pyx,.eov,csv,text/plain" hidden />
+          <input id="akg-ams-file" type="file" accept=".txt,.ams,csv,text/plain" hidden />
+        </section>
+      </div>
+
+      <!-- Állapotsor -->
+      <div class="statusbar" id="statusbar">
+        <span class="sb-panel sb-grow" id="sb-hint">Kész</span>
+        <span class="sb-panel" id="sb-counts"></span>
+        <span class="sb-panel" id="sb-view"></span>
+        <span class="sb-grip" aria-hidden="true"></span>
+      </div>
+    </div>
+
+    <input id="file-open" type="file" accept=".gcd,.txt,.rtf,text/plain" hidden />
+    <input id="file-coords" type="file" multiple hidden />
+    <input id="set-logo-file" type="file" accept="image/*" hidden />
+    <input id="set-file-open" type="file" accept=".ini,.txt,text/plain" hidden />
+    <input id="net-file-coords" type="file" hidden />
+    <input id="net-file-gmj" type="file" accept=".gmj,.txt" hidden />
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

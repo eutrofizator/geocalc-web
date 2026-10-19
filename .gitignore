@@ -1,0 +1,18 @@
+# --- függőségek ---
+node_modules/
+
+# --- build kimenet ---
+# A kész, önálló egyfájlos alkalmazás viszont a repóban marad (letölthető és futtatható).
+dist/*
+!dist/GEOkalkulus-1.0.html
+
+# --- valódi, helyszíni adatok (nem publikusak) ---
+*.mes
+koordinatak (1).txt
+
+# --- szerkesztők, operációs rendszer ---
+.vscode/
+.idea/
+*.log
+Thumbs.db
+Desktop.ini

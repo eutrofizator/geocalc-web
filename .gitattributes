@@ -1,0 +1,3 @@
+# A projekt minden fájlja LF-es, hogy a build kimenete bájtra ugyanaz legyen
+# minden gépen (a dist/GEOkalkulus-1.0.html is).
+* text=auto eol=lf
