@@ -870,7 +870,87 @@ async function main() {
   await check('a mérési sor törölhető', `document.querySelectorAll('#rc-body tr').length`, 3);
   await evalJs(`document.getElementById('net-open-recorder').click()`);
   await sleep(200);
-  await check('a hálózatról is megnyitható az Adatrögzítő', `document.getElementById('win-recorder').classList.contains('active')`, true);
+  await check('a hálózat „Mérési adatok” gombja a Mérési adatok - koordináták lapot nyitja', `document.getElementById('win-coords').classList.contains('active')`, true);
+
+  /* ---------- Adatrögzítő / Mérési adatok - koordináták: GMJ és GSI beolvasás (súgó 11–12. o.) ---------- */
+  const loadFieldFile = async (name, text, append = false) => {
+    await evalJs(`(() => {
+      const inp = document.getElementById('fb-file-input');
+      const dt = new DataTransfer();
+      dt.items.add(new File([${JSON.stringify(text)}], ${JSON.stringify(name)}, { type: 'text/plain' }));
+      inp.files = dt.files;
+      ${append ? "document.getElementById('fb-append').click();" : "document.getElementById('fb-open').click();"}
+      return true;
+    })()`);
+    // A gomb a fájlválasztót nyitná; a próba a kiválasztást közvetlenül adja át.
+    await evalJs(`document.getElementById('fb-file-input').dispatchEvent(new Event('change'))`);
+    await sleep(400);
+  };
+  const GMJ = [
+    '1,104,,,,,,,,,,,,-1',
+    '2,112,3.4325,0.0000,,,,,,,,,,-2',
+    '3,503,23.1938,0.0000,,1605.323,,,,,1605.3230,,,-2',
+    '4,516,71.2654,0.0000,,1570.84,,,,,1570.8400,,,-2',
+    '5,105,,,,,,,1.52,,,,,-1',
+    '6,K-b,8.0326,91.2345,152.376,,,ko,,1.5,,,,-2',
+    '7,K-j,8.0330,91.2345,152.376,,,ko,,1.5,,,,-2',
+  ].join('\r\n');
+  await loadFieldFile('proba.GMJ', GMJ);
+  await check('a GMJ beolvasható (GeoCalc-AR)', `/Beolvasva: proba\\.GMJ/.test(document.getElementById('fb-status').textContent)`, true);
+  await check('a GMJ minden sora a táblázatban', `document.querySelectorAll('#fb-table tbody tr').length`, 7);
+  await check('az álláspontok sárgák', `document.querySelectorAll('#fb-table tbody tr.station').length`, 2);
+  await check('a 0.0000 zenitszög üres (nem mért)', `document.querySelector('#fb-table tbody tr[data-row="2"] td[data-col="zi"]').textContent`, '');
+  await check('a fájl neve kiíródik', `document.getElementById('fb-file').textContent`, 'proba.GMJ');
+  // A valódi GeoCalc 3.5 beállításai: EOV, átlag Y 602147, X 204807, M 43 → Tvet 1605.2003.
+  await evalJs(`(() => {
+    const set = (id, v, ev = 'input') => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event(ev, { bubbles: true })); };
+    set('rc-reduction', 'projection', 'change');
+    set('rc-projection', 'EOV', 'change');
+    set('rc-avgy', '602147'); set('rc-avgx', '204807'); set('rc-avgm', '43');
+    return true;
+  })()`);
+  await sleep(700);
+  await evalJs(`document.getElementById('fb-tvet').click()`);
+  await sleep(200);
+  await check('a Tvet a valódi GeoCalc értéke (1605.323 → 1605.2003)', `document.querySelector('#fb-table tbody tr[data-row="2"] td[data-col="tvet"]').textContent`, '1605.2003');
+  await check('a Tvet a második távolságnál is (1570.84 → 1570.7199)', `document.querySelector('#fb-table tbody tr[data-row="3"] td[data-col="tvet"]').textContent`, '1570.7199');
+  await check('a ferde távolságból a vetületi kisebb a ferdénél', `Number(document.querySelector('#fb-table tbody tr[data-row="5"] td[data-col="tvet"]').textContent) < 152.376`, true);
+  await evalJs(`document.getElementById('fb-dm').click()`);
+  await sleep(150);
+  await check('a magasságkülönbség kiszámolódott', `document.querySelector('#fb-table tbody tr[data-row="5"] td[data-col="dm"]').textContent !== ''`, true);
+  // Mérés kihagyása és visszavétele.
+  await evalJs(`document.querySelector('#fb-table tbody tr[data-row="1"] td[data-col="id"]').click()`);
+  await evalJs(`document.getElementById('fb-skip').click()`);
+  await sleep(120);
+  await check('a kihagyott mérés szürke', `document.querySelector('#fb-table tbody tr[data-row="1"]').classList.contains('st-skip')`, true);
+  await evalJs(`document.querySelector('#fb-table tbody tr[data-row="1"] td[data-col="id"]').click()`);
+  await evalJs(`document.getElementById('fb-restore').click()`);
+  await sleep(120);
+  await check('a kihagyott mérés visszavehető', `document.querySelector('#fb-table tbody tr[data-row="1"]').classList.contains('st-skip')`, false);
+  // Bal/jobb középelés.
+  await evalJs(`document.getElementById('fb-lr').click()`);
+  await sleep(150);
+  await check('a bal/jobb irányok pirosak, a középérték új sor', `document.querySelectorAll('#fb-table tbody tr.st-merged').length + ':' + document.querySelector('#fb-table tbody tr.st-mean td[data-col="id"]').textContent`, '2:K');
+  // Mentés GMJ-be.
+  await evalJs(`document.getElementById('fb-save').click()`);
+  await sleep(900);
+  const gmjSaved = readdirSync(DL).find((n) => n === 'proba.GMJ');
+  checkNode('a munkaterület GMJ-be menthető (14 mező)', gmjSaved ? readFileSync(join(DL, gmjSaved), 'utf8').split('\r\n')[0].split(',').length : 0, 14);
+  // Konvertálás a hálózatkiegyenlítéshez.
+  await evalJs(`document.getElementById('fb-convert').click()`);
+  await sleep(600);
+  await check('a konvertálás a hálózat GMJ-jébe írja a jegyzőkönyvet', `/^1,104,/.test(document.getElementById('net-gmj').value) && document.getElementById('net-gmj').value.includes('1605.2003')`, true);
+  await check('a konvertálás a középelt irányt viszi át', `/,K,/.test(document.getElementById('net-gmj').value) && !/K-b/.test(document.getElementById('net-gmj').value)`, true);
+  // Leica GSI-16 hozzáfűzése (a típust a tartalomból is felismeri).
+  await loadFieldFile('meres.gsi', ['*110001+0000000000000106 88..16+0000000000015200', '*110002+0000000000000107 21.324+0000000012345300 22.324+0000000009130000 31..00+0000000000100000 87..10+0000000000001300'].join('\n'), true);
+  await check('a GSI hozzáfűzhető', `/Leica GSI/.test(document.getElementById('fb-status').textContent)`, true);
+  await check('a hozzáfűzés után a sorok száma', `document.querySelectorAll('#fb-table tbody tr').length`, 10);
+  await check('a GSI szöge FOK.PPMMSS-ként', `document.querySelector('#fb-table tbody tr[data-row="9"] td[data-col="hz"]').textContent`, '123.4530');
+  // Még nem támogatott formátum: érthető üzenet.
+  await evalJs(`(() => { const s = document.getElementById('fb-type'); s.value = 'topcon'; s.dispatchEvent(new Event('change')); return true; })()`);
+  await loadFieldFile('x.txt', 'valami');
+  await check('a nem támogatott típus mintaállományt kér', `/mintaállományt/.test(document.getElementById('fb-status').textContent)`, true);
+  await evalJs(`(() => { const s = document.getElementById('fb-type'); s.value = 'geocalc-ar'; s.dispatchEvent(new Event('change')); return true; })()`);
 
   /* ---------- Térbeli transzformáció/Átszámítás ---------- */
   await evalJs(`document.getElementById('tr-sample').click()`);

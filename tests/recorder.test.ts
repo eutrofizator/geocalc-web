@@ -113,20 +113,40 @@ describe('a redukció (súgó 62–63. o.)', () => {
     expect(r.tv).toBeCloseTo(88.902, 9);
   });
 
-  it('a vetületi redukció az EOV X átlagával és a súgó állandóival számol', () => {
-    const s = S({ reduction: 'projection', projection: 'EOV', avgY: 602147.734, avgX: 204807.646, avgM: 110, k: 0.99993, R: 6379743.001, axis: 'x', ref: 0, heightReduction: true });
+  it('a vetületi redukció az EOV X átlagával és a súgó állandóival számol (kezdőérték X = 200 000)', () => {
+    const s = S({ reduction: 'projection', projection: 'EOV', avgY: 602147.734, avgX: 204807.646, avgM: 110, k: 0.99993, R: 6379743.001, axis: 'x', ref: 200000, heightReduction: true });
     const r = reduceMeasurement(M({ zi: 90, tf: 100 }), s);
-    // Tv = 100 · (1 − 110/R) · 0.99993 · (1 + 204807.646²/(2R²))
-    expect(r.tv).toBeCloseTo(100.0428, 3);
+    // Tv = 100 · (1 − 110/R) · 0.99993 · (1 + 4807.646²/(2R²)) – a vetületi távolság kisebb a vízszintesnél.
+    expect(r.tv).toBeCloseTo(99.99128, 4);
+    expect(r.tv!).toBeLessThan(100);
     expect(r.notes.join(' ')).toContain('magassági redukció');
     expect(r.notes.join(' ')).toContain('vetületi redukció');
+  });
+
+  it('a valódi GeoCalc 3.5 vetületi távolságait adja (Tv → Tvet, EOV, M = 43, X = 204807)', () => {
+    const s = S({ reduction: 'projection', projection: 'EOV', avgY: 602147, avgX: 204807, avgM: 43 });
+    // A GeoCalc 3.5 „Mérési adatok - koordináták” táblájának Tv és Tvet oszlopa (4 tizedesre kerekítve).
+    for (const [tv, tvet] of [
+      [1605.323, 1605.2003],
+      [1570.84, 1570.7199],
+      [1498.574, 1498.4594],
+      [1570.356, 1570.2359],
+    ] as const) {
+      expect(Math.abs(reduceMeasurement(M({ tv }), s).tv! - tvet)).toBeLessThan(0.00006);
+    }
+  });
+
+  it('a 0.0000 magassági szög hiányzó adat (a GeoCalc így írja a nem mért zenitszöget)', () => {
+    const r = reduceMeasurement(M({ zi: 0, tv: 100, tf: null }), S({ reduction: 'none' }));
+    expect(r.tv).toBe(100);
+    expect(r.dm).toBeNull();
   });
 
   it('magassági redukció nélkül csak a vetületi méretarány érvényesül', () => {
     const s = S({ reduction: 'projection', avgM: 110, avgX: 204807.646, heightReduction: false });
     const r = reduceMeasurement(M({ zi: 90, tf: 100 }), s);
-    // Tv = 100 · 0.99993 · (1 + 204807.646²/(2R²))
-    expect(r.tv).toBeCloseTo(100.04453, 3);
+    // Tv = 100 · 0.99993 · (1 + 4807.646²/(2R²))
+    expect(r.tv).toBeCloseTo(99.99303, 4);
     expect(r.notes.join(' ')).not.toContain('magassági redukció');
   });
 
@@ -165,7 +185,7 @@ describe('a jegyzőkönyv szakaszai', () => {
     expect(cells).toContain('602147.734');
     expect(cells).toContain('204807.646');
     expect(cells).toContain('110.000');
-    expect(cells).toContain('X (kezdőérték 0.000 m)');
+    expect(cells).toContain('X (kezdőérték 200000.000 m)');
   });
 
   it('minden sor kap redukált távolságot', () => {
@@ -173,9 +193,10 @@ describe('a jegyzőkönyv szakaszai', () => {
     expect(report.sections[1]!.rows).toHaveLength(2);
   });
 
-  it('a redukció képletének fenntartása szerepel a láblécben', () => {
+  it('a redukció képlete és a GeoCalc-egyezés szerepel a láblécben', () => {
     expect(report.sections[0]!.footer!.join(' ')).toContain('Tv = Tf · sin(Zi)');
-    expect(report.sections[0]!.footer!.join(' ')).toContain('nem igazolt');
+    expect(report.sections[0]!.footer!.join(' ')).toContain('X − 200 000 m');
+    expect(report.sections[0]!.footer!.join(' ')).toContain('GeoCalc 3.5 kimenetével egyezik');
   });
 });
 

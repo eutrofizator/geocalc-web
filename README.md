@@ -59,7 +59,7 @@ arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jel
 | Hálózatkiegyenlítés/Beállítások | **működik** (középhibák, súlyok, statisztikai próbák, hibahatár-előbeállítás, számítás élessége) |
 | Térbeli transzformáció/Paraméterek számítása | **működik** (7 paraméteres illesztés, keresősugár, kétlépcsős módszer, **interpoláció**) |
 | Térbeli transzformáció/Átszámítás | **működik** (megadott paraméterekkel, **interpolációval**, kimeneti formátumokkal) |
-| Mérési adatok és koordináták | **működik** (állományok + beolvasott pontok) |
+| Adatrögzítő/Mérési adatok - koordináták | **működik** (GeoCalc GMJ és Leica GSI beolvasás, Tvet és dM számítás, kihagyás, bal/jobb középelés, mentés GMJ-be, konvertálás a hálózatkiegyenlítéshez) |
 | Adatcsere/Koordináta kezelő | **működik** (válogatás, mezők, feltétel, export) |
 | Adatcsere/Földrajzi koordináták konvertálása | **működik** (áldecimális, tizedes fok, fok-perc-másodperc, WGS 84 X,Y,Z, UTM 33/34) |
 | Adatcsere/Koordináta állomány készítése | **működik** (kézi jegyzék + GeoCalc-DB / .PYX / földrajzi kimenet) |
@@ -123,7 +123,30 @@ utolsó futás összes pontja, vagy egy beolvasott `.PYX`/`.PYX2`/szöveg adatb�
 - **Előnézet** – a szűrt, pontszám szerint rendezett tábla; az „Állomány készítése” a beállított
   formátumban tölti le.
 
-### Adatrögzítő (súgó 12–15. és 62–63. o.)
+### Adatrögzítő / Mérési adatok - koordináták (súgó 11–12. és 17. o.)
+
+A terepi mérési jegyzőkönyv munkaterülete, a valódi program táblázatával (`#`, Pontszám, Hz, Zi, Tf,
+Tv, Tvet, dM, Mj, Mm, Pontkód; sárga az álláspont, szürke a kihagyott mérés, piros a középelt bal/jobb
+irány).
+
+- **Beolvasás** új munkaterületként vagy **hozzáfűzéssel** (különböző műszerek adatai összefűzhetők):
+  - **GeoCalc-AR / GMJ** – a súgó 17. oldala szerinti 14 mező (`ADR_ID, PSZ, HZ, ZI, TF, TV, DM, PKOD,
+    MM, MJ, TVET, AP1, AP2, AP3`), vesszővel vagy szóközzel; a GeoCalc 3.5 által mentett GMJ is (a nem
+    mért zenitszöget a GeoCalc `0.0000`-ként írja: ez hiányzó adat).
+  - **Leica GSI-8 / GSI-16** (és a **GeoMAX**): 11 pontszám, 21 Hz, 22 zenitszög, 31/32 ferde/vízszintes
+    távolság, 33 magasságkülönbség, 87 jelmagasság, 88 műszermagasság, 84–86 álláspont; a szög- és
+    távolságegységek a szavak egységjelzője szerint. A **Leica TC-600** kódblokkos álláspont-létesítése
+    (súgó 16. o.: Cod = álláspont, In1 = műszermagasság, In2 = azonosító) is.
+  - A GMJ és a GSI a tartalomból is felismerhető. A **Geodimeter UDS, GeoProfi MJK, Sokkia SDR és
+    Topcon** beolvasója még nincs kész (valódi mintaállomány kell hozzá); ilyenkor a program erre figyelmeztet.
+- **Távolságredukció (Tvet)** az Adatrögzítő/Beállítások szerint, **magasságkülönbség (dM)**, a külső
+  program eredményének (TVET.TXT) átvétele, **mérés kihagyása / visszavétele**, **bal/jobb (-b/-j)
+  irányok középelése**, a cellák javítása dupla kattintással.
+- **Mentés GMJ-be** (14 mező), **mérési jegyzőkönyv nyomtatása**, **Konvertálás**: a jegyzőkönyv (a
+  kihagyott és a középelés előtti irányok nélkül, a Tvet-tel) és a beolvasott koordináta-állomány a
+  Hálózatkiegyenlítés munkaterületére kerül.
+
+### Adatrögzítő/Beállítások (súgó 12–15. és 62–63. o.)
 
 A terepi adatrögzítők feldolgozásának beállításai és a mért adatok redukciója.
 
@@ -134,7 +157,8 @@ A terepi adatrögzítők feldolgozásának beállításai és a mért adatok red
 - **Távolságredukció** – nincs / külső program / vetületi. A vetületi redukció képlete:
   `Tv = Tf · sin(Zi) · (1 − M/R) · k · (1 + d²/(2R²))`, ahol `M` az átlagos magasság, `d` a redukciós
   koordináta eltérése a kezdőértéktől, `k` a vetületi méretarány és `R` a redukciós sugár. A súgó
-  szerint az **EOV**-nál `k = 0.99993`, `R = 6379743.001` és a redukciós koordináta az **X**, a HÉR,
+  szerint az **EOV**-nál `k = 0.99993`, `R = 6379743.001`, a redukciós koordináta az **X**, a kezdőérték
+  pedig a vetület középvonala, **X = 200 000 m** (a méretarány ettől mért távolsággal nő), a HÉR,
   HKR, HDR és sztereografikus vetületnél `R = 6378512.966` és az **Y**; a méretarány, a sugár és a
   tengely felülírható.
 - **Átlagok** – kézzel, vagy az „Átlagok koordináta-állományból…” gombbal egy `.eov`/`.pyx` állomány
@@ -160,10 +184,12 @@ A terepi adatrögzítők feldolgozásának beállításai és a mért adatok red
   Pkód` alakban (a szögek hat tizedesjegyű `FOK.PPMMSS`-ként), ezért a fájl **változatlanul
   visszatölthető** a táblázatba.
 
-> **Fenntartás:** a vetületi redukció képletét a súgó 62–63. oldala **képként** közli (a
-> `gc35_help.exe`-ből nem kinyerhető), ezért a webes változat a szabványos magassági és vetületi
-> redukciót alkalmazza a súgóban megadott állandókkal; a **bájtos egyezés nem igazolt**. A jegyzőkönyv
-> ezt a megjegyzést mindig kiírja.
+> **Igazolva:** az EOV vetületi redukció a valódi GeoCalc 3.5 kimenetével egyezik (Tv → Tvet, pl.
+> `1605.323 → 1605.2003`, `1570.84 → 1570.7199`; EOV, átlag X = 204 807, M = 43; ±0.1 mm a 4 tizedesre
+> kerekítésen belül), ezt a `tests/recorder.test.ts` és a böngészős végpróba is rögzíti. A korábbi
+> változat két hibát tartalmazott: az EOV kezdőértékét 0-nak vette (ezért lett a vetületi távolság
+> nagyobb a ferdénél), és a magassági redukciót alapból kikapcsolta; mindkettő javítva, a régi mentett
+> beállítások betöltéskor is. A HÉR, HKR, HDR és a sztereografikus vetület állandói a súgó szerintiek.
 
 ### Térbeli transzformáció/Paraméterek számítása (súgó 65–69. o.)
 
@@ -303,13 +329,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 437 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 452 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **288 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **307 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -415,7 +441,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 35 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 36 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

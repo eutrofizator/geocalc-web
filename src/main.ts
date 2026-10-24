@@ -9,7 +9,8 @@ import { DEFAULT_LOGO_SVG, logoDataUri } from './core/logo';
 import { parseSession, serializeSession, sessionFileName } from './core/session';
 import { initNetworkView } from './network-view';
 import { initNetSettingsView } from './net-settings-view';
-import { initRecorderView } from './recorder-view';
+import { initRecorderView, recorderSettings } from './recorder-view';
+import { initFieldBookView } from './field-book-view';
 import { downloadReport, initSettingsView, onMeta, renderCover } from './report-view';
 import { SHEETS, initShell, setCodeProvider } from './shell';
 import { initTransformApplyView } from './transform-apply-view';
@@ -492,7 +493,7 @@ shell.onShow((id) => {
 // A hálózati munkaterületről a beállítások munkalapjára.
 $('net-open-settings').addEventListener('click', () => shell.open('network-settings'));
 // A nyers mérések (Hz, Zi, ferde távolság) redukciója az Adatrögzítő munkalapon történik.
-$('net-open-recorder').addEventListener('click', () => shell.open('recorder'));
+$('net-open-recorder').addEventListener('click', () => shell.openNav('rc-data'));
 
 /* ---------- indulás ---------- */
 // Az oldal ikonja ugyanaz a geodéziai jelkép, beágyazva (nincs külső hivatkozás).
@@ -524,6 +525,22 @@ lastLoadedSource = editor.value;
 initNetworkView({ openNav: (id) => shell.openNav(id) });
 initNetSettingsView();
 initRecorderView();
+initFieldBookView({
+  settings: recorderSettings,
+  toNetwork: (gmj, coordinates) => {
+    // A konvertált jegyzőkönyv a Hálózatkiegyenlítés munkaterületére kerül (súgó 12. o.).
+    const gmjBox = $<HTMLTextAreaElement>('net-gmj');
+    gmjBox.value = gmj;
+    gmjBox.dispatchEvent(new Event('input'));
+    if (coordinates !== null) {
+      const coordBox = $<HTMLTextAreaElement>('net-coords');
+      coordBox.value = coordinates;
+      coordBox.dispatchEvent(new Event('input'));
+    }
+  },
+  openNav: (id) => shell.openNav(id),
+  setHint: (t) => shell.setHint(t),
+});
 initTransformView();
 initTransformApplyView();
 initExchangeFileView();

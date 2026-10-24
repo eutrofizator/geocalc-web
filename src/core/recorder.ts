@@ -11,12 +11,14 @@ import type { Section, Row } from './types';
  * és a mért adatokból a további feldolgozáshoz vízszintes/vetületi távolságokat és magasságkülönbségeket
  * számít. A távolságredukció lehet nincs, külső program vagy vetületi.
  *
- * A súgó (62–63. o.) a vetületi redukció képletét képként közli, ezért a webes változat a szabványos
- * magassági és vetületi (skála) redukciót alkalmazza a súgóban megadott állandókkal:
+ * A vetületi redukció a magassági és a vetületi (skála) redukció a súgóban megadott állandókkal:
  *   Tv = Tf · sin(Zi) · (1 − M/R) · k · (1 + d²/(2R²))
  * ahol M az átlagos magasság, d a redukciós koordináta eltérése a vetület kezdőértékétől, k a
  * vetületi méretarány és R a redukciós sugár. A súgó felsorolása szerint a fenti (EOV) vetületnél
  * k = 0.99993 és R = 6379743.001, a HÉR, HKR, HDR és a sztereografikus vetületnél R = 6378512.966.
+ *
+ * Az EOV kezdőértéke az X = 200 000 m (a vetület középvonala): a méretarány attól mért távolsággal nő.
+ * A képlet a valódi GeoCalc 3.5 kimenetével egyezik (Tv → Tvet, ±0.1 mm a 4 tizedesre kerekítésen belül).
  */
 
 export interface RecorderType {
@@ -66,7 +68,7 @@ export interface ProjectionDef {
 
 /** A Magyarországon használt főbb vetületi rendszerek (súgó 14. o.). */
 export const REDUCTION_PROJECTIONS: ProjectionDef[] = [
-  { id: 'EOV', label: 'EOV', k: 0.99993, R: 6379743.001, axis: 'x', ref: 0 },
+  { id: 'EOV', label: 'EOV', k: 0.99993, R: 6379743.001, axis: 'x', ref: 200000 },
   { id: 'HER', label: 'HÉR', k: 1, R: 6378512.966, axis: 'y', ref: 0 },
   { id: 'HKR', label: 'HKR', k: 1, R: 6378512.966, axis: 'y', ref: 0 },
   { id: 'HDR', label: 'HDR', k: 1, R: 6378512.966, axis: 'y', ref: 0 },
@@ -130,7 +132,7 @@ export const DEFAULT_RECORDER_SETTINGS: RecorderSettings = {
   avgX: 0,
   avgM: 0,
   heightReduction: true,
-  ref: 0,
+  ref: 200000,
   k: 0.99993,
   R: 6379743.001,
   axis: 'x',
@@ -181,12 +183,14 @@ export function reduceMeasurement(m: MeasurementRow, s: RecorderSettings): Reduc
     notes.push('a külső program (TVET.TXT) eredménye');
     return { tv: m.external.tv, dm: m.external.dm, notes };
   }
+  // A GeoCalc a nem mért magassági szöget 0.0000-ként írja: az nem 0° zenitszög, hanem hiányzó adat.
+  const zi = m.zi !== null && m.zi !== 0 ? m.zi : null;
   // A vízszintes (esetleg ferde) távolság.
   let horizontal: number | null = null;
-  if (m.zi !== null && m.tf !== null) {
-    horizontal = m.tf * Math.sin(m.zi * DEG);
+  if (zi !== null && m.tf !== null && m.tf > 0) {
+    horizontal = m.tf * Math.sin(zi * DEG);
     notes.push(`vízszintes a magassági szögből: Tf · sin(Zi) = ${fix(horizontal, 3)} m`);
-  } else if (m.tv !== null) {
+  } else if (m.tv !== null && m.tv > 0) {
     horizontal = m.tv;
     notes.push(`mért vízszintes távolság: ${fix(m.tv, 3)} m`);
   }
@@ -204,8 +208,7 @@ export function reduceMeasurement(m: MeasurementRow, s: RecorderSettings): Reduc
   } else if (s.reduction === 'external') {
     notes.push('a redukciót külső program végzi (TVET.TXT)');
   }
-  const dm =
-    m.zi !== null && m.tf !== null ? m.tf * Math.cos(m.zi * DEG) + (m.mm ?? 0) - (m.mj ?? 0) : m.dm;
+  const dm = zi !== null && m.tf !== null && m.tf > 0 ? m.tf * Math.cos(zi * DEG) + (m.mm ?? 0) - (m.mj ?? 0) : m.dm;
   return { tv, dm, notes };
 }
 
@@ -243,8 +246,8 @@ export function reduceAll(measurements: MeasurementRow[], s: RecorderSettings): 
       rows: settings,
       footer: s.reduction === 'projection'
         ? [
-            'A redukált távolság: Tv = Tf · sin(Zi) · (1 − M/R) · k · (1 + d²/(2R²)).',
-            'A súgó (62–63. o.) a képletet képként közli; a webes változat a szabványos redukciót alkalmazza a súgóban megadott k és R állandókkal. A bájtos egyezés nem igazolt.',
+            'A redukált távolság: Tv = Tf · sin(Zi) · (1 − M/R) · k · (1 + d²/(2R²)), ahol d a redukciós koordináta eltérése a kezdőértéktől (EOV: X − 200 000 m).',
+            'Az EOV redukció a valódi GeoCalc 3.5 kimenetével egyezik; a HÉR, HKR, HDR és a sztereografikus vetület állandói a súgó szerintiek.',
           ]
         : undefined,
     },

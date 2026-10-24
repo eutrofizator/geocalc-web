@@ -2333,6 +2333,142 @@ button.close-btn {
   }
 }
 
+/* Adatrögzítő / Mérési adatok - koordináták (súgó 11–12. o.) */
+.fb-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 1100px;
+  margin-bottom: 8px;
+}
+
+.fb-head .field-line {
+  margin: 0 6px 0 0;
+}
+
+.fb-file {
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 520px;
+}
+
+button.fb-ap {
+  margin-left: auto;
+  color: #1f4fa3;
+  border-color: #1f4fa3;
+}
+
+button.fb-ap[aria-pressed='true'] {
+  background: #f7f5f2;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+}
+
+.fb-panel {
+  max-width: 1100px;
+}
+
+.fb-wrap {
+  max-height: 56vh;
+}
+
+.fb-table th,
+.fb-table td {
+  min-width: 56px;
+}
+
+.fb-table td:first-child,
+.fb-table th:first-child {
+  min-width: 34px;
+}
+
+.fb-table .fb-apcol {
+  display: none;
+}
+
+.fb-table.show-ap .fb-apcol {
+  display: table-cell;
+}
+
+.fb-table tbody tr {
+  cursor: default;
+  user-select: none;
+}
+
+.fb-table tr.station td {
+  background: #ffff00;
+}
+
+.fb-table tr.st-skip td {
+  background: #d0d0d0;
+  color: #555;
+}
+
+.fb-table tr.st-merged td {
+  background: #ff2d2d;
+  color: #fff;
+}
+
+.fb-table tr.st-mean td {
+  font-style: italic;
+}
+
+.fb-table td.calc {
+  color: #1f3fbf;
+}
+
+.fb-table tr.sel td,
+.fb-table tbody tr.sel:hover td {
+  background: var(--select);
+  color: var(--select-text);
+}
+
+.cell-edit {
+  width: 100%;
+  min-width: 70px;
+  padding: 0 2px;
+  border: 1px solid var(--accent);
+  font: 11px var(--report-font);
+}
+
+.fb-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.fb-grow {
+  flex: 1;
+}
+
+.fb-label {
+  margin-left: 14px;
+}
+
+button.fb-calc {
+  height: 27px;
+  padding: 2px 10px;
+}
+
+.icon.fb-blue {
+  color: #1f4fa3;
+  stroke-width: 2.4;
+}
+
+.icon.fb-red {
+  color: #c1121f;
+  stroke-width: 2.4;
+}
+
+.fb-status {
+  margin-top: 8px;
+  color: var(--text-dim);
+}
+
 /* ---------------- állapotsor ---------------- */
 
 .statusbar {

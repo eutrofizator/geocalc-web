@@ -59,6 +59,10 @@ const SAMPLE_SETTINGS: RecorderSettings = {
   avgM: 110,
 };
 
+/** A legutóbbi beállítások (a Mérési adatok munkalap redukciójához). */
+let currentSettings: RecorderSettings = { ...DEFAULT_RECORDER_SETTINGS };
+export const recorderSettings = (): RecorderSettings => ({ ...currentSettings });
+
 interface FormState extends RecorderSettings {
   drafts: RecorderDraft[];
 }
@@ -330,7 +334,8 @@ export function initRecorderView(): void {
   const compute = ({ syncText = false } = {}) => {
     window.clearTimeout(timer);
     const s = state();
-    storage.set(STORAGE_KEY, JSON.stringify(s));
+    currentSettings = { ...s };
+    storage.set(STORAGE_KEY, JSON.stringify({ ...s, v: 2 }));
     if (syncText) syncTextarea();
     issues.replaceChildren();
     results.replaceChildren();
@@ -538,6 +543,12 @@ export function initRecorderView(): void {
       | null;
     if (saved && RECORDER_TYPES.some((t) => t.id === saved.recorder)) {
       const rest = { ...DEFAULT_RECORDER_SETTINGS, ...saved } as RecorderSettings;
+      // A korábbi változat az EOV kezdőértékét hibásan 0-nak vette (a vetületi távolság így nagyobb lett a
+      // ferde távolságnál); a vetület középvonala X = 200 000 m.
+      if (rest.projection === 'EOV' && rest.axis === 'x' && rest.ref === 0) rest.ref = 200000;
+      // A magassági redukció jelölőnégyzete korábban alapból ki volt kapcsolva (a GeoCalc mindig számolja):
+      // a 2. változat előtti mentéseknél bekapcsoljuk.
+      if ((saved as { v?: number }).v !== 2) rest.heightReduction = true;
       if (Array.isArray(saved.drafts)) {
         restored = { ...rest, drafts: saved.drafts.map((d) => ({ ...EMPTY_DRAFT, ...d })) };
       } else if (typeof saved.input === 'string') {
@@ -574,6 +585,7 @@ export function initRecorderView(): void {
     kInput.value = String(SAMPLE_SETTINGS.k);
     rInput.value = String(SAMPLE_SETTINGS.R);
     axis.value = SAMPLE_SETTINGS.axis;
+    height.checked = SAMPLE_SETTINGS.heightReduction;
   }
 
   syncNotes();

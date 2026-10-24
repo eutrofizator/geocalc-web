@@ -175,6 +175,25 @@
           <circle cx="3" cy="19" r="1.6" />
           <circle cx="21" cy="5" r="1.6" />
         </symbol>
+        <symbol id="i-row-plus" viewBox="0 0 24 24">
+          <path d="M3 6h11M3 12h11M3 18h7" />
+          <path d="M18 14v8M14 18h8" />
+        </symbol>
+        <symbol id="i-row-minus" viewBox="0 0 24 24">
+          <path d="M3 6h11M3 12h11M3 18h7" />
+          <path d="M14 18h8" />
+        </symbol>
+        <symbol id="i-mean" viewBox="0 0 24 24">
+          <path d="M4 4l8 16 8-16" />
+          <path d="M12 4v16" />
+        </symbol>
+        <symbol id="i-triangle-s" viewBox="0 0 24 24">
+          <path d="M4 20h16L20 8Z" />
+          <path d="M16 20v-3h4" />
+        </symbol>
+        <symbol id="i-triangle-l" viewBox="0 0 24 24">
+          <path d="M3 21h18V4Z" />
+        </symbol>
         <symbol id="i-globe" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="9" />
           <path d="M3 12h18" />
@@ -319,30 +338,112 @@
           </div>
         </section>
 
+        <!-- Adatrögzítő / Mérési adatok - koordináták (súgó 11–12. o.): a terepi jegyzőkönyv munkaterülete -->
         <section class="mdiwin" id="win-coords" hidden aria-label="Mérési adatok és koordináták">
           <div class="mdiwin-title">
             <span class="mdiwin-caption">Mérési adatok és koordináták</span>
           </div>
-          <div class="mdiwin-body">
-            <div class="pane">
-              <div class="pane-head">
-                <h2>Koordináta-állományok</h2>
-                <div class="pane-actions">
-                  <button id="btn-files" type="button" class="primary">
+          <div class="mdiwin-body step-body">
+            <div class="step-scroll">
+              <div class="fb-head">
+                <label class="field-line">
+                  <span>Adatrögzítő típusa</span>
+                  <select id="fb-type"></select>
+                </label>
+                <button id="fb-open" type="button" class="ib" title="Az adatrögzítőnek megfelelő adatok beolvasása új munkaterületként" aria-label="Beolvasás új munkaterületként">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                </button>
+                <button id="fb-append" type="button" class="ib" title="Az adatrögzítőnek megfelelő adatok hozzáfűzése a munkaterülethez" aria-label="Hozzáfűzés a munkaterülethez">
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-plus" /></svg>
+                </button>
+                <span id="fb-file" class="fb-file"></span>
+                <button id="fb-ap" type="button" class="fb-ap" aria-pressed="false" title="Az állásponti kódok (AP1, AP2) oszlopa">ÁP kód</button>
+              </div>
+              <div class="step-panel fb-panel">
+                <div class="grid-wrap tall fb-wrap">
+                  <table class="grid-table fb-table" id="fb-table">
+                    <thead>
+                      <tr>
+                        <th>#</th><th>Pontszám</th><th>Hz</th><th>Zi</th><th>Tf</th><th>Tv</th><th>Tvet</th><th>dM</th><th>Mj</th><th>Mm</th><th>Pontkód</th>
+                        <th class="fb-apcol">AP1</th><th class="fb-apcol">AP2</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <p class="hint">
+                  Sárga: álláspont · fehér: irányzott pont · piros: a bal/jobb középelés eredeti irányai · szürke: kihagyott mérés.
+                  Kattintás: kijelölés (Shift: tartomány), dupla kattintás: a mező javítása.
+                </p>
+                <div class="fb-actions">
+                  <button id="fb-restore" type="button" class="ib" title="Kihagyott mérés ismételt felhasználása" aria-label="Kihagyott mérés visszavétele">
+                    <svg class="icon fb-blue" aria-hidden="true" focusable="false"><use href="#i-row-plus" /></svg>
+                  </button>
+                  <button id="fb-skip" type="button" class="ib" title="Mérés kihagyása" aria-label="Mérés kihagyása">
+                    <svg class="icon fb-red" aria-hidden="true" focusable="false"><use href="#i-row-minus" /></svg>
+                  </button>
+                  <button id="fb-lr" type="button" class="ib" title="A bal/jobb (-b/-j) irányok középelése" aria-label="Bal-jobb irányok középelése">
+                    <svg class="icon fb-red" aria-hidden="true" focusable="false"><use href="#i-mean" /></svg>
+                  </button>
+                  <span class="tb-sep"></span>
+                  <button id="fb-ext" type="button" class="ib" title="Vetületi redukció átvétele külső programból (TVET.TXT)" aria-label="Vetületi redukció átvétele külső programból">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+                  </button>
+                  <button id="fb-tvet" type="button" class="fb-calc" title="Távolságredukció számítása (Tvet) az Adatrögzítő/Beállítások szerint">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-triangle-s" /></svg>
+                    <span>Tvet</span>
+                  </button>
+                  <button id="fb-dm" type="button" class="fb-calc" title="Magasságkülönbség számítása (dM = Tf · cos Zi + Mm − Mj)">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-triangle-l" /></svg>
+                    <span>dM</span>
+                  </button>
+                  <span class="fb-grow"></span>
+                  <button id="fb-print" type="button" class="ib" title="Mérési jegyzőkönyv nyomtatása" aria-label="Mérési jegyzőkönyv nyomtatása">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                  </button>
+                  <button id="fb-save" type="button" class="ib" title="A munkaterület mentése GeoCalc GMJ formátumba" aria-label="Mentés GMJ formátumba">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save" /></svg>
+                  </button>
+                </div>
+                <div class="fb-actions">
+                  <button id="fb-convert" type="button" class="wide-btn" title="A jegyzőkönyv és a koordináták konvertálása a hálózatkiegyenlítéshez">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+                    <span>Konvertálás</span>
+                  </button>
+                  <span class="fb-label">Koordináta állomány</span>
+                  <button id="fb-coord-new" type="button" class="ib" title="Koordináta állomány létrehozása" aria-label="Koordináta állomány létrehozása">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-list" /></svg>
+                  </button>
+                  <button id="fb-coord-open" type="button" class="ib" title="Meglévő koordináta állomány beolvasása" aria-label="Koordináta állomány beolvasása">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                  </button>
+                  <span id="fb-coord-file" class="fb-file"></span>
+                </div>
+                <div id="fb-status" class="fb-status" role="status" aria-live="polite"></div>
+                <div id="fb-issues" class="issues"></div>
+              </div>
+
+              <fieldset class="step-group">
+                <legend>Koordináta-állományok a Geodéziai számítások K_ blokkjához</legend>
+                <div class="btnrow">
+                  <button id="btn-files" type="button">
                     <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-upload" /></svg>
                     <span>Állomány feltöltése…</span>
                   </button>
                 </div>
-              </div>
-              <p class="hint">
-                A <code>K_</code> sorban megadott állománynevekhez töltsd fel a fájlokat (a böngésző nem fér hozzá a
-                mappákhoz). A program a beolvasott koordinátákat a <code>K_</code> blokkba illeszti.
-              </p>
-              <ul id="file-list" class="files"></ul>
-              <div class="panel-head">Beolvasott pontok</div>
-              <div id="coords-preview" class="results"></div>
+                <p class="hint">
+                  A <code>K_</code> sorban megadott állománynevekhez töltsd fel a fájlokat (a böngésző nem fér hozzá a
+                  mappákhoz). A program a beolvasott koordinátákat a <code>K_</code> blokkba illeszti.
+                </p>
+                <ul id="file-list" class="files"></ul>
+                <div class="panel-head">Beolvasott pontok</div>
+                <div id="coords-preview" class="results"></div>
+              </fieldset>
             </div>
           </div>
+          <input id="fb-file-input" type="file" accept=".gmj,.gsi,.txt,.dat,.raw,text/plain" hidden />
+          <input id="fb-ext-input" type="file" accept=".txt,text/plain" hidden />
+          <input id="fb-coord-input" type="file" accept=".eov,.pyx,.pyx2,.txt,.koo,.dat,text/plain" hidden />
         </section>
 
         <section class="mdiwin" id="win-settings" hidden aria-label="Geodéziai számítások/Beállítások">
@@ -1418,7 +1519,7 @@
                       <label>Méretarány k<input id="rc-k" type="number" step="0.00001" /></label>
                       <label>Redukciós sugár R [m]<input id="rc-r" type="number" step="1" /></label>
                     </div>
-                    <label class="check"><input id="rc-height" type="checkbox" /><span>Magassági redukció (tengerszintre) számítása</span></label>
+                    <label class="check"><input id="rc-height" type="checkbox" checked /><span>Magassági redukció (tengerszintre) számítása</span></label>
                     <p class="hint">
                       Tv = Tf · sin(Zi) · (1 − M/R) · k · (1 + d²/(2R²)), ahol d a redukciós koordináta eltérése a
                       kezdőértéktől. A súgó 62. oldala a képletet képként közli, ezért a webes változat a szabványos

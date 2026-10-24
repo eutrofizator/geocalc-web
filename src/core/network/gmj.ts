@@ -17,10 +17,11 @@ const dms = (t: string | undefined): number | null => {
 };
 
 /**
- * A GeoCalc GMJ mérési jegyzőkönyv beolvasása (az Adatrögzítő belső formátuma).
+ * A GeoCalc GMJ mérési jegyzőkönyv beolvasása (a GeoCalc-AR formátum, súgó 17. o.): soronként 14 mező,
+ * ADR_ID, PSZ, HZ, ZI, TF, TV, DM, PKOD, MM, MJ, TVET, AP1, AP2, AP3 (AP3: −1 álláspont, −2 irányzott pont).
  *
- * Állásponti sor (…,-1):  sorszám, pontszám, …, műszermagasság (9. mező), …
- * Mérési sor (…,-2):      sorszám, pontszám, Hz, Zi, ferde táv., vízsz. táv., dM, –, –, prizmamagasság, redukált táv., …
+ * A hálózat távolsága a vetületi (TVET), ennek hiányában a vízszintes (TV) távolság. A nem mért magassági
+ * szöget a GeoCalc 0.0000-ként írja: ez hiányzó adat.
  */
 export function parseGmj(text: string): { stations: NetStation[]; issues: Issue[] } {
   const stations: NetStation[] = [];
@@ -46,19 +47,24 @@ export function parseGmj(text: string): { stations: NetStation[]; issues: Issue[
         if (!current) throw new CalcError('Mérési sor állásponti sor nélkül.', i + 1);
         const hz = dms(f[2]);
         if (hz === null) throw new CalcError(`${id}: hiányzik az irányérték.`, i + 1);
+        const zi = dms(f[3]);
         const reduced = num(f[10]);
         const slope = num(f[4]);
+        const horizontal = num(f[5]);
+        const mj = num(f[9]);
+        // A nyers (műszerből konvertált) jegyzőkönyvben a nem távolsággal mért célpontok sorában az előző mérés
+        // távolsága beragad; ott a jelmagasság kifejezetten 0. Ez nem távolságmérés.
+        const stale = (f[9] ?? '').trim() !== '' && mj === 0 && slope !== null && slope > 0;
+        const distance = stale ? null : reduced !== null && reduced > 0 ? reduced : horizontal !== null && horizontal > 0 ? horizontal : null;
         const obs: NetObservation = {
           target: id,
           hz,
-          zi: dms(f[3]),
+          zi: zi === 0 ? null : zi,
           slope: slope !== null && slope > 0 ? slope : null,
-          horizontal: num(f[5]) !== null && (num(f[5]) as number) > 0 ? num(f[5]) : null,
+          horizontal: horizontal !== null && horizontal > 0 ? horizontal : null,
           dM: num(f[6]),
-          targetHeight: num(f[9]),
-          // Távolságmérés: van ferde és redukált távolság, és a prizmamagasság pozitív. (Nyers jegyzőkönyvben a nem
-          // távolsággal mért célpontok sorában az előző mérés távolsága beragad; ott a prizmamagasság nulla.)
-          distance: slope !== null && slope > 0 && reduced !== null && reduced > 0 && (num(f[9]) ?? 0) > 0 ? reduced : null,
+          targetHeight: mj,
+          distance,
         };
         current.observations.push(obs);
       } else {
