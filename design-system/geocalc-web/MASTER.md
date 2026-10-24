@@ -156,15 +156,28 @@ stílusa.
 `.sb-panel` – besüllyesztett panel; `white-space: nowrap` + `text-overflow: ellipsis`
 (csonkít, nem tördel). `.sb-grow` a rugalmas első panel, `.sb-grip` a jobb alsó fogantyú.
 
-### Hálózati nézet – önálló hálózat, hálózati dátum, sokszögvonal-előzetes
+### Hálózatkiegyenlítés – az öt lépés munkalapjai (súgó 50–54. o.)
 
-A „Hálózatkiegyenlítés” munkalapon a `.check` „Önálló hálózat” jelölőnégyzet a szabad kiegyenlítést
-kapcsolja (a megadott koordináták közelítő értékké válnak). Alatta a `#net-datum-row` `.grid2` a
-hálózati dátum mezői (horgonypont, kívánt Y/X, forgatás, illetve második pont + kívánt irányszög),
-a `#net-traverse` szöveges mező pedig a sokszögvonal-pontok sorrendjét várja (szóközzel, vesszővel
-vagy pontosvesszővel elválasztva; ha az utolsó pontszám megegyezik az elsővel, zárt poligon).
-Mindhárom vezérlő ugyanazt a `.form` stílust és a beszúrt `input`-mezőket használja, mint a többi
-beviteli mező, ezért nem igényel új CSS-t. A „Mintapélda” gomb a `net-traverse` mezőt is kitölti.
+Minden lépés saját `.mdiwin` munkalap (`win-network`, `win-net-pre`, `win-net-hor`, `win-net-ver`,
+`win-net-det`) `.step-body` törzzsel: a görgethető `.step-scroll` benne a `.step-panel` / `.step-group`
+bemélyített keretes csoportokkal, alul a `.step-nav` sáv (`.step-refresh` zöld nyíl balra – a lap
+kijelöléseinek alaphelyzete –, `.step-next` kék nyíl jobbra – a következő lépés).
+
+- **Listadobozok** (`.pick-row` > `.pick-col` > `select[multiple]`): a valódi program ListBoxai; alattuk
+  a `.minus` (sárga vonal: kihagyás/törlés) és a `.cross` (piros ✕) gomb, közöttük az `.arrow-btn`
+  (kék nyíl) és a `.play-btn` (kékeszöld alapon fehér háromszög: „Kiegyenlítésbe bevonandó pontok”,
+  magassági kiegyenlítés). A „Felhasznált pontok” `.used-list` kékeszöld alapon sárga betűs.
+- **Rácsos táblázatok** (`.grid-wrap` > `.grid-table`): a StringGrid-ek. `tr.new-point` sárga (új pont),
+  `td.click` kattintható cella, `td.off` piros (kézzel kihagyott mérés, illetve be nem vont távolság
+  nélküli magasságkülönbség), `td.auto-off` rózsaszín (durva hiba miatt kihagyott, zárolt), `td.coord`
+  koordinátából számított távolságú sor (bevonva narancs bal szegély), `td.over` a hibahatárt
+  meghaladó javítás. A `.cell-input` a cellában szerkeszthető koordináta.
+- **Panelek**: `#nh-poly-panel` „Ellenőrzés – poligonzárás” (`.poly-grid`, zöldes `.poly-table-wrap`),
+  `#nh-datum-panel` hálózati dátum, `#nv-lines-panel` trigonometriai magassági vonalak (`.lines-grid`:
+  gombok, szerkesztett vonal, eredmény). A panel hibáját a `.panel-msg` írja ki (üresen rejtett).
+- **Előkép-ablak** (`.preview-window`): a teljes hálózati jegyzőkönyv a munkalap fölött, saját
+  palaszürke címsorral, nyomtatással, `Bezár` gombbal (Esc), `.report-tree` fejezetfával és a
+  `.results.paper` lappal; a dokumentum-ikonok (`.doc-btn`) a lépés szakaszánál nyitják.
 
 ### Jegyzőkönyv-szakaszok (hálózat)
 
@@ -232,13 +245,13 @@ duplikálja a mezőket. Új elem a `.form .settings` **hibahatár-előbeállít�
 - Kontraszt: minden szöveg ≥ 4,5:1 (a fekete a `#d4d0c8`-on ~13:1), a 3D keretek ≥ 3:1.
 - Fókusz: minden interaktív elemen látható (`:focus-visible` pontozott körvonal, illetve fókuszált
   menüponton `--select` háttér).
-- A menüsor és az ikonsáv `role="menubar"` / `role="toolbar"`, a menüpontok `role="menuitem"`,
-  az Ablak menü elemei `role="menuitemradio"` + `aria-checked`.
-- A munkalap-ablakok `aria-label`-lel rendelkeznek; megnyitáskor a `[data-autofocus]` (a szerkesztő),
-  egyébként az első fókuszálható elem kapja a fókuszt.
+- A menüsor és az ikonsáv `role="menubar"` / `role="toolbar"`, a menüpontok `role="menuitem"`; a
+  modulpanel `nav`, a csoportfejlécek `aria-expanded`, az aktív pont `aria-current="page"`.
+- A munkalapok `aria-label`-lel rendelkeznek; megnyitáskor a `[data-autofocus]` (a szerkesztő),
+  egyébként az első fókuszálható elem kapja a fókuszt. Az Előkép-ablak `role="dialog"`.
 - Nyomtatás: csak a jegyzőkönyv marad (a burok, az űrlapok és a szerkesztő elrejtve), fehér alapon.
-- Ismert hiány: a hálózati nézetben a mérés kizárása **csak egérrel** működik; a valódi programban
-  ezt jelölőnégyzet végzi.
+- Ismert hiány: a Vízszintes és a Magassági kiegyenlítés táblázatában a cellára kattintás **csak
+  egérrel** működik; billentyűzettel a jegyzőkönyv „Mérések kizárása” jelölőnégyzetei használhatók.
 
 ## Tiltott minták (a generátorból megtartva)
 
@@ -260,6 +273,9 @@ duplikálja a mezőket. Új elem a `.form .settings` **hibahatár-előbeállít�
 - [x] Az 5. csomag munkalapjai (Adatrögzítő, Átszámítás, Koordináta állomány, AKG,
   Hálózatkiegyenlítés/Beállítások) a **176 ellenőrzéses** böngészős végpróbán (0 kezeletlen kivétel,
   0 konzolhiba) hibátlanul működnek.
+- [x] A GeoCalc 3.5 burok (modulpanel, munkalap-fejléc, Előkép) és a hálózatkiegyenlítés öt lépése
+  (poligonzárás, magassági vonalak, távolság nélküli magasságkülönbségek) a **288 ellenőrzéses**
+  böngészős végpróbán (0 kezeletlen kivétel, 0 konzolhiba) hibátlan.
 - [x] Az Adatrögzítő kézi beviteli táblázata (`.rc-table`): a számolt `Tv`/`dM` azonnal a sor mellett,
   a szög emberi alakja, a hibás mező jelölése és az élő szöveges tükör a végpróbán igazolva; a
   jegyzőkönyv a szögeket a beírt `FOK.PPMMSS` alakban közli.
