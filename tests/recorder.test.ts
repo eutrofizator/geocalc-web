@@ -48,8 +48,9 @@ const M = (over: Partial<MeasurementRow> = {}): MeasurementRow => ({
 const S = (over: Partial<RecorderSettings> = {}): RecorderSettings => ({ ...DEFAULT_RECORDER_SETTINGS, ...over });
 
 describe('az adatrögzítő típusai és a vetületek (súgó 14–15. o.)', () => {
-  it('tíz rögzítőtípus ismert, a GeoCalc-AR az első', () => {
-    expect(RECORDER_TYPES).toHaveLength(10);
+  it('a súgó tíz rögzítőtípusa és a FOIF (RW5) ismert, a GeoCalc-AR az első', () => {
+    expect(RECORDER_TYPES).toHaveLength(11);
+    expect(RECORDER_TYPES.at(-1)!.id).toBe('foif-rw5');
     expect(RECORDER_TYPES[0]!.id).toBe('geocalc-ar');
     expect(RECORDER_TYPES.map((t) => t.id)).toContain('leica-gsi16');
   });

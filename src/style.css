@@ -2251,6 +2251,20 @@ button.close-btn {
   background: #cfe8d6;
 }
 
+.red-panel {
+  margin: 8px 0;
+}
+
+.red-grid {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.red-grid .field-line {
+  margin: 0;
+}
+
 .panel-msg {
   color: #a3231a;
 }
@@ -3047,4 +3061,132 @@ button.fb-calc {
   th {
     position: static;
   }
+}
+
+/* ---------------- Sötét téma ---------------- */
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --face: #2b2d31;
+  --face-hi: #45484e;
+  --face-sh: #17181a;
+  --face-sh2: #0d0e10;
+  --field: #1e1f22;
+  --text: #e3e3e3;
+  --text-dim: #a9adb3;
+  --disabled: #6c7077;
+  --select: #2f5fb3;
+  --select-text: #ffffff;
+  --menu-bg: #26282c;
+  --title-1: #1d2833;
+  --title-2: #2c3a48;
+  --title-3: #3d4f5f;
+  --page-1: #0b6a6a;
+  --page-2: #1d7d82;
+  --accent: #4fc1c1;
+  --nav-bg-1: #24262a;
+  --nav-bg-2: #1b1c1f;
+  --nav-head: #34373c;
+  --nav-head-text: #dfe3e8;
+  --nav-body: #2a2c30;
+  --nav-link: #d6d9de;
+  --nav-link-hover: #7fb2ff;
+  --nav-special-1: #11151b;
+  --nav-special-2: #2a3442;
+  --client-bg: #202124;
+  --mdi-bg: #1b1c1f;
+}
+
+:root[data-theme='dark'] .nav-head,
+:root[data-theme='dark'] .nav-head:hover:not(:disabled) {
+  background: linear-gradient(90deg, #3d4046, var(--nav-head) 85%);
+}
+
+:root[data-theme='dark'] .nav-group.special .nav-head,
+:root[data-theme='dark'] .nav-group.special .nav-head:hover:not(:disabled) {
+  background: linear-gradient(90deg, var(--nav-special-1), var(--nav-special-2));
+}
+
+:root[data-theme='dark'] .nav-chevron {
+  background: #3a3d42;
+  color: #dfe3e8;
+  border-color: #55585e;
+}
+
+:root[data-theme='dark'] .panel-head {
+  background: linear-gradient(180deg, #34373c, #2b2d31);
+  border-color: #45484e;
+}
+
+:root[data-theme='dark'] button:hover:not(:disabled),
+:root[data-theme='dark'] button.ib:active:not(:disabled),
+:root[data-theme='dark'] button.ib[aria-pressed='true'],
+:root[data-theme='dark'] button.fb-ap[aria-pressed='true'] {
+  background: #3a3d42;
+}
+
+:root[data-theme='dark'] tbody tr:hover td,
+:root[data-theme='dark'] tbody tr:hover td:first-child,
+:root[data-theme='dark'] .grid-table tbody tr:hover td,
+:root[data-theme='dark'] .status:not(:empty) {
+  background: #2f3540;
+}
+
+:root[data-theme='dark'] .results {
+  background: #15161a;
+}
+
+:root[data-theme='dark'] .card h3,
+:root[data-theme='dark'] .about-line.strong,
+:root[data-theme='dark'] .wbtn {
+  color: var(--text);
+}
+
+:root[data-theme='dark'] .card .footer {
+  color: var(--text-dim);
+}
+
+:root[data-theme='dark'] tr.input td,
+:root[data-theme='dark'] .cover-title,
+:root[data-theme='dark'] .fb-table td.calc,
+:root[data-theme='dark'] .about-name {
+  color: #8fb0ff;
+}
+
+:root[data-theme='dark'] .about-facts th {
+  background: #4a4426;
+}
+
+:root[data-theme='dark'] .poly-table-wrap {
+  background: #24372b;
+}
+
+:root[data-theme='dark'] .grid-table tr.new-point td,
+:root[data-theme='dark'] .fb-table tr.station td {
+  background: #c9b800;
+  color: #000;
+}
+
+:root[data-theme='dark'] .grid-table tr.new-point:hover td {
+  background: #b5a600;
+}
+
+:root[data-theme='dark'] .fb-table tr.st-skip td {
+  background: #45484e;
+  color: #a9adb3;
+}
+
+:root[data-theme='dark'] .cell-input:focus,
+:root[data-theme='dark'] .cell-edit {
+  background: var(--field);
+  color: var(--text);
+}
+
+:root[data-theme='dark'] .modules .chip {
+  color: #fff;
+}
+
+:root[data-theme='dark'] .status.has-error {
+  background: #3d1f1d;
+  color: #ffb4ab;
 }

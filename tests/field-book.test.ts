@@ -136,7 +136,7 @@ describe('Leica GSI-8 / GSI-16 beolvasás', () => {
   it('a formátum felismerése és a még nem támogatott típusok jelzése', () => {
     expect(detectFieldFormat('110001+00000104 21.324+12345300')).toBe('leica-gsi16');
     expect(detectFieldFormat(GEOCALC_GMJ)).toBe('geocalc-ar');
-    expect(() => parseFieldData('x', 'topcon')).toThrow(/mintaállományt/);
+    expect(() => parseFieldData('x', 'geoprofi-mjk')).toThrow(/mintaállományt/);
   });
 });
 

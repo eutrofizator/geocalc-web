@@ -38,7 +38,12 @@ export const RECORDER_TYPES: RecorderType[] = [
   { id: 'leica-tc', label: 'Leica TC/TPS sorozat', note: 'A TC 600/1800 sorozat; lásd a súgó 16. o. specialitásait.' },
   { id: 'sokkia-sdr-a', label: 'Sokkia SDR Alfanumerikus', note: 'Sokkia SDR, alfanumerikus pontszámok.' },
   { id: 'sokkia-sdr-n', label: 'Sokkia SDR Numerikus', note: 'Sokkia SDR, numerikus pontszámok.' },
-  { id: 'topcon', label: 'Topcon', note: 'A Topcon műszerek szöveges kimenete.' },
+  { id: 'topcon', label: 'Topcon', note: 'A Topcon GTS-7 szöveges kimenete (STN, BS/FS/SS, SD/HD/HV rekordok).' },
+  {
+    id: 'foif-rw5',
+    label: 'FOIF (FieldGenius / SurvCE RW5)',
+    note: 'A FOIF műszereken futó FieldGenius és SurvCE nyers állománya (Carlson/TDS RW5); a Carlson/TDS RW5 is.',
+  },
 ];
 
 export type ReductionMode = 'none' | 'external' | 'projection';
@@ -176,6 +181,19 @@ export interface ReduceResult {
 
 const DEG = Math.PI / 180;
 
+/**
+ * A vetületi redukció szorzója: (1 − M/R) · k · (1 + d²/(2R²)), ahol d a redukciós koordináta eltérése
+ * a kezdőértéktől (EOV: X − 200 000 m). A magassági tag csak bekapcsolt magassági redukciónál számít.
+ */
+export function projectionScale(
+  s: Pick<RecorderSettings, 'avgY' | 'avgX' | 'avgM' | 'k' | 'R' | 'ref' | 'axis' | 'heightReduction'>,
+): { factor: number; heightFactor: number; scaleFactor: number; d: number } {
+  const heightFactor = s.heightReduction ? 1 - s.avgM / s.R : 1;
+  const d = (s.axis === 'x' ? s.avgX : s.avgY) - s.ref;
+  const scaleFactor = 1 + (d * d) / (2 * s.R * s.R);
+  return { factor: heightFactor * s.k * scaleFactor, heightFactor, scaleFactor, d };
+}
+
 /** Egy mérés távolság- és magasságkülönbség-redukciója. */
 export function reduceMeasurement(m: MeasurementRow, s: RecorderSettings): ReduceResult {
   const notes: string[] = [];
@@ -198,13 +216,10 @@ export function reduceMeasurement(m: MeasurementRow, s: RecorderSettings): Reduc
 
   let tv = horizontal;
   if (s.reduction === 'projection') {
-    const heightFactor = s.heightReduction ? 1 - s.avgM / s.R : 1;
+    const { factor, heightFactor, scaleFactor, d } = projectionScale(s);
     if (s.heightReduction) notes.push(`magassági redukció: 1 − M/R = 1 − ${fix(s.avgM, 3)}/${fix(s.R, 3)} = ${heightFactor.toFixed(9)}`);
-    const coord = s.axis === 'x' ? s.avgX : s.avgY;
-    const d = coord - s.ref;
-    const scaleFactor = 1 + (d * d) / (2 * s.R * s.R);
     notes.push(`vetületi redukció: k = ${s.k.toFixed(5)}, d = ${fix(d, 3)} m, 1 + d²/(2R²) = ${scaleFactor.toFixed(9)}`);
-    tv = horizontal * heightFactor * s.k * scaleFactor;
+    tv = horizontal * factor;
   } else if (s.reduction === 'external') {
     notes.push('a redukciót külső program végzi (TVET.TXT)');
   }

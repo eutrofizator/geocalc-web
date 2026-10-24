@@ -23,6 +23,8 @@ import {
 import { adjustHeights, coordinateHeightDifference, trigonometricHeightDifference, type VerticalResult } from './core/network/vertical';
 import { buildSketch, sketchPoints } from './core/network/sketch';
 import { polygonClosure, parseTraverseOrder, traversePreview, type TraversePreview } from './core/network/traverse-preview';
+import { networkAverages, networkReduction, reductionSection, scaleDistances, type NetworkReduction } from './core/network/reduction';
+import { REDUCTION_PROJECTIONS } from './core/recorder';
 import { heightLine, heightLineSections, type HeightLineResult } from './core/network/height-lines';
 import type { Issue, Point, Row, Section } from './core/types';
 import { ISZKA_COORDINATES, ISZKA_GMJ } from './network-sample';
@@ -85,6 +87,8 @@ interface FormState {
   /** Magassági vonalak: az előírt vonalak és a szerkesztés alatti vonal. */
   heightLines?: LineDef[];
   lineDraft?: LineDef;
+  /** Vetületi távolságredukció a számított koordinátákból (alapból kikapcsolva). */
+  reduction?: { on: boolean; projection: string; m: string };
 }
 
 interface LineDef {
@@ -112,6 +116,8 @@ interface Model {
   lineError: string;
   /** A magassági vonalakba választható pontok. */
   linePoints: string[];
+  /** A számított koordináták átlagából adódó redukció (a kijelzéshez). */
+  reduction: NetworkReduction | null;
 }
 
 interface HeightCandidate {
@@ -264,6 +270,10 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
   let polygon: string[] = [];
   let heightLines: LineDef[] = [];
   let lineDraft: LineDef = { name: '', order: [] };
+  const redOn = $<HTMLInputElement>('nh-red-on');
+  const redProj = $<HTMLSelectElement>('nh-red-proj');
+  const redM = $<HTMLInputElement>('nh-red-m');
+  for (const p of REDUCTION_PROJECTIONS) redProj.append(new Option(p.label, p.id));
   let removedStations = new Set<string>();
   let removedKnown = new Set<string>();
   let statusNew = new Set<string>();
@@ -375,6 +385,7 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
       polygon,
       heightLines,
       lineDraft,
+      reduction: { on: redOn.checked, projection: redProj.value, m: redM.value },
     };
     storage.set(STORAGE_KEY, JSON.stringify(state));
     $('net-sum-coords').textContent = '0';
@@ -453,6 +464,32 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
         if (!(e instanceof CalcError)) throw e;
         all.push({ level: 'error', message: e.message });
       }
+      // Vetületi távolságredukció a számított koordinátákból: az átlagos Y, X, M a kiegyenlített és az
+      // ismert pontokból; bekapcsolva a távolságok redukálva, és a kiegyenlítés újrafut.
+      let reduction: NetworkReduction | null = null;
+      let adjStations = stations;
+      if (horizontal) {
+        const usedKnown = known.filter((p) => used.includes(p.id));
+        const avg = networkAverages([
+          ...usedKnown.map((p) => ({ y: p.y, x: p.x, m: p.m })),
+          ...horizontal.points.map((p) => ({ y: p.y, x: p.x, m: null })),
+        ]);
+        if (avg) {
+          const mManual = redM.value.trim() !== '' && Number.isFinite(Number(redM.value));
+          reduction = networkReduction(redProj.value, avg.y, avg.x, mManual ? Number(redM.value) : (avg.m ?? 0));
+          if (redOn.checked) {
+            adjStations = scaleDistances(stations, reduction.factor);
+            try {
+              horizontal = adjustHorizontal(known, adjStations, horizontalSettings);
+            } catch (e) {
+              if (!(e instanceof CalcError)) throw e;
+              all.push({ level: 'error', message: `A redukált távolságokkal: ${e.message}` });
+              horizontal = null;
+            }
+          }
+          sections.push(reductionSection(reduction, avg, mManual, redOn.checked));
+        }
+      }
       if (horizontal) {
         sections.push(...horizontal.sections);
         all.push(...horizontal.issues);
@@ -515,7 +552,7 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
       if (state.details && horizontal) {
         const coords = new Map(known.map((p) => [p.id, { y: p.y, x: p.x }] as const));
         for (const p of horizontal.points) coords.set(p.id, { y: p.y, x: p.x });
-        const chosen = detailStations ? stations.filter((st) => detailStations!.includes(st.id)) : stations;
+        const chosen = detailStations ? adjStations.filter((st) => detailStations!.includes(st.id)) : adjStations;
         const d = computeDetailPoints(chosen, coords, horizontal.orientations, heightMap);
         details = d.points;
         sections.push(...d.sections);
@@ -580,6 +617,7 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
         heightCandidates,
         details,
         polygon: polygonResult,
+        reduction,
         polygonError,
         draftLine,
         lineError,
@@ -728,7 +766,17 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
     });
   };
 
+  const renderReduction = () => {
+    const r = model?.reduction ?? null;
+    $('nh-red-y').textContent = r ? fix(r.y, 3) : '–';
+    $('nh-red-x').textContent = r ? fix(r.x, 3) : '–';
+    $('nh-red-mv').textContent = r ? fix(r.m, 3) : '–';
+    $('nh-red-f').textContent = r ? r.factor.toFixed(9) : '–';
+    $('nh-red-mm').textContent = r ? fix((r.factor - 1) * 1e6, 1) : '–';
+  };
+
   const renderHor = () => {
+    renderReduction();
     const body = $('nh-table').querySelector('tbody')!;
     body.replaceChildren();
     const m = model;
@@ -842,6 +890,8 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
   for (const e of [coordinates, gmj, hSigma, hUnit, ...Object.values(inputs)]) e.addEventListener('input', schedule);
   for (const e of [dirWeight, distWeight, prob, prec, hOn, hWeight, hFree, detailsOn, avgOn, sketchOn, freeOn]) e.addEventListener('change', compute);
   for (const e of document.querySelectorAll<HTMLInputElement>('input[name="nv-prec"]')) e.addEventListener('change', compute);
+  for (const e of [redOn, redProj]) e.addEventListener('change', compute);
+  redM.addEventListener('input', schedule);
   for (const e of [datumAnchor, datumY, datumX, datumRot, datumSecond, datumAz, traverseInput, workname]) e.addEventListener('input', schedule);
   $('net-workname').addEventListener('input', () => {
     $('workname').textContent = workname.value.trim() || 'Névtelen';
@@ -1218,6 +1268,9 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
       orientation = saved.orientation ?? null;
       workList = saved.workList ?? null;
       polygon = saved.polygon ?? [];
+      redOn.checked = saved.reduction?.on ?? false;
+      redProj.value = saved.reduction?.projection ?? 'EOV';
+      redM.value = saved.reduction?.m ?? '';
       heightLines = saved.heightLines ?? [];
       lineDraft = saved.lineDraft ?? { name: '', order: [] };
     } else {

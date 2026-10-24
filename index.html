@@ -356,6 +356,10 @@
                 <button id="fb-append" type="button" class="ib" title="Az adatrögzítőnek megfelelő adatok hozzáfűzése a munkaterülethez" aria-label="Hozzáfűzés a munkaterülethez">
                   <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-plus" /></svg>
                 </button>
+                <label class="field-line fb-angle" title="A szögegység, ha a nyers állomány nem jelöli (Geodimeter, Topcon UNITS rekord nélkül)">
+                  <span>Szögegység</span>
+                  <select id="fb-angle"></select>
+                </label>
                 <span id="fb-file" class="fb-file"></span>
                 <button id="fb-ap" type="button" class="fb-ap" aria-pressed="false" title="Az állásponti kódok (AP1, AP2) oszlopa">ÁP kód</button>
               </div>
@@ -372,7 +376,7 @@
                   </table>
                 </div>
                 <p class="hint">
-                  Sárga: álláspont · fehér: irányzott pont · piros: a bal/jobb középelés eredeti irányai · szürke: kihagyott mérés.
+                  Sárga: álláspont · fehér: irányzott pont · piros: a középelés (I+II állás vagy bal/jobb) eredeti irányai, dőlt: a középelt irány · szürke: kihagyott mérés.
                   Kattintás: kijelölés (Shift: tartomány), dupla kattintás: a mező javítása.
                 </p>
                 <div class="fb-actions">
@@ -384,6 +388,13 @@
                   </button>
                   <button id="fb-lr" type="button" class="ib" title="A bal/jobb (-b/-j) irányok középelése" aria-label="Bal-jobb irányok középelése">
                     <svg class="icon fb-red" aria-hidden="true" focusable="false"><use href="#i-mean" /></svg>
+                  </button>
+                  <button id="fb-2t" type="button" class="fb-calc" title="Két távcsőállás (I. és II.) középelése álláspontonként és célpontonként – a GCAR_2T program helyett">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-mean" /></svg>
+                    <span>I+II középelés</span>
+                  </button>
+                  <button id="fb-2t-undo" type="button" class="ib" title="A középelés visszavonása (az eredeti irányok ismét felhasználódnak)" aria-label="A középelés visszavonása">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-undo" /></svg>
                   </button>
                   <span class="tb-sep"></span>
                   <button id="fb-ext" type="button" class="ib" title="Vetületi redukció átvétele külső programból (TVET.TXT)" aria-label="Vetületi redukció átvétele külső programból">
@@ -441,7 +452,7 @@
               </fieldset>
             </div>
           </div>
-          <input id="fb-file-input" type="file" accept=".gmj,.gsi,.txt,.dat,.raw,text/plain" hidden />
+          <input id="fb-file-input" type="file" accept=".gmj,.gsi,.sdr,.rw5,.raw,.gts,.job,.obs,.are,.txt,.dat,text/plain" hidden />
           <input id="fb-ext-input" type="file" accept=".txt,text/plain" hidden />
           <input id="fb-coord-input" type="file" accept=".eov,.pyx,.pyx2,.txt,.koo,.dat,text/plain" hidden />
         </section>
@@ -954,6 +965,27 @@
                     <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
                   </button>
                 </div>
+                <fieldset class="dims column red-panel" id="nh-red-panel">
+                  <legend>Vetületi távolságredukció a számított koordinátákból</legend>
+                  <label class="check">
+                    <input id="nh-red-on" type="checkbox" />
+                    <span>Távolságredukció figyelembevétele – a kiegyenlítés a redukált (vetületi) távolságokkal fut újra</span>
+                  </label>
+                  <div class="red-grid">
+                    <label class="field-line">Vetület<select id="nh-red-proj"></select></label>
+                    <label class="field-line">Átlagos M kézzel [m]<input id="nh-red-m" type="number" step="0.1" placeholder="a pontok magasságából" /></label>
+                  </div>
+                  <div class="kv-line">
+                    Átlagos Y: <span class="kv-value" id="nh-red-y">–</span> · X: <span class="kv-value" id="nh-red-x">–</span> ·
+                    M: <span class="kv-value" id="nh-red-mv">–</span> · szorzó: <span class="kv-value strong" id="nh-red-f">–</span>
+                    (<span class="kv-value" id="nh-red-mm">–</span> mm 1 km-en)
+                  </div>
+                  <p class="hint">
+                    A mérések alapból redukció nélkül kerülnek a kiegyenlítésbe. Az átlagokat a program a kiegyenlített és az
+                    ismert pontok koordinátáiból számolja; bekapcsolva ezekkel redukálja a távolságokat. Ha a távolságokat az
+                    Adatrögzítőben már redukáltad (Tvet vetületi redukcióval), ne kapcsold be, különben kétszer redukál.
+                  </p>
+                </fieldset>
                 <div class="form compact">
                   <p class="hint" id="net-excl-count"></p>
                   <div class="btnrow">

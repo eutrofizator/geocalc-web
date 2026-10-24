@@ -335,7 +335,7 @@ export function initRecorderView(): void {
     window.clearTimeout(timer);
     const s = state();
     currentSettings = { ...s };
-    storage.set(STORAGE_KEY, JSON.stringify({ ...s, v: 2 }));
+    storage.set(STORAGE_KEY, JSON.stringify({ ...s, v: 3 }));
     if (syncText) syncTextarea();
     issues.replaceChildren();
     results.replaceChildren();
@@ -548,7 +548,19 @@ export function initRecorderView(): void {
       if (rest.projection === 'EOV' && rest.axis === 'x' && rest.ref === 0) rest.ref = 200000;
       // A magassági redukció jelölőnégyzete korábban alapból ki volt kapcsolva (a GeoCalc mindig számolja):
       // a 2. változat előtti mentéseknél bekapcsoljuk.
-      if ((saved as { v?: number }).v !== 2) rest.heightReduction = true;
+      const version = (saved as { v?: number }).v ?? 1;
+      if (version < 2) rest.heightReduction = true;
+      // A korábbi változat induláskor a súgó mintapéldájának átlagaival (M = 110 m) vetületi redukciót
+      // kapcsolt be; ha ezeket nem módosították, a 3. változattól az alapérték: nincs redukció.
+      if (
+        version < 3 &&
+        rest.reduction === 'projection' &&
+        rest.avgY === SAMPLE_SETTINGS.avgY &&
+        rest.avgX === SAMPLE_SETTINGS.avgX &&
+        rest.avgM === SAMPLE_SETTINGS.avgM
+      ) {
+        rest.reduction = 'none';
+      }
       if (Array.isArray(saved.drafts)) {
         restored = { ...rest, drafts: saved.drafts.map((d) => ({ ...EMPTY_DRAFT, ...d })) };
       } else if (typeof saved.input === 'string') {
@@ -575,17 +587,19 @@ export function initRecorderView(): void {
     missing.value = restored.missingDistance;
     drafts = restored.drafts;
   } else {
-    typeSel.value = SAMPLE_SETTINGS.recorder;
-    reduction.value = SAMPLE_SETTINGS.reduction;
-    projection.value = SAMPLE_SETTINGS.projection;
-    avgY.value = String(SAMPLE_SETTINGS.avgY);
-    avgX.value = String(SAMPLE_SETTINGS.avgX);
-    avgM.value = String(SAMPLE_SETTINGS.avgM);
-    ref.value = String(SAMPLE_SETTINGS.ref);
-    kInput.value = String(SAMPLE_SETTINGS.k);
-    rInput.value = String(SAMPLE_SETTINGS.R);
-    axis.value = SAMPLE_SETTINGS.axis;
-    height.checked = SAMPLE_SETTINGS.heightReduction;
+    // Alapból nincs távolságredukció: a vetületi redukció a hálózat számított koordinátáinak átlagából
+    // kérhető a Vízszintes kiegyenlítés munkalapon (vagy itt, kézzel megadott átlagokkal).
+    typeSel.value = DEFAULT_RECORDER_SETTINGS.recorder;
+    reduction.value = DEFAULT_RECORDER_SETTINGS.reduction;
+    projection.value = DEFAULT_RECORDER_SETTINGS.projection;
+    avgY.value = String(DEFAULT_RECORDER_SETTINGS.avgY);
+    avgX.value = String(DEFAULT_RECORDER_SETTINGS.avgX);
+    avgM.value = String(DEFAULT_RECORDER_SETTINGS.avgM);
+    ref.value = String(DEFAULT_RECORDER_SETTINGS.ref);
+    kInput.value = String(DEFAULT_RECORDER_SETTINGS.k);
+    rInput.value = String(DEFAULT_RECORDER_SETTINGS.R);
+    axis.value = DEFAULT_RECORDER_SETTINGS.axis;
+    height.checked = DEFAULT_RECORDER_SETTINGS.heightReduction;
   }
 
   syncNotes();

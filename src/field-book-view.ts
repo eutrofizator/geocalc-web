@@ -2,13 +2,17 @@ import { formatDms, parseDms } from './core/angle';
 import { CalcError } from './core/errors';
 import {
   averageLeftRight,
+  averageTwoFaces,
+  undoAveraging,
   computeDm,
   computeTvet,
+  ANGLE_UNITS,
   detectFieldFormat,
   fieldBookSection,
   parseFieldData,
   toGeoCalcAr,
   toNetworkGmj,
+  type AngleUnit,
   type FieldRow,
 } from './core/field-book';
 import { fix } from './core/format';
@@ -28,6 +32,7 @@ const STORAGE_KEY = 'geocalc-web.fieldbook';
 
 interface Saved {
   type: string;
+  angle?: string;
   file: string;
   rows: FieldRow[];
   showAp: boolean;
@@ -59,6 +64,8 @@ function cellText(r: FieldRow, c: Column): string {
 
 export function initFieldBookView(deps: FieldBookDeps): void {
   const typeSel = $<HTMLSelectElement>('fb-type');
+  const angleSel = $<HTMLSelectElement>('fb-angle');
+  for (const u of ANGLE_UNITS) angleSel.append(new Option(u.label, u.id));
   const body = $('fb-table').querySelector('tbody')!;
   const status = $('fb-status');
   const issuesBox = $('fb-issues');
@@ -74,7 +81,7 @@ export function initFieldBookView(deps: FieldBookDeps): void {
   for (const t of RECORDER_TYPES) typeSel.append(new Option(t.label, t.id));
 
   const save = () =>
-    storage.set(STORAGE_KEY, JSON.stringify({ type: typeSel.value, file: fileName, rows, showAp } satisfies Saved));
+    storage.set(STORAGE_KEY, JSON.stringify({ type: typeSel.value, angle: angleSel.value, file: fileName, rows, showAp } satisfies Saved));
 
   const setStatus = (text: string, issues: Issue[] = []) => {
     status.textContent = text;
@@ -121,12 +128,14 @@ export function initFieldBookView(deps: FieldBookDeps): void {
     let type = typeSel.value;
     const detected = detectFieldFormat(text);
     // A GMJ és a GSI felismerhető: a rossz típusválasztás ne akadályozza a beolvasást.
-    if (detected && detected !== type && !(detected === 'leica-gsi16' && ['leica-gsi8', 'leica-tc', 'geomax'].includes(type))) {
+    // Az azonos családba tartozó típusok (pl. GSI-8/16, TC, GeoMAX; SDR numerikus/alfanumerikus) egyenértékűek.
+    const family = (t: string) => (/^leica|^geomax/.test(t) ? 'gsi' : /^sokkia/.test(t) ? 'sdr' : t);
+    if (detected && family(detected) !== family(type)) {
       type = detected;
       typeSel.value = detected;
     }
     try {
-      const res = parseFieldData(text, type);
+      const res = parseFieldData(text, type, { angleUnit: angleSel.value as AngleUnit });
       if (res.rows.length === 0) {
         setStatus(`A(z) ${name} állományban nem volt értelmezhető mérési adat (${res.format}).`, res.issues);
         return;
@@ -158,6 +167,7 @@ export function initFieldBookView(deps: FieldBookDeps): void {
     load(await readText(f), f.name, appendNext);
   });
   typeSel.addEventListener('change', save);
+  angleSel.addEventListener('change', save);
   $('fb-ap').addEventListener('click', () => {
     showAp = !showAp;
     render();
@@ -256,6 +266,26 @@ export function initFieldBookView(deps: FieldBookDeps): void {
     selected = new Set();
     render();
     setStatus(res.count === 0 ? 'Nincs középelendő bal/jobb irány (a pontszám után -b/-j vagy _b/_j kell).' : `${res.count} bal/jobb irány középelve.`);
+  });
+  // Két távcsőállás középelése (a GeoCalc GCAR_2T programja helyett, súgó 12. o.).
+  $('fb-2t').addEventListener('click', () => {
+    const res = averageTwoFaces(rows);
+    rows = res.rows;
+    selected = new Set();
+    render();
+    setStatus(
+      res.count === 0
+        ? 'Nincs középelhető irány: ugyanarra a pontszámra I. és II. távcsőállású mérés kell (a II. állás zenitszöge 180° fölötti).'
+        : `${res.count} célpont középelve (I. és II. távcsőállás)` +
+            (res.maxIndexError !== null ? `, a legnagyobb indexhiba-kétszeres ${fix(res.maxIndexError, 0)}″` : '') +
+            (res.single > 0 ? `; ${res.single} célpontot csak egy állásban mértek, ezek változatlanok.` : '.'),
+    );
+  });
+  $('fb-2t-undo').addEventListener('click', () => {
+    rows = undoAveraging(rows);
+    selected = new Set();
+    render();
+    setStatus('A középelés visszavonva: az eredeti irányok ismét felhasználódnak.');
   });
   $('fb-tvet').addEventListener('click', () => {
     const s = deps.settings();
@@ -356,11 +386,12 @@ export function initFieldBookView(deps: FieldBookDeps): void {
       fileName = saved.file ?? '';
       showAp = saved.showAp ?? false;
       if (RECORDER_TYPES.some((t) => t.id === saved.type)) typeSel.value = saved.type;
+      if (ANGLE_UNITS.some((u) => u.id === saved.angle)) angleSel.value = saved.angle!;
     }
   } catch {
     rows = [];
   }
   render();
   if (rows.length > 0) setStatus(`A munkaterületen: ${counts()}.`);
-  else setStatus('Válaszd ki az adatrögzítő típusát, majd olvasd be a mérési adatokat (GeoCalc GMJ, Leica GSI-8/16).');
+  else setStatus('Válaszd ki az adatrögzítő típusát, majd olvasd be a mérési adatokat (GeoCalc GMJ, Leica GSI, Sokkia SDR, Topcon GTS-7, Geodimeter, FOIF/Carlson RW5).');
 }

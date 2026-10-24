@@ -244,7 +244,7 @@ async function main() {
   await check(
     'a Beállítások menü a munkamenet-parancsokat is kínálja',
     `[...document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item .menu-label')].map(e => e.textContent).join('|')`,
-    'Általános beállítások|Beállítások mentése|Munkamenet mentése…|Munkamenet betöltése…|Nyomtatás…|Súgó|Névjegy',
+    'Általános beállítások|Beállítások mentése|Munkamenet mentése…|Munkamenet betöltése…|Nyomtatás…|Sötét / világos téma|Nyelv: magyar / English|Súgó|Névjegy',
   );
   // Munkamenet mentése (.gcs): a menü 3. pontja – a letöltés valóban fájlt ad.
   await evalJs(`document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item')[2].click()`);
@@ -679,6 +679,17 @@ async function main() {
   await evalJs(`document.querySelector('#nh-table td[data-key="${horKey}"]').click()`);
   await sleep(250);
   await check('újabb kattintásra visszakerül', `document.querySelector('#nh-table td[data-key="${horKey}"]').classList.contains('off')`, false);
+  // Vetületi távolságredukció a számított koordinátákból: alapból kikapcsolva, bekapcsolva újraszámol.
+  await check('a távolságredukció alapból ki van kapcsolva', `document.getElementById('nh-red-on').checked`, false);
+  await check('az átlagok a számított koordinátákból látszanak', `document.getElementById('nh-red-y').textContent !== '–' && Number(document.getElementById('nh-red-f').textContent) < 1`, true);
+  await check('a jegyzőkönyv a redukciót figyelembe nem vettként közli', `[...document.querySelectorAll('#net-results .card[data-kind="net-reduction"] td')].some(td => td.textContent === 'nincs figyelembe véve')`, true);
+  const yBefore = await evalJs(`[...document.querySelectorAll('#net-results .card[data-kind="net-points"] tbody tr')][0]?.children[1]?.textContent ?? ''`);
+  await evalJs(`(() => { const c = document.getElementById('nh-red-on'); c.checked = true; c.dispatchEvent(new Event('change')); return true; })()`);
+  await sleep(300);
+  await check('bekapcsolva a redukciót figyelembe veszi', `[...document.querySelectorAll('#net-results .card[data-kind="net-reduction"] td')].some(td => td.textContent.startsWith('figyelembe véve'))`, true);
+  await check('a redukált távolságokkal az új pontok elmozdulnak', `([...document.querySelectorAll('#net-results .card[data-kind="net-points"] tbody tr')][0]?.children[1]?.textContent ?? '') !== ${JSON.stringify(yBefore)}`, true);
+  await evalJs(`(() => { const c = document.getElementById('nh-red-on'); c.checked = false; c.dispatchEvent(new Event('change')); return true; })()`);
+  await sleep(250);
 
   await evalJs(`document.querySelector('#win-net-hor .step-next').click()`);
   await sleep(200);
@@ -799,7 +810,7 @@ async function main() {
   await check('az Adatrögzítő munkalap megnyílt', `document.getElementById('win-recorder').hidden`, false);
   await check('az Adatrögzítő munkalap aktív', `document.getElementById('win-recorder').classList.contains('active')`, true);
   await check('az állapotsor követi az Adatrögzítőt', `document.getElementById('sb-view').textContent`, 'Adatrögzítő/Beállítások');
-  await check('tíz rögzítőtípus választható', `document.getElementById('rc-type').options.length`, 10);
+  await check('a súgó tíz rögzítőtípusa és a FOIF választható', `document.getElementById('rc-type').options.length`, 11);
   await check('három redukciós mód van', `document.getElementById('rc-reduction').options.length`, 3);
   await check('öt vetület választható', `document.getElementById('rc-projection').options.length`, 5);
   await evalJs(`document.getElementById('rc-sample').click()`);
@@ -946,11 +957,27 @@ async function main() {
   await check('a GSI hozzáfűzhető', `/Leica GSI/.test(document.getElementById('fb-status').textContent)`, true);
   await check('a hozzáfűzés után a sorok száma', `document.querySelectorAll('#fb-table tbody tr').length`, 10);
   await check('a GSI szöge FOK.PPMMSS-ként', `document.querySelector('#fb-table tbody tr[data-row="9"] td[data-col="hz"]').textContent`, '123.4530');
+  // Topcon GTS-7 és FOIF RW5 hozzáfűzése (a típust a tartalom alapján is felismeri).
+  await loadFieldFile('meres.gts', ['GTS-7', 'UNITS   M,D', 'STN     2001,1.550', 'SS      2002,1.300,KO', 'SD      123.4530,91.3000,50.000'].join('\n'), true);
+  await check('a Topcon GTS-7 hozzáfűzhető', `/Topcon GTS-7/.test(document.getElementById('fb-status').textContent)`, true);
+  await loadFieldFile('foif.rw5', ['MO,AD0,UN1,AU0', 'OC,OP3001', 'LS,HI1.500000,HR1.300000', 'SS,OP3001,FP3002,AR57.1630,ZE89.4305,SD7.393000'].join('\n'), true);
+  await check('a FOIF RW5 hozzáfűzhető', `/RW5/.test(document.getElementById('fb-status').textContent)`, true);
+  await check('a FOIF szöge FOK.PPMMSS-ként', `[...document.querySelectorAll('#fb-table tbody tr')].at(-1).querySelector('td[data-col="hz"]').textContent`, '57.1630');
+  await check('a szögegység választható', `document.getElementById('fb-angle').options.length`, 4);
   // Még nem támogatott formátum: érthető üzenet.
-  await evalJs(`(() => { const s = document.getElementById('fb-type'); s.value = 'topcon'; s.dispatchEvent(new Event('change')); return true; })()`);
+  await evalJs(`(() => { const s = document.getElementById('fb-type'); s.value = 'geoprofi-mjk'; s.dispatchEvent(new Event('change')); return true; })()`);
   await loadFieldFile('x.txt', 'valami');
   await check('a nem támogatott típus mintaállományt kér', `/mintaállományt/.test(document.getElementById('fb-status').textContent)`, true);
   await evalJs(`(() => { const s = document.getElementById('fb-type'); s.value = 'geocalc-ar'; s.dispatchEvent(new Event('change')); return true; })()`);
+  // Két távcsőállás (I. és II.) középelése – a GCAR_2T helyett.
+  await loadFieldFile('2T.gmj', ['3,110,,,,,,FURAT,0,,,,,-1', '4,8,322.0231,90.0010,,,,FURAT,,0,,,,-2', '5,9,359.4142,89.5950,,,,FURAT,,0,,,,-2', '6,9,179.4148,270.0015,,,,FURAT,,0,,,,-2', '7,8,142.0224,269.5942,,,,FURAT,,0,,,,-2'].join('\n'));
+  await evalJs(`document.getElementById('fb-2t').click()`);
+  await sleep(150);
+  await check('az I+II középelés a két célpontot középeli', `document.querySelectorAll('#fb-table tbody tr.st-mean').length + ':' + document.querySelectorAll('#fb-table tbody tr.st-merged').length`, '2:4');
+  await check('a középelt irány a GCAR_2T értéke (8: 322.0228)', `[...document.querySelectorAll('#fb-table tbody tr.st-mean')].find((r) => r.querySelector('td[data-col="id"]').textContent === '8').querySelector('td[data-col="hz"]').textContent`, '322.0228');
+  await evalJs(`document.getElementById('fb-2t-undo').click()`);
+  await sleep(150);
+  await check('a középelés visszavonható', `document.querySelectorAll('#fb-table tbody tr.st-mean, #fb-table tbody tr.st-merged').length`, 0);
 
   /* ---------- Térbeli transzformáció/Átszámítás ---------- */
   await evalJs(`document.getElementById('tr-sample').click()`);
@@ -1146,6 +1173,19 @@ async function main() {
   await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true, cancelable: true }))`);
   await sleep(500);
   await check('a Ctrl+N új (üres) munkaterületet ad', `document.getElementById('editor').value.trim()`, '');
+
+  /* ---------- Sötét téma és angol nyelv ---------- */
+  await evalJs(`(() => { const s = document.getElementById('gs-theme'); s.value = 'dark'; s.dispatchEvent(new Event('change')); return true; })()`);
+  await check('a sötét téma a <html data-theme> attribútumba kerül', `document.documentElement.dataset.theme`, 'dark');
+  await check('a sötét téma háttere sötét', `getComputedStyle(document.body).backgroundColor.match(/[0-9]+/g).slice(0, 3).every((v) => Number(v) < 80)`, true);
+  await s('Runtime.evaluate', { expression: "localStorage.setItem('geocalc-web.lang', 'en'); true", returnByValue: true });
+  await s('Page.navigate', { url: URL_TO_LOAD });
+  await sleep(2500);
+  await check('angolul: a menüsor', `[...document.querySelectorAll('#menubar > *')].map((e) => e.textContent.trim()).filter(Boolean).slice(0, 2).join('|')`, 'Data recorder|Geodetic calculations');
+  await check('angolul: a <html lang>', `document.documentElement.lang`, 'en');
+  await check('angolul: a gomb felirata', `document.getElementById('fb-2t').textContent.trim()`, 'Face I+II average');
+  await check('a sötét téma az újratöltés után is megmarad', `document.documentElement.dataset.theme`, 'dark');
+  await s('Runtime.evaluate', { expression: "localStorage.removeItem('geocalc-web.lang'); localStorage.removeItem('geocalc-web.theme'); true", returnByValue: true });
 
   /* ---------- hibák ---------- */
   const exc = cdp.events.filter((e) => e.method === 'Runtime.exceptionThrown');

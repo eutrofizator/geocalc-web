@@ -1,4 +1,9 @@
 import './style.css';
+import { initI18n, toggleLang } from './i18n';
+import { initTheme, toggleTheme } from './theme';
+
+// A téma a felület felépítése előtt, hogy ne villanjon fel a világos változat.
+initTheme();
 import { run, type RunResult } from './core/engine';
 import { toPyx } from './core/export';
 import { EXAMPLES } from './examples';
@@ -480,6 +485,11 @@ const shell = initShell({
     shell.setHint('A beállítások mentve a böngésző tárolójába.');
   },
   about: () => shell.open('about'),
+  'toggle-theme': () => {
+    const t = toggleTheme();
+    shell.setHint(t === 'dark' ? 'Sötét téma.' : 'Világos téma.');
+  },
+  'toggle-lang': () => toggleLang(),
 });
 
 shell.onShow((id) => {
@@ -552,3 +562,4 @@ compute();
 renderCoordsPreview(last);
 const first = startSheet();
 shell.open(SHEETS.some((x) => x.id === first) ? first : 'about');
+initI18n();

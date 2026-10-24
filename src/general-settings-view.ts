@@ -1,4 +1,6 @@
 import { createPage } from './shell';
+import { getTheme, setTheme, type Theme } from './theme';
+import { getLang, setLang, type Lang } from './i18n';
 import { $, el, storage } from './ui';
 
 /**
@@ -100,6 +102,27 @@ export function initGeneralSettingsView(actions: { sessionSave: () => void; sess
   startLabel.append(startSel);
   start.append(startLabel);
 
+  // Megjelenés és nyelv
+  const look = el('fieldset', 'dims column');
+  look.append(el('legend', undefined, 'Megjelenés és nyelv'));
+  const themeLabel = el('label');
+  themeLabel.append(el('span', 'label-text', 'Téma'));
+  const themeSel = el('select');
+  themeSel.id = 'gs-theme';
+  themeSel.append(new Option('Világos (a GeoCalc 3.5 színei)', 'light'), new Option('Sötét', 'dark'), new Option('A rendszer beállítása szerint', 'auto'));
+  themeSel.value = getTheme();
+  themeSel.addEventListener('change', () => setTheme(themeSel.value as Theme));
+  themeLabel.append(themeSel);
+  const langLabel = el('label');
+  langLabel.append(el('span', 'label-text', 'Nyelv / Language'));
+  const langSel = el('select');
+  langSel.id = 'gs-lang';
+  langSel.append(new Option('Magyar', 'hu'), new Option('English', 'en'));
+  langSel.value = getLang();
+  langSel.addEventListener('change', () => setLang(langSel.value as Lang));
+  langLabel.append(langSel);
+  look.append(themeLabel, langLabel);
+
   // Tárolt adatok
   const data = el('fieldset', 'dims column');
   data.append(el('legend', undefined, 'A böngészőben tárolt adatok'));
@@ -123,7 +146,7 @@ export function initGeneralSettingsView(actions: { sessionSave: () => void; sess
   dataRow.append(clearBtn);
   data.append(count, dataRow);
 
-  form.append(session, calc, start, data);
+  form.append(look, session, calc, start, data);
   pane.append(form);
   body.append(pane);
 
