@@ -3,7 +3,7 @@ import { CalcError } from '../errors';
 import { fix } from '../format';
 import type { Issue, Row, Section } from '../types';
 import { chiSquareQuantile, normalQuantile } from './stats';
-import type { NetPoint, NetStation, VerticalSettings } from './types';
+import { PRECISION_DECIMALS, type NetPoint, type NetStation, type VerticalSettings } from './types';
 
 const RHO = 206264.80624709636;
 const EARTH_RADIUS = 6371000;
@@ -47,6 +47,8 @@ export interface HeightPointResult {
 export interface VerticalResult {
   points: HeightPointResult[];
   observations: HeightObservation[];
+  /** A kézzel kihagyott magasságkülönbségek (a kiegyenlítésben nem vesznek részt). */
+  excludedDifferences: { station: string; target: string; dh: number }[];
   counts: { points: number; fixed: number; new: number; differences: number; redundancy: number };
   weightedSumSquares: number;
   sigma0: number | null;
@@ -123,6 +125,8 @@ export function adjustHeights(
     dh: number;
   }
   const edges: Edge[] = [];
+  const excludedKeys = new Set(s.excluded ?? []);
+  const excludedDifferences: VerticalResult['excludedDifferences'] = [];
   // A hálózat pontjai: az állomások, az adott pontok és a megadott további pontok. A többi irányzott pont részletpont.
   const network = new Set<string>([...stations.map((st) => st.id), ...knownPoints.map((p) => p.id), ...extraPoints]);
   for (const st of stations) {
@@ -134,6 +138,10 @@ export function adjustHeights(
       }
       if (dh === null) {
         issues.push({ level: 'warning', message: `${st.id}→${o.target}: nincs magasságkülönbség (dM) és a zenitszögből sem számítható, a mérés kimarad.` });
+        continue;
+      }
+      if (excludedKeys.has(`${st.id}>${o.target}`)) {
+        excludedDifferences.push({ station: st.id, target: o.target, dh });
         continue;
       }
       edges.push({ station: st, target: o.target, obs: o, dh });
@@ -304,6 +312,7 @@ export function adjustHeights(
   const result: VerticalResult = {
     points,
     observations,
+    excludedDifferences,
     counts: { points: ids.length, fixed: s.free ? 0 : given.size, new: s.free ? ids.length : ids.length - given.size, differences: edges.length, redundancy: fDof },
     weightedSumSquares: sumZ2,
     sigma0,
@@ -316,10 +325,11 @@ export function adjustHeights(
   return result;
 }
 
-const c2 = (n: number) => fix(n, 2);
-const signed = (n: number) => `${n < 0 ? '−' : '+'} ${fix(Math.abs(n), 2)}`;
-
 function buildSections(r: VerticalResult, s: VerticalSettings): Section[] {
+  // A magasságok és magasságkülönbségek a választott élességgel (alapértelmezés: cm).
+  const dec = PRECISION_DECIMALS[s.precision ?? 'cm'];
+  const c2 = (n: number) => fix(n, dec);
+  const signed = (n: number) => `${n < 0 ? '−' : '+'} ${fix(Math.abs(n), dec)}`;
   const kv = (k: string, v: string): Row => ({ cells: [k, v], role: 'base' });
   const sections: Section[] = [];
   sections.push({
@@ -363,6 +373,14 @@ function buildSections(r: VerticalResult, s: VerticalSettings): Section[] {
     notes.push(`A lokális teszt (u próba) ${fix(s.probability * 100, 0)} %-os valószínűségi szinten ${l.accepted ? 'elfogadható' : 'nem fogadható el'}.`);
   }
   sections.push({ kind: 'height-tests', title: 'Statisztikai próbák durva hibák kimutatására', columns: ['Mutató', 'Érték'], rows, footer: notes });
+  if (r.excludedDifferences.length > 0) {
+    sections.push({
+      kind: 'height-excluded',
+      title: 'A kiegyenlítésből kihagyott magasságkülönbségek',
+      columns: ['Álláspont', 'Irányzott pont', 'Mért mag.különbség'],
+      rows: r.excludedDifferences.map<Row>((e) => ({ cells: [e.station, e.target, signed(e.dh)], role: 'base' })),
+    });
+  }
 
   sections.push({
     kind: 'height-points',

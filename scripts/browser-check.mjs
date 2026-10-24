@@ -202,7 +202,7 @@ async function main() {
   await check('a kézi bevitel szakasza nyitva', `document.getElementById('rc-manual').closest('details').open`, true);
 
   await clickNav('net-hor');
-  await check('navigátor: a Vízszintes kiegyenlítés a hálózatot nyitja', `document.querySelector('#win-network .mdiwin-caption').textContent`, 'Hálózatkiegyenlítés / Vízszintes kiegyenlítés');
+  await check('navigátor: a Vízszintes kiegyenlítés saját munkalapon', `document.querySelector('#win-net-hor .mdiwin-caption').textContent`, 'Hálózatkiegyenlítés / Vízszintes kiegyenlítés');
 
   // A csoport fejléce összecsukja és kinyitja a csoportot.
   await evalJs(`document.querySelectorAll('#navigator .nav-head')[0].click()`);
@@ -638,6 +638,85 @@ async function main() {
   await sleep(900);
   await check('beillesztett hálózatra visszaváltva is hibátlan', `document.querySelectorAll('#net-results .issue.error').length`, 0);
   await check('ismét megjelennek a felhasznált alappontok', `[...document.querySelectorAll('#net-results .card h3')].some(e => e.textContent === 'Felhasznált vízszintes alappontok')`, true);
+
+  /* ---------- a hálózatkiegyenlítés öt lépése (súgó 50–54. o.) ---------- */
+  await clickNav('net-work');
+  await check('Munkaterület: a koordináták száma', `document.getElementById('net-sum-coords').textContent`, '11');
+  await check('Munkaterület: az álláspontok száma', `document.getElementById('net-sum-stations').textContent`, '4');
+  await evalJs(`document.querySelector('#win-network .step-next').click()`);
+  await sleep(200);
+  await check('a kék nyíl az Előzetes számításokra visz', `document.getElementById('win-net-pre').classList.contains('active')`, true);
+  await check('Előzetes: az álláspontok listája', `document.getElementById('np-stations').options.length`, 4);
+  await check('Előzetes: a felhasznált pontok listája', `document.getElementById('np-used').options.length > 4`, true);
+  await check('Előzetes: az új pontok sárga sorai', `document.querySelectorAll('#np-table tbody tr.new-point').length`, 2);
+  await check('Előzetes: az új pontok státusza bekapcsolva', `[...document.querySelectorAll('#np-table tbody tr.new-point input[data-status]')].every(b => b.checked)`, true);
+  // A státusz átállítása: a 2-es új pont adottá válik (a látható előzetes koordinátájával), majd vissza.
+  await evalJs(`(() => { const b = document.querySelector('#np-table input[data-status="2"]'); b.checked = false; b.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+  await sleep(250);
+  await check('a státusz kikapcsolásával a pont adott lesz', `document.querySelectorAll('#np-table tbody tr.new-point').length`, 1);
+  await evalJs(`(() => { const b = document.querySelector('#np-table input[data-status="2"]'); b.checked = true; b.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+  await sleep(250);
+  await check('a státusz visszakapcsolásával újra új pont', `document.querySelectorAll('#np-table tbody tr.new-point').length`, 2);
+  // Előzetes tájékozás: az Előkép a tájékozás szakaszánál nyílik.
+  await evalJs(`document.getElementById('np-orient').click()`);
+  await sleep(250);
+  await check('az Előkép megnyílt', `document.getElementById('net-preview').hidden`, false);
+  await check('az előzetes tájékozás szakasza megjelent', `!!document.querySelector('#net-results .card[data-kind="preliminary-orientation"]')`, true);
+  await check('az Előkép fejezetfája kitöltődött (hálózat)', `document.querySelectorAll('#net-report-tree .tree-item').length > 3`, true);
+  await evalJs(`document.getElementById('net-preview-close').click()`);
+  await check('az Előkép bezárható', `document.getElementById('net-preview').hidden`, true);
+
+  await evalJs(`document.querySelector('#win-net-pre .step-next').click()`);
+  await sleep(200);
+  await check('Vízszintes kiegyenlítés munkalap', `document.querySelector('#win-net-hor .mdiwin-caption').textContent`, 'Hálózatkiegyenlítés / Vízszintes kiegyenlítés');
+  await check('Vízszintes: minden irány egy sor', `String(document.querySelectorAll('#nh-table tbody tr').length)`, await evalJs(`document.getElementById('net-sum-obs').textContent`));
+  await check('Vízszintes: a durva hibás irányok rózsaszínek', `document.querySelectorAll('#nh-table td.auto-off').length > 0`, true);
+  const horKey = await evalJs(`document.querySelector('#nh-table td[data-key]:not(.auto-off)').dataset.key`);
+  await evalJs(`document.querySelector('#nh-table td[data-key="${horKey}"]').click()`);
+  await sleep(250);
+  await check('a javítás cellájára kattintva a mérés kimarad (piros)', `document.querySelector('#nh-table td[data-key="${horKey}"]').classList.contains('off')`, true);
+  await check('a kihagyás a jelzőben is megjelenik', `/Kézzel kizárt mérések \\(1\\)/.test(document.getElementById('net-excl-count').textContent)`, true);
+  await evalJs(`document.querySelector('#nh-table td[data-key="${horKey}"]').click()`);
+  await sleep(250);
+  await check('újabb kattintásra visszakerül', `document.querySelector('#nh-table td[data-key="${horKey}"]').classList.contains('off')`, false);
+
+  await evalJs(`document.querySelector('#win-net-hor .step-next').click()`);
+  await sleep(200);
+  await check('Magassági kiegyenlítés munkalap', `document.getElementById('win-net-ver').classList.contains('active')`, true);
+  await check('Magassági: a magasságkülönbségek sorai', `document.querySelectorAll('#nv-table tbody tr').length`, 6);
+  const hKey = await evalJs(`document.querySelector('#nv-table td[data-hkey]').dataset.hkey`);
+  await evalJs(`document.querySelector('#nv-table td[data-hkey="${hKey}"]').click()`);
+  await sleep(250);
+  await check('a magasságkülönbség kihagyható (piros)', `document.querySelector('#nv-table td[data-hkey="${hKey}"]').classList.contains('off')`, true);
+  await check('a kihagyott magasságkülönbség a jegyzőkönyvben', `!!document.querySelector('#net-results .card[data-kind="height-excluded"]')`, true);
+  await evalJs(`document.getElementById('nv-refresh').click()`);
+  await sleep(250);
+  await check('a frissítés visszaveszi a kihagyást', `document.querySelectorAll('#nv-table td.off').length`, 0);
+  await evalJs(`(() => { const r = document.getElementById('nv-prec-mm'); r.checked = true; r.dispatchEvent(new Event('change')); return true; })()`);
+  await sleep(250);
+  await check('a magasság élessége mm-re állítható', `[...document.querySelectorAll('#net-results .card[data-kind="height-points"] tbody tr')][0].children[3].textContent.split('.')[1].length`, 3);
+  await evalJs(`(() => { const r = document.getElementById('nv-prec-cm'); r.checked = true; r.dispatchEvent(new Event('change')); return true; })()`);
+  await sleep(150);
+
+  await evalJs(`document.querySelector('#win-net-ver .step-next').click()`);
+  await sleep(200);
+  await check('Részletpontok munkalap', `document.getElementById('win-net-det').classList.contains('active')`, true);
+  await check('Részletpontok: minden álláspont számítandó', `document.getElementById('nd-selected').options.length`, 4);
+  await evalJs(`(() => { const s = document.getElementById('nd-selected'); s.options[0].selected = true; document.getElementById('nd-remove').click(); return true; })()`);
+  await sleep(200);
+  await check('egy álláspont kivehető a számítandók közül', `document.getElementById('nd-selected').options.length`, 3);
+  await evalJs(`document.getElementById('nd-refresh').click()`);
+  await sleep(200);
+  await check('a frissítés minden álláspontot visszavesz', `document.getElementById('nd-selected').options.length`, 4);
+  await evalJs(`document.getElementById('nd-worklist').click()`);
+  await sleep(250);
+  await check('a munka koordináta-jegyzék a jegyzőkönyvben', `!!document.querySelector('#net-results .card[data-kind="work-list"]')`, true);
+  await check('a jegyzék 2 tizedes élességű', `document.querySelector('#net-results .card[data-kind="work-list"] tbody tr').children[1].textContent.split('.')[1].length`, 2);
+  await evalJs(`document.getElementById('net-preview-close').click()`);
+  await evalJs(`document.getElementById('nd-export').click()`);
+  await sleep(900);
+  const netExport = readdirSync(DL).find((n) => n === 'halozat_koordinatak.txt');
+  checkNode('a koordináta export vesszővel tagolt állományt ad', netExport ? readFileSync(join(DL, netExport), 'utf8').includes('541017D,') : false, true);
 
   await evalJs(`document.getElementById('net-traverse').value = ''; document.getElementById('net-traverse').dispatchEvent(new Event('input'))`);
   await sleep(500);

@@ -149,6 +149,16 @@
           <circle cx="11" cy="11" r="7" />
           <path d="m21 21-4.3-4.3M8 11h6" />
         </symbol>
+        <symbol id="i-arrow-left" viewBox="0 0 24 24">
+          <path d="M19 12H5" />
+          <path d="m12 19-7-7 7-7" />
+        </symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24">
+          <path d="M21 12a9 9 0 0 1-15.5 6.2L3 16" />
+          <path d="M3 21v-5h5" />
+          <path d="M3 12a9 9 0 0 1 15.5-6.2L21 8" />
+          <path d="M21 3v5h-5" />
+        </symbol>
         <symbol id="i-globe" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="9" />
           <path d="M3 12h18" />
@@ -602,129 +612,441 @@
           <input id="ex-db-file" type="file" accept=".pyx,.pyx2,.txt,.edb,text/plain" hidden />
         </section>
 
+        <!-- Hálózatkiegyenlítés: a valódi program öt lépése (súgó 50–54. o.), mindegyik saját munkalapon -->
         <section class="mdiwin" id="win-network" hidden aria-label="Hálózatkiegyenlítés/Munkaterület">
           <div class="mdiwin-title">
             <span class="mdiwin-caption">Hálózatkiegyenlítés/Munkaterület</span>
           </div>
-          <div class="mdiwin-body">
-            <div class="panes">
-              <section class="pane network-form" aria-label="Hálózat beállításai">
-                <div class="pane-head">
-                  <h2>Vízszintes hálózat kiegyenlítése</h2>
-                  <div class="pane-actions">
-                    <button id="net-sample" type="button" title="Valódi hálózat betöltése (Iszkahegy gyakorlat, kézzel javított jegyzőkönyv)">
-                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
-                      <span>Mintapélda</span>
-                    </button>
-                    <button id="net-sample-raw" type="button" title="Ugyanaz a hálózat a nyers, kétállásos jegyzőkönyvvel (középelés)">
-                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
-                      <span>Nyers minta</span>
-                    </button>
-                  </div>
+          <div class="mdiwin-body step-body">
+            <div class="step-scroll">
+              <div class="step-panel net-work-panel">
+                <div class="kv-line">Munkaterület: <span class="kv-value">ebben a böngészőben (helyi tároló)</span></div>
+                <label class="field-line">
+                  <span>Munkaállomány neve:</span>
+                  <input id="net-workname" type="text" autocomplete="off" placeholder="pl. minta_felm" />
+                </label>
+                <div class="btnrow">
+                  <button id="net-open-recorder" type="button" class="wide-btn" title="A mérési jegyzőkönyv beolvasása, konvertálása és redukciója az Adatrögzítőben">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-reader" /></svg>
+                    <span>Mérési adatok</span>
+                  </button>
+                  <button id="net-sample" type="button" title="Valódi hálózat betöltése (Iszkahegy gyakorlat, kézzel javított jegyzőkönyv)">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
+                    <span>Mintapélda</span>
+                  </button>
+                  <button id="net-sample-raw" type="button" title="Ugyanaz a hálózat a nyers, kétállásos jegyzőkönyvvel (középelés)">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sparkles" /></svg>
+                    <span>Nyers minta</span>
+                  </button>
                 </div>
-                <div class="form">
-                  <label>
-                    <span class="label-text">Ismert pontok<span class="cols">pontszám, Y, X, [M], [jelölés]</span></span>
-                    <textarea id="net-coords" spellcheck="false" wrap="off" rows="7"></textarea>
-                    <button id="net-open-coords" type="button" class="small">
-                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
-                      <span>Állomány megnyitása…</span>
-                    </button>
-                  </label>
-                  <label>
-                    <span class="label-text">Mérési jegyzőkönyv (GMJ)<span class="cols">állásponti sorok (…,-1) és mérések (…,-2); a „javított”, középelt jegyzőkönyv</span></span>
-                    <textarea id="net-gmj" spellcheck="false" wrap="off" rows="9"></textarea>
-                    <button id="net-open-gmj" type="button" class="small">
-                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
-                      <span>Állomány megnyitása…</span>
-                    </button>
-                  </label>
-                  <p class="hint">
-                    A GMJ sorai a már <b>redukált vízszintes távolságot</b> tartalmazzák. A nyers mérések
-                    (vízszintes és magassági szög, ferde távolság) magassági és vetületi redukcióját az
-                    <b>Adatrögzítő</b> munkalap végzi; onnan a redukált értékek innen is átvehetők.
-                  </p>
-                  <div class="btnrow pad">
-                    <button id="net-open-recorder" type="button" class="small">Adatrögzítő megnyitása…</button>
+                <div class="rule-bar" aria-hidden="true"></div>
+                <div class="net-work-grid">
+                  <div class="form">
+                    <label>
+                      <span class="label-text">Koordináták<span class="cols">pontszám, Y, X, [M], [jelölés] – szóközzel vagy vesszővel</span></span>
+                      <textarea id="net-coords" spellcheck="false" wrap="off" rows="9"></textarea>
+                    </label>
+                    <div class="btnrow">
+                      <button id="net-open-coords" type="button" class="small" title="Koordináta jegyzék betöltése">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                        <span>Betöltés…</span>
+                      </button>
+                      <button id="net-append-coords" type="button" class="small" title="Koordináta jegyzék hozzáfűzése a meglévőhöz">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-plus" /></svg>
+                        <span>Hozzáfűzés…</span>
+                      </button>
+                    </div>
                   </div>
-                  <details class="settings" open>
-                    <summary>A hálózat összeállítása</summary>
-                    <div class="grid2">
-                      <label class="wide2">
-                        További új pontok (vesszővel; koordináta nélküli, nem álláspont pontok, amelyeket be kell vonni a
-                        kiegyenlítésbe)
-                        <input id="net-extra" type="text" placeholder="pl. 201, 202" />
+                  <div class="form">
+                    <label>
+                      <span class="label-text">Mérési jegyzőkönyv (GMJ)<span class="cols">állásponti sorok (…,-1) és mérések (…,-2), redukált vízszintes távolsággal</span></span>
+                      <textarea id="net-gmj" spellcheck="false" wrap="off" rows="9"></textarea>
+                    </label>
+                    <div class="btnrow">
+                      <button id="net-open-gmj" type="button" class="small">
+                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+                        <span>Betöltés…</span>
+                      </button>
+                      <label class="check">
+                        <input id="net-avg-on" type="checkbox" checked />
+                        <span>Középelés (I. és II. távcsőállás átlaga)</span>
                       </label>
                     </div>
-                    <label class="check">
-                      <input id="net-avg-on" type="checkbox" checked />
-                      <span>Középelés: a célpontonként többször (I. és II. állásban) mért irányok átlagolása</span>
-                    </label>
-                    <label class="check">
-                      <input id="net-details-on" type="checkbox" checked />
-                      <span>Részletpontok számítása (a koordináta nélküli, távolsággal mért pontok)</span>
-                    </label>
-                    <label class="check">
-                      <input id="net-sketch-on" type="checkbox" />
-                      <span>Mérési vázlat (mérethelyes rajz a jegyzőkönyv végén)</span>
-                    </label>
-                    <label class="wide2">
-                      Sokszögvonal-előzetes: a vonal pontjai sorrendben (a kezdő- és végponttal)
-                      <input id="net-traverse" type="text" autocomplete="off" placeholder="pl. 541017D 2 3 541440" />
-                    </label>
-                    <label class="check">
-                      <input id="net-free" type="checkbox" />
-                      <span>
-                        Önálló hálózat: az adott koordináták csak közelítő értékek, a hálózat belső megkötéssel
-                        egyenlítődik ki (súgó 55. o.)
-                      </span>
-                    </label>
-                    <div class="grid2" id="net-datum-row">
-                      <label>Hálózati dátum: horgonypont<input id="net-datum-anchor" type="text" autocomplete="off" placeholder="pl. 2" /></label>
-                      <label>Forgatás [fok, óramutató szerint]<input id="net-datum-rot" type="number" step="0.1" value="0" /></label>
-                      <label>Horgonypont kívánt Y<input id="net-datum-y" type="number" step="0.001" /></label>
-                      <label>Horgonypont kívánt X<input id="net-datum-x" type="number" step="0.001" /></label>
-                      <label>Irányzat: második pont<input id="net-datum-second" type="text" autocomplete="off" /></label>
-                      <label>Kívánt irányszög az első→második pontra [fok]<input id="net-datum-az" type="number" step="0.0001" /></label>
-                    </div>
-                    <p class="hint">
-                      Az önálló hálózat a szabad kiegyenlítés után a közelítő koordináták súlypontjában marad; a
-                      horgonypont kívánt koordinátáival és a forgatással helyezhető a kívánt rendszerbe. Ha a második
-                      pontot és a kívánt irányszöget is megadod, a forgatás abból adódik.
-                    </p>
-                    <p class="hint" id="net-excl-count"></p>
-                    <div class="btnrow">
-                      <button id="net-excl-all" type="button" class="small" title="Minden irány- és távolságmérés kizárása a kiegyenlítésből">Minden mérés kizárása</button>
-                      <button id="net-excl-none" type="button" class="small" title="Minden kézzel kizárt mérés visszavétele">Minden mérés visszavétele</button>
-                      <button id="net-clear-excl" type="button" class="small">Kézi kizárások törlése</button>
-                      <button id="net-open-settings" type="button" class="small">Beállítások…</button>
-                    </div>
-                    <p class="hint">
-                      A kiegyenlítés középhibái, súlyai, a hibahatár, a valószínűségi szint és a számítás élessége a
-                      „Hálózatkiegyenlítés/Beállítások” munkalapon adhatók meg. A mérések kizárása a Jegyzőkönyv
-                      „Mérések kizárása a kiegyenlítésből” táblázatának jelölőnégyzeteivel történik.
-                    </p>
-                  </details>
-                </div>
-              </section>
-              <section class="pane result-pane" aria-label="A kiegyenlítés eredménye">
-                <div class="pane-head">
-                  <h2>Jegyzőkönyv</h2>
-                  <div class="pane-actions">
-                    <button id="net-print" type="button" title="Nyomtatás vagy mentés PDF-be">
-                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
-                      <span>Nyomtatás / PDF</span>
-                    </button>
                   </div>
                 </div>
-                <div id="net-status" class="status" role="status" aria-live="polite"></div>
-                <div id="net-issues" class="issues"></div>
-                <div id="net-results" class="results"></div>
-                <div id="net-downloads" class="downloads"></div>
-              </section>
+                <div class="net-work-foot">
+                  <div class="kv-line">Koordináták: <span class="kv-value" id="net-sum-coords">0</span></div>
+                  <div class="kv-line">Álláspontok: <span class="kv-value" id="net-sum-stations">0</span> · irányok: <span class="kv-value" id="net-sum-obs">0</span></div>
+                  <button id="net-go-details" type="button" title="Közvetlenül a részletpontok számítására">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+                    <span>Részletmérés</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="step-nav">
+              <span></span>
+              <button type="button" class="step-next" data-next="net-pre" title="Tovább: Előzetes számítások" aria-label="Tovább: Előzetes számítások">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+              </button>
             </div>
           </div>
         </section>
+
+        <section class="mdiwin" id="win-net-pre" hidden aria-label="Hálózatkiegyenlítés/Előzetes számítások">
+          <div class="mdiwin-title">
+            <span class="mdiwin-caption">Hálózatkiegyenlítés/Előzetes számítások</span>
+          </div>
+          <div class="mdiwin-body step-body">
+            <div class="step-scroll">
+              <div class="step-panel pick-row">
+                <div class="pick-col">
+                  <label for="np-stations">Álláspont(ok)</label>
+                  <select id="np-stations" multiple size="8" title="Dupla kattintás: a pont a sokszögvonal végére kerül"></select>
+                  <button id="np-del-station" type="button" class="minus" title="A kijelölt álláspont(ok) kihagyása" aria-label="Álláspont kihagyása"></button>
+                </div>
+                <div class="pick-col">
+                  <label for="np-known">Ismert pont(ok)</label>
+                  <select id="np-known" multiple size="8"></select>
+                  <button id="np-del-known" type="button" class="minus" title="A kijelölt ismert pont(ok) kihagyása" aria-label="Ismert pont kihagyása"></button>
+                </div>
+                <div class="pick-col">
+                  <label for="np-extra">További pont(ok)</label>
+                  <select id="np-extra" multiple size="8"></select>
+                  <button id="np-del-extra" type="button" class="minus" title="A kijelölt pont(ok) törlése a további pontok közül" aria-label="További pont törlése"></button>
+                </div>
+                <div class="pick-mid">
+                  <button id="np-add-extra" type="button" class="arrow-btn" title="Az Összes pont listában kijelölt pont(ok) a további pontok közé" aria-label="Áthelyezés a további pontok közé">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-left" /></svg>
+                  </button>
+                </div>
+                <div class="pick-col">
+                  <label for="np-all">Összes pont</label>
+                  <select id="np-all" multiple size="8"></select>
+                </div>
+                <div class="pick-mid">
+                  <button id="np-use" type="button" class="play-btn" title="Kiegyenlítésbe bevonandó pontok" aria-label="Kiegyenlítésbe bevonandó pontok"></button>
+                </div>
+                <div class="pick-col">
+                  <label for="np-used" class="used-label">Felhasznált pontok</label>
+                  <select id="np-used" class="used-list" multiple size="8"></select>
+                </div>
+              </div>
+              <fieldset class="step-group">
+                <legend>Előzetes számítások</legend>
+                <div class="pre-grid">
+                  <div class="grid-wrap">
+                    <table class="grid-table" id="np-table">
+                      <thead>
+                        <tr><th>#</th><th>Státusz</th><th>Pontszám</th><th>Y</th><th>X</th><th>Jelölés</th></tr>
+                      </thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                  <div class="pre-side">
+                    <button id="np-calc" type="button" class="wide-btn" title="Az új pontok előzetes koordinátáinak számítása">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-calculator" /></svg>
+                      <span>Koordináták számítása</span>
+                    </button>
+                    <button id="np-traverse-btn" type="button" class="wide-btn" aria-expanded="false" title="Beillesztett sokszögvonal az előzetes koordinátákhoz">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-network" /></svg>
+                      <span>Sokszögvonal</span>
+                    </button>
+                    <button id="np-report" type="button" class="ib doc-btn" title="Az előzetes számítások jegyzőkönyve" aria-label="Az előzetes számítások jegyzőkönyve">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+                    </button>
+                    <fieldset class="step-group small-group">
+                      <legend>Előzetes tájékozás</legend>
+                      <div class="hint-line">Bevont irányok:</div>
+                      <label class="check"><input id="np-or-known" type="checkbox" checked /><span>Ismert pontok</span></label>
+                      <label class="check"><input id="np-or-computed" type="checkbox" /><span>Számolt pontok</span></label>
+                      <button id="np-orient" type="button" class="wide-btn">Tájékozás</button>
+                    </fieldset>
+                  </div>
+                </div>
+                <div class="traverse-panel" id="np-traverse-panel" hidden>
+                  <label class="field-line">
+                    <span>Poligon (a pontok sorrendben, a kezdő- és végponttal):</span>
+                    <input id="net-traverse" type="text" autocomplete="off" placeholder="pl. 541017D 2 3 541440" />
+                  </label>
+                  <div class="btnrow">
+                    <button id="np-trav-clear" type="button" class="small">Törlés</button>
+                    <span class="hint">Az Álláspont(ok) listában dupla kattintással is bővíthető.</span>
+                    <span class="trav-result" id="np-trav-result"></span>
+                  </div>
+                </div>
+                <input id="net-extra" type="text" hidden />
+              </fieldset>
+            </div>
+            <div class="step-nav">
+              <button type="button" class="step-refresh" id="np-refresh" title="A munkalap adatainak újratöltése" aria-label="Újratöltés">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-refresh" /></svg>
+              </button>
+              <button type="button" class="step-next" data-next="net-hor" title="Tovább: Vízszintes kiegyenlítés" aria-label="Tovább: Vízszintes kiegyenlítés">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-net-hor" hidden aria-label="Hálózatkiegyenlítés/Vízszintes kiegyenlítés">
+          <div class="mdiwin-title">
+            <span class="mdiwin-caption">Hálózatkiegyenlítés/Vízszintes kiegyenlítés</span>
+          </div>
+          <div class="mdiwin-body step-body">
+            <div class="step-scroll">
+              <div class="step-panel">
+                <div class="grid-wrap tall">
+                  <table class="grid-table obs-grid" id="nh-table">
+                    <thead>
+                      <tr>
+                        <th rowspan="2">AP</th><th rowspan="2">IP</th><th rowspan="2">Hz</th><th rowspan="2">Tvet</th><th rowspan="2">#</th>
+                        <th colspan="3" class="grp">Iránymérés</th><th colspan="3" class="grp">Távmérés</th>
+                      </tr>
+                      <tr><th>Javítás</th><th>Hibahat.</th><th>Stat.</th><th>Javítás</th><th>Hibahat.</th><th>Stat.</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <p class="hint">
+                  Egy mérés kihagyása a kiegyenlítésből: kattints a javítás cellájára – a háttere pirosra vált (logikai törlés),
+                  újabb kattintás visszaveszi. A rózsaszín cella a durva hiba miatt automatikusan kihagyott mérés.
+                </p>
+                <div class="btnrow hor-buttons">
+                  <button id="nh-run" type="button" class="wide-btn" title="A hálózat kiegyenlítése">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-calculator" /></svg>
+                    <span>Kiegyenlítés</span>
+                  </button>
+                  <button id="nh-datum" type="button" aria-expanded="false" title="Önálló hálózat elhelyezése és tájékozása (eltolás, forgatás)">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-axes" /></svg>
+                    <span>Hálózati dátum</span>
+                  </button>
+                  <button id="nh-sketch" type="button" title="Mérethelyes mérési vázlat">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-network" /></svg>
+                    <span>Mérési vázlat</span>
+                  </button>
+                  <button id="net-open-settings" type="button" title="A kiegyenlítés beállításai">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-gear" /></svg>
+                    <span>Beállítások…</span>
+                  </button>
+                  <button id="nh-report" type="button" class="ib doc-btn" title="A teljes számítási jegyzőkönyv" aria-label="A teljes számítási jegyzőkönyv">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+                  </button>
+                </div>
+                <div class="form compact">
+                  <p class="hint" id="net-excl-count"></p>
+                  <div class="btnrow">
+                    <button id="net-excl-all" type="button" class="small" title="Minden irány- és távolságmérés kizárása a kiegyenlítésből">Minden mérés kizárása</button>
+                    <button id="net-excl-none" type="button" class="small" title="Minden kézzel kizárt mérés visszavétele">Minden mérés visszavétele</button>
+                    <button id="net-clear-excl" type="button" class="small">Kézi kizárások törlése</button>
+                    <label class="check"><input id="net-sketch-on" type="checkbox" /><span>Mérési vázlat a jegyzőkönyvben</span></label>
+                  </div>
+                  <fieldset class="dims column" id="nh-datum-panel" hidden>
+                    <legend>Hálózati dátum</legend>
+                    <label class="check">
+                      <input id="net-free" type="checkbox" />
+                      <span>Önálló hálózat: az adott koordináták csak közelítő értékek, a hálózat belső megkötéssel egyenlítődik ki</span>
+                    </label>
+                    <div class="grid2" id="net-datum-row">
+                      <label>Eltolás: pont<input id="net-datum-anchor" type="text" autocomplete="off" placeholder="pl. 2" /></label>
+                      <label>Forgatás [fok, óramutató szerint]<input id="net-datum-rot" type="number" step="0.1" value="0" /></label>
+                      <label>A pont kívánt Y<input id="net-datum-y" type="number" step="0.001" /></label>
+                      <label>A pont kívánt X<input id="net-datum-x" type="number" step="0.001" /></label>
+                      <label>Forgatás: pont<input id="net-datum-second" type="text" autocomplete="off" /></label>
+                      <label>Kívánt irányszög [fok]<input id="net-datum-az" type="number" step="0.0001" /></label>
+                    </div>
+                    <p class="hint">
+                      Az önálló hálózat a szabad kiegyenlítés után a közelítő koordináták súlypontjában marad; az eltolás pontjába
+                      tett kívánt koordinátákkal és a forgatással helyezhető el. Ha a forgatás pontját és a kívánt irányszöget is
+                      megadod, a forgatás abból adódik.
+                    </p>
+                  </fieldset>
+                </div>
+              </div>
+            </div>
+            <div class="step-nav">
+              <button type="button" class="step-refresh" id="nh-refresh" title="A munkalap adatainak újratöltése" aria-label="Újratöltés">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-refresh" /></svg>
+              </button>
+              <button type="button" class="step-next" data-next="net-ver" title="Tovább: Magassági kiegyenlítés" aria-label="Tovább: Magassági kiegyenlítés">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-net-ver" hidden aria-label="Hálózatkiegyenlítés/Magassági kiegyenlítés">
+          <div class="mdiwin-title">
+            <span class="mdiwin-caption">Hálózatkiegyenlítés/Magassági kiegyenlítés</span>
+          </div>
+          <div class="mdiwin-body step-body">
+            <div class="step-scroll">
+              <div class="step-panel ver-grid">
+                <div>
+                  <div class="grid-wrap tall">
+                    <table class="grid-table obs-grid" id="nv-table">
+                      <thead>
+                        <tr><th>#</th><th>AP</th><th>IP</th><th>dM</th><th>Javítás</th><th>Hibahatár</th><th>Stat.</th></tr>
+                      </thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                  <p class="hint">
+                    Kattintás a magasságkülönbség cellájára: kihagyás a kiegyenlítésből (piros háttér), újabb kattintás visszaveszi.
+                  </p>
+                </div>
+                <div class="ver-side">
+                  <label class="check">
+                    <input id="net-h-on" type="checkbox" />
+                    <span>Magassági kiegyenlítés</span>
+                  </label>
+                  <fieldset class="step-group small-group">
+                    <legend>Számítás élessége</legend>
+                    <label class="check"><input type="radio" name="nv-prec" value="cm" id="nv-prec-cm" checked /><span>cm</span></label>
+                    <label class="check"><input type="radio" name="nv-prec" value="mm" id="nv-prec-mm" /><span>mm</span></label>
+                    <label class="check"><input type="radio" name="nv-prec" value="tizedmm" id="nv-prec-01" /><span>0.1 mm</span></label>
+                  </fieldset>
+                  <fieldset class="step-group small-group form compact">
+                    <legend>Paraméterek</legend>
+                    <label>Átlagos távolság [m]<input id="net-h-unit" type="number" step="10" min="1" /></label>
+                    <label>Középhiba [cm]<input id="net-h-sigma" type="number" step="0.1" min="0.01" /></label>
+                    <label>
+                      Súlyozás
+                      <select id="net-h-weight">
+                        <option value="equal">távolságtól független</option>
+                        <option value="proportional">távolságtól függő</option>
+                      </select>
+                    </label>
+                    <label class="check">
+                      <input id="net-h-free" type="checkbox" />
+                      <span>Önálló hálózat (az adott magasságok csak közelítők)</span>
+                    </label>
+                  </fieldset>
+                  <fieldset class="step-group small-group">
+                    <legend>Adott magasságú pontok</legend>
+                    <div id="nv-fixed" class="check-list"></div>
+                  </fieldset>
+                  <div class="btnrow">
+                    <button id="nv-run" type="button" class="play-btn" title="Magassági kiegyenlítés" aria-label="Magassági kiegyenlítés"></button>
+                    <button id="nv-report" type="button" class="ib doc-btn" title="A magassági kiegyenlítés jegyzőkönyve" aria-label="A magassági kiegyenlítés jegyzőkönyve">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="step-nav">
+              <button type="button" class="step-refresh" id="nv-refresh" title="A munkalap adatainak újratöltése" aria-label="Újratöltés">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-refresh" /></svg>
+              </button>
+              <button type="button" class="step-next" data-next="net-det" title="Tovább: Részletpontok számítása" aria-label="Tovább: Részletpontok számítása">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="mdiwin" id="win-net-det" hidden aria-label="Hálózatkiegyenlítés/Részletpontok számítása">
+          <div class="mdiwin-title">
+            <span class="mdiwin-caption">Hálózatkiegyenlítés/Részletpontok számítása</span>
+          </div>
+          <div class="mdiwin-body step-body">
+            <div class="step-scroll">
+              <div class="step-panel det-grid">
+                <div class="pick-row">
+                  <div class="pick-col">
+                    <label for="nd-stations">Álláspont(ok)</label>
+                    <select id="nd-stations" multiple size="12"></select>
+                  </div>
+                  <div class="pick-mid">
+                    <button id="nd-add" type="button" class="arrow-btn" title="A kijelölt álláspont(ok) számítása" aria-label="Hozzáadás a számítandó álláspontokhoz">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg>
+                    </button>
+                  </div>
+                  <div class="pick-col">
+                    <label for="nd-selected">Számítandó álláspont(ok)</label>
+                    <select id="nd-selected" multiple size="12"></select>
+                    <button id="nd-remove" type="button" class="cross" title="A kijelölt álláspont(ok) törlése a számítandók közül" aria-label="Törlés a számítandók közül"></button>
+                  </div>
+                </div>
+                <div class="det-side">
+                  <div class="btnrow">
+                    <button id="nd-run" type="button" class="wide-btn" title="A részletpontok koordinátáinak és magasságainak számítása">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-calculator" /></svg>
+                      <span>Részletpontok számítása</span>
+                    </button>
+                    <button id="nd-report" type="button" class="ib doc-btn" title="A részletpontok jegyzőkönyve" aria-label="A részletpontok jegyzőkönyve">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+                    </button>
+                  </div>
+                  <label class="check">
+                    <input id="net-details-on" type="checkbox" checked />
+                    <span>Részletpontok számítása a kiegyenlítéssel</span>
+                  </label>
+                  <div class="kv-line">Számított részletpontok: <span class="kv-value" id="nd-count">0</span></div>
+                  <div class="field-line">
+                    <label for="nd-type">Típus:</label>
+                    <select id="nd-type">
+                      <option value="all">Minden</option>
+                      <option value="known">Kiinduló pontok</option>
+                      <option value="adjusted">Kiegyenlített pontok</option>
+                      <option value="detail">Részletpontok</option>
+                    </select>
+                  </div>
+                  <div class="btnrow">
+                    <button id="nd-export" type="button" title="A kiválasztott pontok vesszővel tagolt szöveges állományba">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save" /></svg>
+                      <span>Koordináta export</span>
+                    </button>
+                    <button id="nd-export-db" type="button" class="ib" title="Konvertálás GeoCalc DB (.PYX2) formátumba" aria-label="Konvertálás GeoCalc DB formátumba">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-database" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <fieldset class="step-group">
+                <legend>Munka koordináta jegyzék</legend>
+                <div class="btnrow wl-row">
+                  <label class="check"><input id="nd-heights" type="checkbox" checked /><span>Magasság kijelzése</span></label>
+                  <label class="field-line">Koordináták élessége:<input id="nd-cdec" type="number" min="0" max="4" step="1" value="2" /></label>
+                  <label class="field-line">Magasság:<input id="nd-hdec" type="number" min="0" max="4" step="1" value="2" />tizedes</label>
+                  <button id="nd-worklist" type="button" class="ib doc-btn" title="A munka koordináta jegyzék" aria-label="A munka koordináta jegyzék">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+                  </button>
+                </div>
+              </fieldset>
+            </div>
+            <div class="step-nav">
+              <button type="button" class="step-refresh" id="nd-refresh" title="A munkalap adatainak újratöltése" aria-label="Újratöltés">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-refresh" /></svg>
+              </button>
+              <span></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Előkép: a hálózatkiegyenlítés jegyzőkönyve külön nézegetőablakban (mint a valódi programban) -->
+        <div class="preview-window" id="net-preview" hidden role="dialog" aria-modal="true" aria-labelledby="net-preview-title">
+          <div class="preview-window-title">
+            <span id="net-preview-title">Előkép – Hálózatkiegyenlítés</span>
+          </div>
+          <div class="preview-toolbar">
+            <button id="net-print" type="button" class="ib" title="Nyomtatás vagy mentés PDF-be" aria-label="Nyomtatás / PDF">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+            </button>
+            <span class="tb-sep"></span>
+            <span class="preview-hint" id="net-status" role="status" aria-live="polite"></span>
+            <button id="net-preview-close" type="button" class="close-btn">Bezár</button>
+          </div>
+          <div id="net-issues" class="issues"></div>
+          <div class="preview-split">
+            <nav id="net-report-tree" class="report-tree" aria-label="A jegyzőkönyv fejezetei"></nav>
+            <div class="preview-paper-wrap">
+              <div id="net-results" class="results paper"></div>
+            </div>
+          </div>
+          <div id="net-downloads" class="downloads"></div>
+        </div>
 
         <section class="mdiwin" id="win-network-settings" hidden aria-label="Hálózatkiegyenlítés/Beállítások">
           <div class="mdiwin-title">
@@ -792,32 +1114,10 @@
                     A vetületi redukció a távmérés középhibájában jelenik meg.
                   </p>
                 </details>
-                <details class="settings" open>
-                  <summary>Magassági hálózat (trigonometrikus)</summary>
-                  <div class="grid2">
-                    <label class="check wide2">
-                      <input id="net-h-on" type="checkbox" />
-                      <span>Magassági hálózat kiegyenlítése is</span>
-                    </label>
-                    <label>Magasságkülönbség középhibája [cm]<input id="net-h-sigma" type="number" step="0.1" min="0.01" /></label>
-                    <label>Egységnyi súlyú távolság [m]<input id="net-h-unit" type="number" step="10" min="1" /></label>
-                    <label>
-                      Súly
-                      <select id="net-h-weight">
-                        <option value="equal">távolságtól független</option>
-                        <option value="proportional">távolsággal fordítottan arányos</option>
-                      </select>
-                    </label>
-                    <label class="check">
-                      <input id="net-h-free" type="checkbox" />
-                      <span>Önálló hálózat (az adott magasságok csak közelítők)</span>
-                    </label>
-                  </div>
-                  <p class="hint">
-                    Az adott magasságokat az ismert pontok listájának M oszlopa adja. A mért magasságkülönbség a jegyzőkönyv
-                    <code>dM</code> mezője.
-                  </p>
-                </details>
+                <p class="hint">
+                  A magassági kiegyenlítés paraméterei (átlagos távolság, középhiba, súlyozás, számítás élessége) a
+                  „Hálózatkiegyenlítés/Magassági kiegyenlítés” munkalapon adhatók meg (súgó 55. o.).
+                </p>
                 <details class="settings" open>
                   <summary>Számítás élessége (a jegyzőkönyv kiírása)</summary>
                   <div class="grid2">

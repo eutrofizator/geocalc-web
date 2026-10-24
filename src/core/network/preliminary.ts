@@ -1,8 +1,9 @@
-import { DEG } from '../angle';
+import { DEG, formatDms } from '../angle';
 import { CalcError } from '../errors';
 import { intersectRays } from '../geometry';
 import { adjust, type Obs } from '../modules/adjust';
-import type { Issue } from '../types';
+import { fix } from '../format';
+import type { Issue, Row, Section } from '../types';
 import type { NetStation } from './types';
 
 export interface Pt {
@@ -140,4 +141,54 @@ export function preliminaryCoordinates(
     });
   }
   return { coords, unresolved };
+}
+
+/**
+ * Előzetes tájékozás (súgó 51. o., „Előzetes tájékozás” panel): az álláspontok tájékozása az addig
+ * ismert (megadott vagy előzetesen számított) koordinátákból, hibakereséshez. A `include` dönti el,
+ * mely irányzott pontok irányai vesznek részt (pl. csak az ismert pontok, vagy a számoltak is).
+ *
+ * A jegyzőkönyv a valódi program szerinti: álláspontonként a tájékozási szög (Zk), irányonként a
+ * leolvasás (l), az irányszög (δ), a távolság (t), az iránynak megfelelő tájékozási szög (Zi) és az
+ * eltérés (e″ = Zi − Zk).
+ */
+export function preliminaryOrientationSection(
+  stations: NetStation[],
+  coords: Map<string, Pt>,
+  include: (id: string) => boolean,
+): Section {
+  const rows: Row[] = [];
+  const sorted = [...stations].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const st of sorted) {
+    const S = coords.get(st.id);
+    if (!S) continue;
+    const obs = st.observations.filter((o) => o.target !== st.id && coords.has(o.target) && include(o.target));
+    if (obs.length === 0) continue;
+    const zi = obs.map((o) => azimuth(S, coords.get(o.target)!) - o.hz * DEG);
+    // Átlag a körön: az első irányhoz viszonyított eltérések átlaga.
+    const ref = zi[0]!;
+    const zk = ref + zi.reduce((a, z) => a + wrap(z - ref), 0) / zi.length;
+    rows.push({ cells: [st.id, '', '', '', formatDms(zk / DEG), ''], role: 'result' });
+    obs.forEach((o, i) => {
+      const T = coords.get(o.target)!;
+      rows.push({
+        cells: [
+          o.target,
+          formatDms(o.hz),
+          formatDms(azimuth(S, T) / DEG),
+          fix(Math.hypot(T.y - S.y, T.x - S.x), 3),
+          formatDms(zi[i]! / DEG),
+          fix((wrap(zi[i]! - zk) / DEG) * 3600, 0),
+        ],
+        role: 'base',
+      });
+    });
+  }
+  return {
+    kind: 'preliminary-orientation',
+    title: 'Előzetes tájékozás',
+    columns: ['Tájékozás', 'l', 'δ', 't', 'Zk/Zi', 'e″'],
+    rows,
+    footer: rows.length === 0 ? ['Nincs tájékozható álláspont (az álláspontnak és legalább egy irányzott pontnak koordináta kell).'] : undefined,
+  };
 }

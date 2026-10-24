@@ -107,6 +107,28 @@ export function renderSection(s: Section): HTMLElement {
   return card;
 }
 
+/** Az Előkép bal oldali fejezetfája: a jegyzőkönyv kártyái, kattintásra odagörget. */
+export function renderReportTree(tree: HTMLElement, resultsBox: HTMLElement): void {
+  tree.replaceChildren();
+  const cards = [...resultsBox.querySelectorAll<HTMLElement>(':scope > .card')];
+  if (cards.length === 0) return;
+  const ul = el('ul');
+  cards.forEach((card, i) => {
+    const title = card.dataset.role === 'cover' ? 'Előlap' : (card.querySelector('h3')?.textContent ?? `${i + 1}. szakasz`);
+    const b = el('button', 'tree-item', title.replace(/\s*:\s*$/, ''));
+    b.type = 'button';
+    b.title = title;
+    b.addEventListener('click', () => {
+      card.scrollIntoView({ block: 'start' });
+      for (const x of tree.querySelectorAll('.tree-item')) x.classList.toggle('current', x === b);
+    });
+    const li = el('li');
+    li.append(b);
+    ul.append(li);
+  });
+  tree.append(ul);
+}
+
 /** „Táblázatok (.csv)” gomb: a megadott szakaszok mentése táblázatkezelőbe. */
 export function csvButton(baseName: string, sections: () => Section[]): HTMLButtonElement {
   const b = el('button', undefined, 'Táblázatok (.csv)');

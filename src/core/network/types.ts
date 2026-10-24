@@ -110,6 +110,10 @@ export interface VerticalSettings {
    * a kiegyenlítés a közelítő magasságok átlagát tartja meg (a javítások összege nulla).
    */
   free: boolean;
+  /** A magasságok kiírásának élessége (súgó 53. o.: cm, mm vagy tized mm; alapértelmezés: cm). */
+  precision?: CoordinatePrecision;
+  /** Kézzel kihagyott magasságkülönbségek: „állomás>pont” (súgó 53. o.). */
+  excluded?: string[];
 }
 
 export const DEFAULT_VERTICAL_SETTINGS: VerticalSettings = {

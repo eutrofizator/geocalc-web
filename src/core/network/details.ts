@@ -119,3 +119,70 @@ export function computeDetailPoints(
   }
   return { points, sections, issues };
 }
+
+/** A munka koordináta-jegyzék egy pontja: adott, kiegyenlített vagy részletpont. */
+export interface WorkPoint {
+  id: string;
+  y: number;
+  x: number;
+  m: number | null;
+  mark: string;
+  kind: 'known' | 'adjusted' | 'detail';
+}
+
+export interface WorkListOptions {
+  /** A magasság kijelzése (súgó 54. o.: „Magasság kijelzése”). */
+  heights: boolean;
+  /** A koordináták tizedesjegyei. */
+  coordDecimals: number;
+  /** A magasságok tizedesjegyei. */
+  heightDecimals: number;
+}
+
+const KIND_LABEL: Record<WorkPoint['kind'], string> = { known: 'adott', adjusted: 'kiegyenlített', detail: 'részletpont' };
+
+/**
+ * Munka koordináta-jegyzék (súgó 54. o.): az adott és a számított alappontok, a részletpontok, valamint
+ * a többször mért részletpontok kimutatása (melyik álláspontról mérték őket), a választott élességgel.
+ */
+export function workCoordinateList(points: WorkPoint[], details: DetailPoint[], o: WorkListOptions): Section[] {
+  const order: WorkPoint['kind'][] = ['known', 'adjusted', 'detail'];
+  const sorted = [...points].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const columns = ['Pontszám', 'Y', 'X', ...(o.heights ? ['M'] : []), 'Jelölés', 'Jelleg'];
+  const sections: Section[] = [
+    {
+      kind: 'work-list',
+      title: 'Munka koordináta-jegyzék',
+      columns,
+      rows: sorted.map<Row>((p) => ({
+        cells: [
+          p.id,
+          fix(p.y, o.coordDecimals),
+          fix(p.x, o.coordDecimals),
+          ...(o.heights ? [p.m === null ? '' : fix(p.m, o.heightDecimals)] : []),
+          p.mark,
+          KIND_LABEL[p.kind],
+        ],
+        role: p.kind === 'known' ? 'base' : 'result',
+      })),
+      footer: [
+        `Adott pontok: ${points.filter((p) => p.kind === 'known').length}, kiegyenlített pontok: ${points.filter((p) => p.kind === 'adjusted').length}, részletpontok: ${points.filter((p) => p.kind === 'detail').length}.`,
+      ],
+    },
+  ];
+  const multi = details.filter((d) => d.measurements.length > 1);
+  if (multi.length > 0) {
+    sections.push({
+      kind: 'work-multi',
+      title: 'Többször mért részletpontok kimutatása',
+      columns: ['Pontszám', 'Álláspont', 'Y', 'X', ...(o.heights ? ['M'] : [])],
+      rows: multi.flatMap((d) =>
+        d.measurements.map<Row>((m) => ({
+          cells: [d.id, m.station, fix(m.y, o.coordDecimals), fix(m.x, o.coordDecimals), ...(o.heights ? [m.height === null ? '' : fix(m.height, o.heightDecimals)] : [])],
+          role: 'base',
+        })),
+      ),
+    });
+  }
+  return sections;
+}

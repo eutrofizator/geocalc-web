@@ -51,7 +51,11 @@ arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jel
 | Geodéziai számítások/Adatleíró | **működik** (űrlapos adatbevitel, kódgenerálás, automatikus kódolás) |
 | Geodéziai számítások/Beállítások | **működik** (a jegyzőkönyv előlapja, `borito.ini` be/ki) |
 | Adatrögzítő/Beállítások | **működik** (rögzítőtípus, távolságredukció, TVET.TXT, átlagok) |
-| Hálózatkiegyenlítés/Munkaterület | **működik** (vízszintes beillesztett és önálló, magassági, részletpontok, sokszögvonal-előzetes, mérési vázlat, hálózati dátum) |
+| Hálózatkiegyenlítés/Munkaterület | **működik** (munkaállomány, koordináták betöltése és hozzáfűzése, GMJ, középelés) |
+| Hálózatkiegyenlítés/Előzetes számítások | **működik** (álláspontok, ismert, további és felhasznált pontok listája, státusz, előzetes koordináták, sokszögvonal, előzetes tájékozás) |
+| Hálózatkiegyenlítés/Vízszintes kiegyenlítés | **működik** (beillesztett és önálló; mérésenként javítás, hibahatár, statisztika, kizárás kattintással, hálózati dátum, mérési vázlat) |
+| Hálózatkiegyenlítés/Magassági kiegyenlítés | **működik** (magasságkülönbségek, kihagyás kattintással, adott magasságú pontok, számítás élessége) |
+| Hálózatkiegyenlítés/Részletpontok számítása | **működik** (számítandó álláspontok, koordináta export, munka koordináta-jegyzék) |
 | Hálózatkiegyenlítés/Beállítások | **működik** (középhibák, súlyok, statisztikai próbák, hibahatár-előbeállítás, számítás élessége) |
 | Térbeli transzformáció/Paraméterek számítása | **működik** (7 paraméteres illesztés, keresősugár, kétlépcsős módszer, **interpoláció**) |
 | Térbeli transzformáció/Átszámítás | **működik** (megadott paraméterekkel, **interpolációval**, kimeneti formátumokkal) |
@@ -244,13 +248,34 @@ A 61/2009. (V. 14.) FVM rendelet szerinti mérési és számítási jegyzőköny
 > beállításaival) a valódi programot igényli; az `AKG_CELPRGSZOVEG` rendelet szerinti szövege nem
 > generálható, ezért kézzel adható meg.
 
-### Hálózatkiegyenlítés/Munkaterület (súgó 42. o.)
+### Hálózatkiegyenlítés – az öt lépés (súgó 50–54. o.)
 
-A kiegyenlítés a **mérések kizárása** táblázatból vezérelhető: minden irány és távmérés egy-egy
-jelölőnégyzetes sor (`álláspont>célzott pont:dir`, illetve `:dist`), a durva hiba miatt kihagyott
-mérések bejelölve, de zárolva jelennek meg. A **„Minden mérés kizárása”** és **„Minden mérés
-visszavétele”** gombok a teljes listát állítják, a kiegyenlítés pedig azonnal újrafut. A számított
-eredmények (jegyzőkönyv, `Táblázatok (.csv)`, nyomtatás) a kizárásokat is tartalmazzák.
+A valódi programhoz hasonlóan a hálózatkiegyenlítés öt munkalapon halad; a jobb alsó kék nyíl a
+következő lépésre visz, a bal alsó zöld nyíl a munkalap kijelöléseit állítja alaphelyzetbe. A teljes
+számítási jegyzőkönyv a dokumentum-ikonokkal nyíló **Előkép** ablakban látható (fejezetfával,
+nyomtatással és letöltésekkel), a lépés szakaszánál nyitva.
+
+1. **Munkaterület** – a munkaállomány neve, a koordináta-jegyzék betöltése vagy **hozzáfűzése**, a GMJ
+   mérési jegyzőkönyv, középelés; a „Mérési adatok” gomb az Adatrögzítőt, a „Részletmérés” a
+   részletpontokat nyitja.
+2. **Előzetes számítások** – az Álláspont(ok), Ismert pont(ok), További pont(ok), Összes pont és
+   Felhasznált pontok listája (a sárga vonallal kihagyás, a ← nyíllal további pont felvétele). A
+   táblázatban az új pontok sárgák; a **Státusz** jelölőnégyzettel az ismert pont új pontra, az új pont
+   – a látható vagy beírt koordinátájával – adottra állítható (önálló hálózat). **Sokszögvonal** (az
+   álláspontokra duplán kattintva is bővíthető) és **Előzetes tájékozás** (a bevont irányok típusa:
+   ismert / számolt pontok; Zk, Zi, e″ hibakereséshez).
+3. **Vízszintes kiegyenlítés** – irányonként AP, IP, Hz, Tvet, valamint az irány- és távmérés javítása,
+   hibahatára és statisztikája. A **javítás cellájára kattintva** a mérés logikailag törlődik (piros),
+   újabb kattintás visszaveszi; a durva hiba miatt automatikusan kihagyott mérés rózsaszín. A
+   „Mérések kizárása” táblázat jelölőnégyzetei a jegyzőkönyvben ugyanezt teszik. Hálózati dátum
+   (önálló hálózat eltolása és forgatása), mérési vázlat.
+4. **Magassági kiegyenlítés** – a felkínált magasságkülönbségek (#, AP, IP, dM, javítás, hibahatár,
+   statisztika); kattintással kihagyhatók. A **számítás élessége** cm / mm / 0.1 mm, a paraméterek
+   (átlagos távolság, középhiba, súlyozás, önálló hálózat) és az **adott magasságú pontok** kiválasztása.
+5. **Részletpontok számítása** – a számítandó álláspontok (→ hozzáadás, ✕ törlés), a koordináta
+   export típus szerint (minden / kiinduló / kiegyenlített / részletpontok, vesszővel tagolt `.txt`
+   vagy GeoCalc-DB `.PYX2`) és a **munka koordináta-jegyzék** (magasság kijelzése, élesség), a többször
+   mért részletpontok kimutatásával.
 
 ### Hálózatkiegyenlítés/Beállítások (súgó 62. o.)
 
@@ -268,13 +293,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 416 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 426 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **239 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **271 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -380,7 +405,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 33 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 34 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

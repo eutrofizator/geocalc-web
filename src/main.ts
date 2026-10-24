@@ -19,7 +19,7 @@ import { initAkgView } from './akg-view';
 import { initAboutView } from './about-view';
 import { initGeneralSettingsView, rememberSheet, startSheet } from './general-settings-view';
 import { initGeoConvertView } from './geo-convert-view';
-import { $, csvButton, download, el, readText, renderSection, storage } from './ui';
+import { $, csvButton, download, el, readText, renderReportTree, renderSection, storage } from './ui';
 
 /* ---------- tárolás (csak kényelmi funkció, hiba esetén is működik az oldal) ---------- */
 const DRAFT_KEY = 'geocalc-web.draft';
@@ -119,7 +119,7 @@ function render(result: RunResult): void {
     resultsBox.append(renderCover(CALC_TITLE));
     for (const s of result.sections) resultsBox.append(renderSection(s));
   }
-  renderReportTree(resultsBox);
+  renderReportTree($('report-tree'), resultsBox);
 
   const notes = new Set<string>();
   for (const f of result.exports) {
@@ -134,29 +134,6 @@ function render(result: RunResult): void {
   }
   if (result.sections.length > 0) downloads.append(csvButton('szamitas_tablazatok', () => result.sections));
   for (const note of notes) downloads.append(el('span', 'fmt-note', note));
-}
-
-/** Az Előkép bal oldali fejezetfája: a jegyzőkönyv szakaszai, kattintásra odagörget. */
-function renderReportTree(resultsBox: HTMLElement): void {
-  const tree = $('report-tree');
-  tree.replaceChildren();
-  const cards = [...resultsBox.querySelectorAll<HTMLElement>(':scope > .card')];
-  if (cards.length === 0) return;
-  const ul = el('ul');
-  cards.forEach((card, i) => {
-    const title = card.dataset.role === 'cover' ? 'Előlap' : (card.querySelector('h3')?.textContent ?? `${i + 1}. szakasz`);
-    const b = el('button', 'tree-item', title.replace(/\s*:\s*$/, ''));
-    b.type = 'button';
-    b.title = title;
-    b.addEventListener('click', () => {
-      card.scrollIntoView({ block: 'start' });
-      for (const x of tree.querySelectorAll('.tree-item')) x.classList.toggle('current', x === b);
-    });
-    const li = el('li');
-    li.append(b);
-    ul.append(li);
-  });
-  tree.append(ul);
 }
 
 function compute(): void {
@@ -544,7 +521,7 @@ buildModuleList();
 renderFiles();
 editor.value = loadDraft() || (EXAMPLES.find((x) => x.id === 'po')?.source ?? '');
 lastLoadedSource = editor.value;
-initNetworkView();
+initNetworkView({ openNav: (id) => shell.openNav(id) });
 initNetSettingsView();
 initRecorderView();
 initTransformView();
