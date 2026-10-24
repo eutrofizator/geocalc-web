@@ -683,20 +683,77 @@ async function main() {
   await evalJs(`document.querySelector('#win-net-hor .step-next').click()`);
   await sleep(200);
   await check('Magassági kiegyenlítés munkalap', `document.getElementById('win-net-ver').classList.contains('active')`, true);
-  await check('Magassági: a magasságkülönbségek sorai', `document.querySelectorAll('#nv-table tbody tr').length`, 6);
-  const hKey = await evalJs(`document.querySelector('#nv-table td[data-hkey]').dataset.hkey`);
+  await check('Magassági: a mért távolságú magasságkülönbségek sorai', `document.querySelectorAll('#nv-table td[data-hkey]:not([data-coord])').length`, 6);
+  await check('Magassági: a távolság nélküliek is felkínálva', `document.querySelectorAll('#nv-table tbody tr').length > 6`, true);
+  const hKey = await evalJs(`document.querySelector('#nv-table td[data-hkey]:not([data-coord])').dataset.hkey`);
   await evalJs(`document.querySelector('#nv-table td[data-hkey="${hKey}"]').click()`);
   await sleep(250);
   await check('a magasságkülönbség kihagyható (piros)', `document.querySelector('#nv-table td[data-hkey="${hKey}"]').classList.contains('off')`, true);
   await check('a kihagyott magasságkülönbség a jegyzőkönyvben', `!!document.querySelector('#net-results .card[data-kind="height-excluded"]')`, true);
   await evalJs(`document.getElementById('nv-refresh').click()`);
   await sleep(250);
-  await check('a frissítés visszaveszi a kihagyást', `document.querySelectorAll('#nv-table td.off').length`, 0);
+  await check('a frissítés visszaveszi a kihagyást', `document.querySelectorAll('#nv-table td.off:not(.coord)').length`, 0);
   await evalJs(`(() => { const r = document.getElementById('nv-prec-mm'); r.checked = true; r.dispatchEvent(new Event('change')); return true; })()`);
   await sleep(250);
   await check('a magasság élessége mm-re állítható', `[...document.querySelectorAll('#net-results .card[data-kind="height-points"] tbody tr')][0].children[3].textContent.split('.')[1].length`, 3);
   await evalJs(`(() => { const r = document.getElementById('nv-prec-cm'); r.checked = true; r.dispatchEvent(new Event('change')); return true; })()`);
   await sleep(150);
+
+  // Távolság nélküli magasságkülönbségek: piros sorok, kattintásra a koordinátás távolsággal bevonhatók.
+  await check('a távolság nélküli magasságkülönbségek pirosak', `document.querySelectorAll('#nv-table td.coord.off').length > 0`, true);
+  const coordKey = await evalJs(`document.querySelector('#nv-table td.coord').dataset.hkey`);
+  await evalJs(`document.querySelector('#nv-table td[data-hkey="${coordKey}"]').click()`);
+  await sleep(250);
+  await check('kattintásra a koordinátás távolságú sor bevonható', `document.querySelector('#nv-table td[data-hkey="${coordKey}"]').classList.contains('off')`, false);
+  await check('a jegyzőkönyv jelzi a koordinátából számított távolságot', `[...document.querySelectorAll('#net-results .card[data-kind="height-differences"] p.footer')].some(p => p.textContent.includes('koordinátákból számított'))`, true);
+  await evalJs(`document.getElementById('nv-refresh').click()`);
+  await sleep(250);
+  await check('a frissítés a bevonást is visszaveszi', `document.querySelectorAll('#nv-table td.coord:not(.off)').length`, 0);
+
+  // Trigonometriai magassági vonal a két adott magasságú pont között (súgó 53. o.).
+  await evalJs(`document.getElementById('nv-lines').click()`);
+  await check('a magassági vonalak panelje megnyílik', `document.getElementById('nv-lines-panel').hidden`, false);
+  await evalJs(`(() => {
+    const sel = document.getElementById('nv-line-points');
+    for (const id of ['541017D', '2', '3', '541440']) {
+      [...sel.options].forEach(o => { o.selected = o.value === id; });
+      sel.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    }
+    return true;
+  })()`);
+  await sleep(250);
+  await check('a vonal négy pontja', `document.getElementById('nv-line-list').options.length`, 4);
+  await check('a vonal kezdő- és végpontja', `document.getElementById('nv-line-start').textContent + '>' + document.getElementById('nv-line-end').textContent`, '541017D>541440');
+  await check('a vonal hossza', `document.getElementById('nv-line-length').textContent`, '2406.3');
+  await check('a záróhiba és a hibahatár kiszámolódott', `/^-?\\d+\\.\\d$/.test(document.getElementById('nv-line-closure').textContent) && document.getElementById('nv-line-limit').textContent === '2.3'`, true);
+  await evalJs(`document.getElementById('nv-line-new').click()`);
+  await sleep(200);
+  await check('az „Új vonal előírása” elteszi a vonalat', `document.getElementById('nv-line-saved').options.length`, 1);
+  await check('az új vonal üres', `document.getElementById('nv-line-list').options.length`, 0);
+  await evalJs(`document.getElementById('nv-line-report').click()`);
+  await sleep(250);
+  await check('a magassági vonal a jegyzőkönyvben', `!!document.querySelector('#net-results .card[data-kind="height-line"]')`, true);
+  await evalJs(`document.getElementById('net-preview-close').click()`);
+
+  // Poligon záróhiba: a minta beillesztett vonal, ezért a poligon hiányzó irányát a panel jelzi.
+  await clickNav('net-hor');
+  await evalJs(`document.getElementById('nh-poly').click()`);
+  await check('a poligonzárás panelje megnyílik', `document.getElementById('nh-poly-panel').hidden`, false);
+  await evalJs(`(() => {
+    const sel = document.getElementById('nh-poly-stations');
+    for (const id of ['541017D', '2', '3']) {
+      [...sel.options].forEach(o => { o.selected = o.value === id; });
+      sel.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    }
+    return true;
+  })()`);
+  await sleep(250);
+  await check('a poligon három pontja', `document.getElementById('nh-poly-list').options.length`, 3);
+  await check('a hiányzó irányt a panel kiírja', `/hiányzik/.test(document.getElementById('nh-poly-msg').textContent)`, true);
+  await evalJs(`document.getElementById('nh-poly-del').click()`);
+  await sleep(200);
+  await check('a poligon előírása törölhető', `document.getElementById('nh-poly-list').options.length`, 0);
+  await clickNav('net-ver');
 
   await evalJs(`document.querySelector('#win-net-ver .step-next').click()`);
   await sleep(200);

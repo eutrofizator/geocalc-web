@@ -159,6 +159,22 @@
           <path d="M3 12a9 9 0 0 1 15.5-6.2L21 8" />
           <path d="M21 3v5h-5" />
         </symbol>
+        <symbol id="i-arrow-up" viewBox="0 0 24 24">
+          <path d="M12 19V5" />
+          <path d="m5 12 7-7 7 7" />
+        </symbol>
+        <symbol id="i-arrow-down" viewBox="0 0 24 24">
+          <path d="M12 5v14" />
+          <path d="m19 12-7 7-7-7" />
+        </symbol>
+        <symbol id="i-polygon" viewBox="0 0 24 24">
+          <path d="M12 3 21 9.5 17.5 20h-11L3 9.5Z" />
+        </symbol>
+        <symbol id="i-line" viewBox="0 0 24 24">
+          <path d="M3 19c4 0 4-8 8-8s5 6 10-6" />
+          <circle cx="3" cy="19" r="1.6" />
+          <circle cx="21" cy="5" r="1.6" />
+        </symbol>
         <symbol id="i-globe" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="9" />
           <path d="M3 12h18" />
@@ -821,6 +837,10 @@
                     <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-axes" /></svg>
                     <span>Hálózati dátum</span>
                   </button>
+                  <button id="nh-poly" type="button" aria-expanded="false" title="Poligon záróhibák számítása (ellenőrzés – poligonzárás)">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-polygon" /></svg>
+                    <span>Poligon záróhiba</span>
+                  </button>
                   <button id="nh-sketch" type="button" title="Mérethelyes mérési vázlat">
                     <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-network" /></svg>
                     <span>Mérési vázlat</span>
@@ -841,6 +861,47 @@
                     <button id="net-clear-excl" type="button" class="small">Kézi kizárások törlése</button>
                     <label class="check"><input id="net-sketch-on" type="checkbox" /><span>Mérési vázlat a jegyzőkönyvben</span></label>
                   </div>
+                  <fieldset class="dims column" id="nh-poly-panel" hidden>
+                    <legend>Ellenőrzés – poligonzárás</legend>
+                    <div class="poly-grid">
+                      <div class="pick-col">
+                        <label for="nh-poly-stations">Álláspont(ok)</label>
+                        <select id="nh-poly-stations" multiple size="9" title="Dupla kattintás: a pont a poligon végére kerül"></select>
+                      </div>
+                      <div class="pick-col">
+                        <label for="nh-poly-list">Poligon</label>
+                        <select id="nh-poly-list" size="9"></select>
+                        <button id="nh-poly-del" type="button" class="minus" title="A poligon előírásának törlése" aria-label="A poligon előírásának törlése"></button>
+                      </div>
+                      <div class="pick-mid updown">
+                        <button id="nh-poly-up" type="button" class="arrow-btn" title="A kijelölt pont feljebb" aria-label="Feljebb">
+                          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up" /></svg>
+                        </button>
+                        <button id="nh-poly-down" type="button" class="arrow-btn" title="A kijelölt pont lejjebb" aria-label="Lejjebb">
+                          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg>
+                        </button>
+                      </div>
+                      <div class="poly-side">
+                        <button id="nh-poly-run" type="button" class="wide-btn">Poligon záróhiba</button>
+                        <div class="kv-line">Elméleti zárás: <span class="kv-value">360°</span></div>
+                        <div class="kv-line">Poligon zárás: <span class="kv-value strong" id="nh-poly-angle">–</span></div>
+                        <div class="kv-line">Vonalas zárás: <span class="kv-value strong" id="nh-poly-linear">–</span></div>
+                        <div class="panel-msg" id="nh-poly-msg" role="status"></div>
+                      </div>
+                    </div>
+                    <p class="hint">
+                      Az Álláspont(ok) listában duplán kattintva add meg a poligon pontjait az óramutató járásával egyező
+                      értelemben; a kezdőpontot nem kell megismételni.
+                    </p>
+                    <div class="grid-wrap poly-table-wrap">
+                      <table class="grid-table" id="nh-poly-table">
+                        <thead>
+                          <tr><th>Pontszám</th><th>Hátra (Hz)</th><th>Előre (Hz)</th><th>dHz</th><th>T(1)</th><th>T(2)</th></tr>
+                        </thead>
+                        <tbody></tbody>
+                      </table>
+                    </div>
+                  </fieldset>
                   <fieldset class="dims column" id="nh-datum-panel" hidden>
                     <legend>Hálózati dátum</legend>
                     <label class="check">
@@ -893,6 +954,8 @@
                   </div>
                   <p class="hint">
                     Kattintás a magasságkülönbség cellájára: kihagyás a kiegyenlítésből (piros háttér), újabb kattintás visszaveszi.
+                    A <span class="swatch coord"></span> hátterű sorokban a mérésnek nincs távolsága: a program a koordinátákból
+                    számolná, ezért alapértelmezésben nem vonja be őket – kattintással bevonhatók (magaspontok, egyirányú mérések).
                   </p>
                 </div>
                 <div class="ver-side">
@@ -928,12 +991,71 @@
                   </fieldset>
                   <div class="btnrow">
                     <button id="nv-run" type="button" class="play-btn" title="Magassági kiegyenlítés" aria-label="Magassági kiegyenlítés"></button>
+                    <button id="nv-lines" type="button" class="ib" aria-expanded="false" title="Trigonometriai magassági vonalak számítása" aria-label="Trigonometriai magassági vonalak számítása">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-line" /></svg>
+                    </button>
                     <button id="nv-report" type="button" class="ib doc-btn" title="A magassági kiegyenlítés jegyzőkönyve" aria-label="A magassági kiegyenlítés jegyzőkönyve">
                       <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
                     </button>
                   </div>
                 </div>
               </div>
+              <fieldset class="step-group" id="nv-lines-panel" hidden>
+                <legend>Előzetes magasságok számítása – trigonometriai magassági vonalak</legend>
+                <div class="lines-grid">
+                  <div class="lines-buttons">
+                    <button id="nv-line-new" type="button" class="wide-btn">Új vonal előírása</button>
+                    <button id="nv-line-run" type="button" class="wide-btn">Számítás</button>
+                    <button id="nv-line-report" type="button" class="ib doc-btn" title="A magassági vonalak jegyzőkönyve" aria-label="A magassági vonalak jegyzőkönyve">
+                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+                    </button>
+                    <label for="nv-line-saved">Előírt vonalak</label>
+                    <select id="nv-line-saved" size="5"></select>
+                    <button id="nv-line-drop" type="button" class="minus" title="A kijelölt vonal törlése" aria-label="A kijelölt vonal törlése"></button>
+                  </div>
+                  <div class="lines-edit">
+                    <label class="field-line">Vonal száma:<input id="nv-line-name" type="text" autocomplete="off" /></label>
+                    <div class="pick-row">
+                      <div class="pick-col">
+                        <select id="nv-line-points" multiple size="9" aria-label="Pontok" title="Dupla kattintás: a pont a vonal végére kerül"></select>
+                      </div>
+                      <div class="pick-col">
+                        <select id="nv-line-list" size="9" aria-label="A vonal pontjai"></select>
+                        <button id="nv-line-del" type="button" class="minus" title="A vonal előírásának törlése" aria-label="A vonal előírásának törlése"></button>
+                      </div>
+                      <div class="pick-mid updown">
+                        <button id="nv-line-up" type="button" class="arrow-btn" title="A kijelölt pont feljebb" aria-label="Feljebb">
+                          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up" /></svg>
+                        </button>
+                        <button id="nv-line-down" type="button" class="arrow-btn" title="A kijelölt pont lejjebb" aria-label="Lejjebb">
+                          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="lines-result">
+                    <div class="kv-line">Kezdőpont: <span class="kv-value" id="nv-line-start">–</span></div>
+                    <div class="kv-line">Végpont: <span class="kv-value" id="nv-line-end">–</span></div>
+                    <div class="kv-line">Záróhiba = <span class="kv-value strong" id="nv-line-closure">–</span> [cm]</div>
+                    <div class="kv-line">Hibahatár = <span class="kv-value" id="nv-line-limit">–</span> [cm]</div>
+                    <div class="kv-line">Vonal hossza = <span class="kv-value" id="nv-line-length">–</span> [m]</div>
+                    <label class="check"><input id="nv-line-heights" type="checkbox" /><span>Magasságok</span></label>
+                    <div class="panel-msg" id="nv-line-msg" role="status"></div>
+                  </div>
+                </div>
+                <p class="hint">
+                  A pontokat duplán kattintva add a vonalhoz; zárt poligonnál a végpont ismét a kezdőpont. A kezdőpont
+                  magassága adott kell legyen; a záróhiba a végpont adott magasságához mér (cm élességgel).
+                </p>
+                <div class="grid-wrap" id="nv-line-table-wrap" hidden>
+                  <table class="grid-table" id="nv-line-table">
+                    <thead>
+                      <tr><th>Pontszám</th><th>dM oda</th><th>dM vissza</th><th>dM</th><th>Távolság</th><th>Magasság</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </fieldset>
             </div>
             <div class="step-nav">
               <button type="button" class="step-refresh" id="nv-refresh" title="A munkalap adatainak újratöltése" aria-label="Újratöltés">

@@ -19,6 +19,8 @@ export interface HeightObservation {
   instrumentHeight: number | null;
   targetHeight: number | null;
   zenith: number | null;
+  /** A távolság a koordinátákból számított (a mérésben nem volt távolság). */
+  fromCoordinates: boolean;
   /** Vízszintes távolság [m]. */
   distance: number;
   /** Mért magasságkülönbség [m]. */
@@ -94,6 +96,19 @@ function invert(matrix: number[][]): number[][] | null {
 }
 
 /** Trigonometrikus magasságkülönbség a zenitszögből: Δh = D·ctg z + i − t + (1 − k)·D²/(2R). */
+/**
+ * Magasságkülönbség a koordinátákból számított távolsággal (a mérésben nem volt távolság): a zenitszögből,
+ * ha van; különben a mért dM marad.
+ */
+export function coordinateHeightDifference(
+  o: { zi: number | null; dM: number | null; targetHeight: number | null },
+  instrumentHeight: number | null,
+  distance: number,
+): number | null {
+  if (o.zi !== null && instrumentHeight !== null) return trigonometricHeightDifference(distance, o.zi, instrumentHeight, o.targetHeight ?? 0);
+  return o.dM;
+}
+
 export function trigonometricHeightDifference(distance: number, zenithDeg: number, instrument: number, target: number): number {
   const z = (zenithDeg * Math.PI) / 180;
   return distance / Math.tan(z) + instrument - target + ((1 - REFRACTION) * distance * distance) / (2 * EARTH_RADIUS);
@@ -111,6 +126,8 @@ export function adjustHeights(
   stationList: NetStation[],
   settings: VerticalSettings,
   extraPoints: string[] = [],
+  /** A pontok vízszintes koordinátái a távolság nélkül mért, kézzel bevont magasságkülönbségekhez. */
+  coordinates: Map<string, { y: number; x: number }> = new Map(),
 ): VerticalResult {
   const issues: Issue[] = [];
   // A jegyzőkönyv az állomásokat azonosító szerint rendezve sorolja fel (mint a GeoCalc).
@@ -123,18 +140,34 @@ export function adjustHeights(
     target: string;
     obs: NetStation['observations'][number];
     dh: number;
+    distance: number;
+    fromCoordinates: boolean;
   }
   const edges: Edge[] = [];
   const excludedKeys = new Set(s.excluded ?? []);
+  const includedKeys = new Set(s.included ?? []);
   const excludedDifferences: VerticalResult['excludedDifferences'] = [];
   // A hálózat pontjai: az állomások, az adott pontok és a megadott további pontok. A többi irányzott pont részletpont.
   const network = new Set<string>([...stations.map((st) => st.id), ...knownPoints.map((p) => p.id), ...extraPoints]);
   for (const st of stations) {
     for (const o of st.observations) {
-      if (!o.distance || !network.has(o.target)) continue;
-      let dh = o.dM;
+      if (!network.has(o.target)) continue;
+      let distance = o.distance;
+      let fromCoordinates = false;
+      if (!distance) {
+        // Távolság nélküli mérés csak kézzel bevonva, a koordinátákból számított távolsággal.
+        const a = coordinates.get(st.id);
+        const b = coordinates.get(o.target);
+        if (!includedKeys.has(`${st.id}>${o.target}`) || !a || !b) continue;
+        distance = Math.hypot(b.y - a.y, b.x - a.x);
+        fromCoordinates = true;
+        if (distance <= 0) continue;
+      }
+      // Távolság nélküli mérésnél a GMJ dM mezője nulla távolsággal készült (csak a műszer- és jelmagasság
+      // különbsége), ezért a zenitszögből és a koordinátákból számított távolságból számoljuk újra.
+      let dh = fromCoordinates ? coordinateHeightDifference(o, st.instrumentHeight, distance) : o.dM;
       if (dh === null && o.zi !== null && st.instrumentHeight !== null && o.targetHeight !== null) {
-        dh = trigonometricHeightDifference(o.distance, o.zi, st.instrumentHeight, o.targetHeight);
+        dh = trigonometricHeightDifference(distance, o.zi, st.instrumentHeight, o.targetHeight);
       }
       if (dh === null) {
         issues.push({ level: 'warning', message: `${st.id}→${o.target}: nincs magasságkülönbség (dM) és a zenitszögből sem számítható, a mérés kimarad.` });
@@ -144,7 +177,7 @@ export function adjustHeights(
         excludedDifferences.push({ station: st.id, target: o.target, dh });
         continue;
       }
-      edges.push({ station: st, target: o.target, obs: o, dh });
+      edges.push({ station: st, target: o.target, obs: o, dh, distance, fromCoordinates });
     }
   }
   if (edges.length === 0) throw new CalcError('Nincs magasságkülönbség a mérési jegyzőkönyvben (távolsággal és zenitszöggel mért irányzás).');
@@ -206,7 +239,7 @@ export function adjustHeights(
   const N = Array.from({ length: n }, () => new Array<number>(n).fill(0));
   const g = new Array<number>(n).fill(0);
   const rows = edges.map((e) => {
-    const sigma = sigmaOf(e.obs.distance!);
+    const sigma = sigmaOf(e.distance);
     const ia = col.get(e.station.id);
     const ib = col.get(e.target);
     const l = e.dh - (hApprox(e.target) - hApprox(e.station.id)); // mért − közelítő
@@ -261,7 +294,7 @@ export function adjustHeights(
     for (const [i, ai] of a) for (const [j, aj] of a) if (i !== undefined && j !== undefined) qa += ai * Q[i]![j]! * aj;
     const redundancy = 1 - r.w * qa;
     const stat = redundancy > 1e-9 ? residual / (r.sigma * Math.sqrt(redundancy)) : 0;
-    const d = e.obs.distance!;
+    const d = e.distance;
     // Tájékoztató érték: a régi program három közölt hibahatárához igazított (0.15, 0.11, 0.10 m); a képletét a súgó nem közli.
     const limit = LIMIT_FACTOR * Math.sqrt((0.68 * (s.sigma / 100)) ** 2 + ((5.9 * d) / RHO) ** 2);
     observations.push({
@@ -271,6 +304,7 @@ export function adjustHeights(
       instrumentHeight: e.station.instrumentHeight,
       targetHeight: e.obs.targetHeight,
       zenith: e.obs.zi,
+      fromCoordinates: e.fromCoordinates,
       distance: d,
       dh: e.dh,
       residual,
@@ -404,7 +438,7 @@ function buildSections(r: VerticalResult, s: VerticalSettings): Section[] {
         o.instrumentHeight === null ? '' : c2(o.instrumentHeight),
         o.targetHeight === null ? '' : c2(o.targetHeight),
         o.zenith === null ? '' : formatDms(o.zenith),
-        c2(o.distance),
+        `${c2(o.distance)}${o.fromCoordinates ? ' *' : ''}`,
         signed(o.dh),
         signed(o.adjusted),
         signed(o.residual),
@@ -414,6 +448,9 @@ function buildSections(r: VerticalResult, s: VerticalSettings): Section[] {
       ],
       role: 'base',
     })),
+    footer: r.observations.some((o) => o.fromCoordinates)
+      ? ['* A távolság a koordinátákból számított (a mérésben nem volt távolság; kézzel bevont magasságkülönbség).']
+      : undefined,
   });
   return sections;
 }

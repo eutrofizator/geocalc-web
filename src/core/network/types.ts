@@ -114,6 +114,11 @@ export interface VerticalSettings {
   precision?: CoordinatePrecision;
   /** Kézzel kihagyott magasságkülönbségek: „állomás>pont” (súgó 53. o.). */
   excluded?: string[];
+  /**
+   * Kézzel bevont, távolság nélkül mért magasságkülönbségek („állomás>pont”): a távolságot a program a
+   * koordinátákból számolja (magaspontok, egyirányú mérések – súgó 53. o., piros hátterű sorok).
+   */
+  included?: string[];
 }
 
 export const DEFAULT_VERTICAL_SETTINGS: VerticalSettings = {

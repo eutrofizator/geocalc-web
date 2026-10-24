@@ -186,7 +186,8 @@ export function traversePreview(
   const start = k0 ?? { y: 0, x: 0 };
   const computed = deltas.reduce((a, d) => ({ y: a.y + d.dy, x: a.x + d.dx }), { y: start.y, x: start.x });
   const endId = closed ? first : pts[m - 1]!;
-  const endKnown = closed ? k0 : known.get(endId);
+  // Zárt poligonnál a vonalas záróhiba a kezdőpontra való visszatérésből adódik (ismert koordináta nélkül is).
+  const endKnown = closed ? start : known.get(endId);
   let linear: TraversePreview['linear'] = null;
   const adj = deltas.map((d, i) => ({ ...d }));
   if (endKnown) {
@@ -264,6 +265,22 @@ export function traversePreview(
     },
   ];
   return { order, closed, vertices, points, angularClosure, linear, sections };
+}
+
+/**
+ * Poligon záróhibák számítása (súgó 52. o., „Ellenőrzés – poligonzárás”): a hálózatban előforduló zárt
+ * poligon szög- és vonalas záróhibája. A pontokat az óramutató járásával egyező értelemben kell megadni,
+ * a kezdőpontot nem kell megismételni.
+ */
+export function polygonClosure(order: string[], known: Map<string, Pt>, stations: NetStation[]): TraversePreview {
+  const pts = order.length > 1 && order[order.length - 1] === order[0] ? order.slice(0, -1) : [...order];
+  if (pts.length < 3) throw new CalcError('A poligonhoz legalább három pont kell.');
+  const r = traversePreview([...pts, pts[0]!], known, stations);
+  const v = r.sections[0]!;
+  return {
+    ...r,
+    sections: [{ ...v, kind: 'polygon-closure', title: `Poligon záróhiba: ${pts.join(' – ')}` }],
+  };
 }
 
 /** A sokszögvonal-pontok sorrendje szövegből (vessző, pontosvessző, szóköz vagy sorhatár választja el). */

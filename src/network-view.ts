@@ -20,9 +20,10 @@ import {
   type NetStation,
   type VerticalSettings,
 } from './core/network/types';
-import { adjustHeights, trigonometricHeightDifference, type VerticalResult } from './core/network/vertical';
+import { adjustHeights, coordinateHeightDifference, trigonometricHeightDifference, type VerticalResult } from './core/network/vertical';
 import { buildSketch, sketchPoints } from './core/network/sketch';
-import { parseTraverseOrder, traversePreview } from './core/network/traverse-preview';
+import { polygonClosure, parseTraverseOrder, traversePreview, type TraversePreview } from './core/network/traverse-preview';
+import { heightLine, heightLineSections, type HeightLineResult } from './core/network/height-lines';
 import type { Issue, Point, Row, Section } from './core/types';
 import { ISZKA_COORDINATES, ISZKA_GMJ } from './network-sample';
 import { ISZKA_RAW_GMJ } from './network-sample-raw';
@@ -79,6 +80,16 @@ interface FormState {
   orientation?: { known: boolean; computed: boolean } | null;
   /** Munka koordináta-jegyzék a jegyzőkönyvben. */
   workList?: WorkListState | null;
+  /** Poligon záróhiba: a poligon pontjai (a kezdőpont ismétlése nélkül). */
+  polygon?: string[];
+  /** Magassági vonalak: az előírt vonalak és a szerkesztés alatti vonal. */
+  heightLines?: LineDef[];
+  lineDraft?: LineDef;
+}
+
+interface LineDef {
+  name: string;
+  order: string[];
 }
 
 /** Egy lépés táblázatának adatai a legutóbbi számításból. */
@@ -93,8 +104,22 @@ interface Model {
   prelim: Map<string, Pt>;
   horizontal: HorizontalResult | null;
   vertical: VerticalResult | null;
-  heightCandidates: { station: string; target: string; dh: number }[];
+  heightCandidates: HeightCandidate[];
   details: DetailPoint[];
+  polygon: TraversePreview | null;
+  polygonError: string;
+  draftLine: HeightLineResult | null;
+  lineError: string;
+  /** A magassági vonalakba választható pontok. */
+  linePoints: string[];
+}
+
+interface HeightCandidate {
+  station: string;
+  target: string;
+  dh: number;
+  /** A mérésben nincs távolság: a koordinátákból számított (csak kézzel bevonva vesz részt). */
+  fromCoords: boolean;
 }
 
 interface Output {
@@ -235,6 +260,10 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
 
   let excluded: string[] = [];
   let heightExcluded: string[] = [];
+  let heightIncluded: string[] = [];
+  let polygon: string[] = [];
+  let heightLines: LineDef[] = [];
+  let lineDraft: LineDef = { name: '', order: [] };
   let removedStations = new Set<string>();
   let removedKnown = new Set<string>();
   let statusNew = new Set<string>();
@@ -283,6 +312,7 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
     free: hFree.checked,
     precision: hPrec(),
     excluded: [...heightExcluded],
+    included: [...heightIncluded],
   });
   const writeVertical = (s: VerticalSettings, on: boolean) => {
     hOn.checked = on;
@@ -293,6 +323,7 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
     const radio = document.querySelector<HTMLInputElement>(`input[name="nv-prec"][value="${s.precision ?? 'cm'}"]`);
     if (radio) radio.checked = true;
     heightExcluded = [...(s.excluded ?? [])];
+    heightIncluded = [...(s.included ?? [])];
   };
   const writeSettings = (s: HorizontalSettings) => {
     inputs.sigmaDirection.value = String(s.sigmaDirection);
@@ -341,6 +372,9 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
       detailStations,
       orientation,
       workList,
+      polygon,
+      heightLines,
+      lineDraft,
     };
     storage.set(STORAGE_KEY, JSON.stringify(state));
     $('net-sum-coords').textContent = '0';
@@ -428,11 +462,13 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
       // 4. lépés: magassági kiegyenlítés (súgó 53. o.).
       const heightMap = new Map<string, number>(known.filter((p) => p.m !== null).map((p) => [p.id, p.m!] as const));
       const heightKnown = known.map((p) => (heightFloating.has(p.id) ? { ...p, m: null } : p));
-      const heightCandidates = heightDifferences(stations, heightKnown, extra);
+      const planar = new Map<string, Pt>(prelim);
+      for (const p of horizontal?.points ?? []) planar.set(p.id, { y: p.y, x: p.x });
+      const heightCandidates = heightDifferences(stations, heightKnown, extra, planar);
       let vertical: VerticalResult | null = null;
       if (state.heights) {
         try {
-          vertical = adjustHeights(heightKnown, stations, state.vertical, extra);
+          vertical = adjustHeights(heightKnown, stations, state.vertical, extra, planar);
           sections.push(...vertical.sections);
           all.push(...vertical.issues);
           for (const p of vertical.points) heightMap.set(p.id, p.height);
@@ -441,6 +477,38 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
           all.push({ level: 'warning', message: `Magassági hálózat: ${e.message}` });
         }
       }
+
+      // Poligon záróhiba (súgó 52. o.): a megadott zárt poligon szög- és vonalas záróhibája.
+      let polygonResult: TraversePreview | null = null;
+      let polygonError = '';
+      if (polygon.length >= 3) {
+        try {
+          polygonResult = polygonClosure(polygon, knownMap, stations);
+          sections.push(...polygonResult.sections);
+        } catch (e) {
+          if (!(e instanceof CalcError)) throw e;
+          polygonError = e.message;
+          all.push({ level: 'warning', message: `Poligon záróhiba: ${e.message}` });
+        }
+      }
+      // Trigonometriai magassági vonalak (súgó 53. o.): az adott magasságok között, ellenőrzésként.
+      const givenHeights = new Map<string, number>(heightKnown.filter((p) => p.m !== null).map((p) => [p.id, p.m!] as const));
+      const lineResults: HeightLineResult[] = [];
+      let draftLine: HeightLineResult | null = null;
+      let lineError = '';
+      const allLines = [...heightLines, ...(lineDraft.order.length >= 2 ? [lineDraft] : [])];
+      allLines.forEach((line, i) => {
+        try {
+          const r = heightLine(line.name, line.order, stations, givenHeights, planar);
+          lineResults.push(r);
+          if (line === lineDraft) draftLine = r;
+        } catch (e) {
+          if (!(e instanceof CalcError)) throw e;
+          if (line === lineDraft) lineError = e.message;
+          all.push({ level: 'warning', message: `Magassági vonal${line.name ? ` (${line.name})` : ` (${i + 1}.)`}: ${e.message}` });
+        }
+      });
+      sections.push(...heightLineSections(lineResults));
 
       // 5. lépés: részletpontok a kijelölt álláspontokról (súgó 54. o.).
       let details: DetailPoint[] = [];
@@ -511,6 +579,11 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
         vertical,
         heightCandidates,
         details,
+        polygon: polygonResult,
+        polygonError,
+        draftLine,
+        lineError,
+        linePoints: [...observed].filter((id) => stationIds.has(id) || knownMap.has(id) || extraSet.has(id)).sort(byId),
       };
       renderReport(all, {
         sections,
@@ -538,8 +611,65 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
   const renderSteps = () => {
     renderPre();
     renderHor();
+    renderPolygon();
     renderVer();
+    renderLines();
     renderDet();
+  };
+
+  const renderPolygon = () => {
+    setOptions($<HTMLSelectElement>('nh-poly-stations'), (model?.stations ?? []).map((st) => st.id).sort(byId));
+    const list = $<HTMLSelectElement>('nh-poly-list');
+    const sel = list.value;
+    list.replaceChildren(...polygon.map((id, i) => new Option(id, String(i), false, String(i) === sel)));
+    const body = $('nh-poly-table').querySelector('tbody')!;
+    body.replaceChildren();
+    const r = model?.polygon ?? null;
+    $('nh-poly-angle').textContent = r?.angularClosure == null ? '–' : `${fix(r.angularClosure, 0)}″`;
+    $('nh-poly-linear').textContent = r?.linear ? `${fix(r.linear.length, 3)} m` : '–';
+    $('nh-poly-msg').textContent = model?.polygonError ?? '';
+    for (const v of r?.vertices ?? []) {
+      const tr = el('tr');
+      tr.append(
+        el('td', undefined, v.id),
+        el('td', 'num', v.back === null ? '' : formatDms(v.back)),
+        el('td', 'num', v.forward === null ? '' : formatDms(v.forward)),
+        el('td', 'num', v.dHz === null ? '' : formatDms(v.dHz)),
+        el('td', 'num', v.t1 === null ? '0' : fix(v.t1, 3)),
+        el('td', 'num', v.t2 === null ? '0' : fix(v.t2, 3)),
+      );
+      body.append(tr);
+    }
+  };
+
+  const renderLines = () => {
+    setOptions($<HTMLSelectElement>('nv-line-points'), model?.linePoints ?? []);
+    const list = $<HTMLSelectElement>('nv-line-list');
+    const sel = list.value;
+    list.replaceChildren(...lineDraft.order.map((id, i) => new Option(id, String(i), false, String(i) === sel)));
+    const saved = $<HTMLSelectElement>('nv-line-saved');
+    saved.replaceChildren(...heightLines.map((l, i) => new Option(`${l.name || `${i + 1}.`}: ${l.order.join('–')}`, String(i))));
+    const nameInput = $<HTMLInputElement>('nv-line-name');
+    if (document.activeElement !== nameInput) nameInput.value = lineDraft.name;
+    const r = model?.draftLine ?? null;
+    $('nv-line-start').textContent = lineDraft.order[0] ?? '–';
+    $('nv-line-end').textContent = lineDraft.order.length > 1 ? lineDraft.order[lineDraft.order.length - 1]! : '–';
+    $('nv-line-closure').textContent = r?.closure == null ? '–' : fix(r.closure * 100, 1);
+    $('nv-line-limit').textContent = r ? fix(r.limit * 100, 1) : '–';
+    $('nv-line-length').textContent = r ? fix(r.length, 1) : '–';
+    $('nv-line-msg').textContent = model?.lineError ?? '';
+    $('nv-line-closure').classList.toggle('bad', !!r && r.closure !== null && Math.abs(r.closure) > r.limit);
+    const showHeights = $<HTMLInputElement>('nv-line-heights').checked;
+    $('nv-line-table-wrap').hidden = !showHeights || !r;
+    const body = $('nv-line-table').querySelector('tbody')!;
+    body.replaceChildren();
+    if (r && showHeights) {
+      for (const row of heightLineSections([r])[0]!.rows) {
+        const tr = el('tr', row.role === 'result' ? undefined : 'given');
+        row.cells.forEach((c, i) => tr.append(el('td', i === 0 ? undefined : 'num', c)));
+        body.append(tr);
+      }
+    }
   };
 
   const renderPre = () => {
@@ -649,13 +779,21 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
     m.heightCandidates.forEach((c, i) => {
       const key = `${c.station}>${c.target}`;
       const r = res.find((o) => o.station === c.station && o.target === c.target);
-      const off = heightExcluded.includes(key);
+      // A távolság nélküli sor alapértelmezésben nincs bevonva (piros), kattintásra bevonható.
+      const off = c.fromCoords ? !heightIncluded.includes(key) : heightExcluded.includes(key);
       const tr = el('tr');
       const prev = m.heightCandidates[i - 1];
       tr.append(el('td', 'num idx', String(i + 1)), el('td', 'ap', prev?.station === c.station ? '' : c.station), el('td', undefined, c.target));
-      const dh = el('td', `num click${off ? ' off' : ''}`, fix(c.dh, 4));
+      const dh = el('td', `num click${off ? ' off' : ''}${c.fromCoords ? ' coord' : ''}`, fix(c.dh, 4));
       dh.dataset.hkey = key;
-      dh.title = off ? 'Kihagyva – kattintásra visszakerül' : 'Kattintásra kimarad a magassági kiegyenlítésből';
+      if (c.fromCoords) dh.dataset.coord = '1';
+      dh.title = c.fromCoords
+        ? off
+          ? 'A mérésnek nincs távolsága – kattintásra bevonható (a távolságot a koordinátákból számolja)'
+          : 'Bevonva, koordinátából számított távolsággal – kattintásra kimarad'
+        : off
+          ? 'Kihagyva – kattintásra visszakerül'
+          : 'Kattintásra kimarad a magassági kiegyenlítésből';
       tr.append(dh, el('td', 'num', r ? fix(r.residual, dec) : ''), el('td', 'num', r ? `(${fix(r.limit, 2)})` : ''), el('td', 'num', r ? fix(r.stat, 2) : off ? '–' : ''));
       body.append(tr);
     });
@@ -838,12 +976,79 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
   });
   $('nh-report').addEventListener('click', () => openPreview(['net-summary']));
 
+  // Poligon záróhiba (súgó 52. o.): dupla kattintás az álláspontra, sorrend a nyilakkal, törlés a vonallal.
+  $('nh-poly').addEventListener('click', () => {
+    const panel = $('nh-poly-panel');
+    panel.hidden = !panel.hidden;
+    $('nh-poly').setAttribute('aria-expanded', String(!panel.hidden));
+  });
+  $('nh-poly-stations').addEventListener('dblclick', () => {
+    for (const id of selectedValues($<HTMLSelectElement>('nh-poly-stations'))) if (!polygon.includes(id)) polygon.push(id);
+    compute();
+  });
+  const moveIn = (arr: string[], listId: string, delta: number): boolean => {
+    const i = Number($<HTMLSelectElement>(listId).value);
+    const j = i + delta;
+    if (!Number.isInteger(i) || $<HTMLSelectElement>(listId).value === '' || j < 0 || j >= arr.length) return false;
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
+    $<HTMLSelectElement>(listId).value = String(j);
+    return true;
+  };
+  $('nh-poly-up').addEventListener('click', () => moveIn(polygon, 'nh-poly-list', -1) && compute());
+  $('nh-poly-down').addEventListener('click', () => moveIn(polygon, 'nh-poly-list', 1) && compute());
+  $('nh-poly-del').addEventListener('click', () => {
+    polygon = [];
+    compute();
+  });
+  $('nh-poly-run').addEventListener('click', () => {
+    compute();
+    if (model?.polygon) openPreview(['polygon-closure']);
+  });
+
+  // Trigonometriai magassági vonalak (súgó 53. o.).
+  $('nv-lines').addEventListener('click', () => {
+    const panel = $('nv-lines-panel');
+    panel.hidden = !panel.hidden;
+    $('nv-lines').setAttribute('aria-expanded', String(!panel.hidden));
+    if (!panel.hidden) panel.scrollIntoView({ block: 'nearest' });
+  });
+  $('nv-line-points').addEventListener('dblclick', () => {
+    lineDraft.order.push(...selectedValues($<HTMLSelectElement>('nv-line-points')));
+    compute();
+  });
+  $('nv-line-name').addEventListener('input', () => {
+    lineDraft.name = $<HTMLInputElement>('nv-line-name').value;
+    schedule();
+  });
+  $('nv-line-up').addEventListener('click', () => moveIn(lineDraft.order, 'nv-line-list', -1) && compute());
+  $('nv-line-down').addEventListener('click', () => moveIn(lineDraft.order, 'nv-line-list', 1) && compute());
+  $('nv-line-del').addEventListener('click', () => {
+    lineDraft = { name: lineDraft.name, order: [] };
+    compute();
+  });
+  $('nv-line-new').addEventListener('click', () => {
+    // A szerkesztett vonal az előírt vonalak közé kerül, és új, üres vonal kezdődik.
+    if (lineDraft.order.length >= 2) heightLines.push({ name: lineDraft.name, order: [...lineDraft.order] });
+    lineDraft = { name: String(heightLines.length + 1), order: [] };
+    compute();
+  });
+  $('nv-line-drop').addEventListener('click', () => {
+    const i = Number($<HTMLSelectElement>('nv-line-saved').value);
+    if ($<HTMLSelectElement>('nv-line-saved').value === '' || !heightLines[i]) return;
+    heightLines.splice(i, 1);
+    compute();
+  });
+  $('nv-line-run').addEventListener('click', compute);
+  $('nv-line-heights').addEventListener('change', renderLines);
+  $('nv-line-report').addEventListener('click', () => openPreview(['height-line']));
+
   // Magassági kiegyenlítés: a magasságkülönbség kihagyása és az adott magasságú pontok (súgó 53. o.).
   $('nv-table').addEventListener('click', (event) => {
     const cell = (event.target as HTMLElement).closest<HTMLElement>('td[data-hkey]');
     if (!cell) return;
     const key = cell.dataset.hkey!;
-    heightExcluded = heightExcluded.includes(key) ? heightExcluded.filter((k) => k !== key) : [...heightExcluded, key];
+    if (cell.dataset.coord) heightIncluded = heightIncluded.includes(key) ? heightIncluded.filter((k) => k !== key) : [...heightIncluded, key];
+    else heightExcluded = heightExcluded.includes(key) ? heightExcluded.filter((k) => k !== key) : [...heightExcluded, key];
     compute();
   });
   $('nv-fixed').addEventListener('change', (event) => {
@@ -859,6 +1064,7 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
   });
   $('nv-refresh').addEventListener('click', () => {
     heightExcluded = [];
+    heightIncluded = [];
     heightFloating = new Set();
     compute();
   });
@@ -959,6 +1165,10 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
     resetSelections();
     heightFloating = new Set();
     detailStations = null;
+    polygon = [];
+    heightLines = [];
+    lineDraft = { name: '', order: [] };
+    heightIncluded = [];
     coordinates.value = ISZKA_COORDINATES;
     gmj.value = sampleGmj;
     if (alsoAveraging) avgOn.checked = true;
@@ -1007,6 +1217,9 @@ export function initNetworkView(nav: { openNav: (id: string) => void }): void {
       detailStations = saved.detailStations ?? null;
       orientation = saved.orientation ?? null;
       workList = saved.workList ?? null;
+      polygon = saved.polygon ?? [];
+      heightLines = saved.heightLines ?? [];
+      lineDraft = saved.lineDraft ?? { name: '', order: [] };
     } else {
       writeSettings(DEFAULT_HORIZONTAL_SETTINGS);
       writeVertical(DEFAULT_VERTICAL_SETTINGS, true);
@@ -1042,17 +1255,27 @@ function prelimSection(used: string[], newIds: Set<string>, prelim: Map<string, 
  * A magassági kiegyenlítésbe felkínált magasságkülönbségek (súgó 53. o.): a távolsággal mért irányok
  * a hálózat pontjai között, a mért dM-mel vagy a zenitszögből számítva – mint az `adjustHeights`.
  */
-function heightDifferences(stations: NetStation[], known: NetPoint[], extra: string[]): { station: string; target: string; dh: number }[] {
+function heightDifferences(stations: NetStation[], known: NetPoint[], extra: string[], coords: Map<string, Pt>): HeightCandidate[] {
   const network = new Set<string>([...stations.map((st) => st.id), ...known.map((p) => p.id), ...extra]);
-  const out: { station: string; target: string; dh: number }[] = [];
+  const out: HeightCandidate[] = [];
   for (const st of [...stations].sort((a, b) => byId(a.id, b.id))) {
     for (const o of st.observations) {
-      if (!o.distance || !network.has(o.target)) continue;
-      let dh = o.dM;
-      if (dh === null && o.zi !== null && st.instrumentHeight !== null && o.targetHeight !== null) {
-        dh = trigonometricHeightDifference(o.distance, o.zi, st.instrumentHeight, o.targetHeight);
+      if (!network.has(o.target)) continue;
+      let distance = o.distance;
+      let fromCoords = false;
+      if (!distance) {
+        const a = coords.get(st.id);
+        const b = coords.get(o.target);
+        if (!a || !b) continue;
+        distance = Math.hypot(b.y - a.y, b.x - a.x);
+        fromCoords = true;
+        if (distance <= 0) continue;
       }
-      if (dh !== null) out.push({ station: st.id, target: o.target, dh });
+      let dh = fromCoords ? coordinateHeightDifference(o, st.instrumentHeight, distance) : o.dM;
+      if (dh === null && o.zi !== null && st.instrumentHeight !== null && o.targetHeight !== null) {
+        dh = trigonometricHeightDifference(distance, o.zi, st.instrumentHeight, o.targetHeight);
+      }
+      if (dh !== null) out.push({ station: st.id, target: o.target, dh, fromCoords });
     }
   }
   return out;

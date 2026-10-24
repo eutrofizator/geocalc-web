@@ -2224,6 +2224,115 @@ button.close-btn {
   }
 }
 
+/* Poligon záróhiba és trigonometriai magassági vonalak (súgó 52–53. o.) */
+.poly-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.poly-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 12px;
+  min-width: 200px;
+}
+
+.pick-mid.updown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.poly-table-wrap {
+  max-height: 200px;
+  background: #cfe8d6;
+}
+
+.panel-msg {
+  color: #a3231a;
+}
+
+.panel-msg:empty {
+  display: none;
+}
+
+.kv-value.strong {
+  font-weight: 700;
+}
+
+.kv-value.bad {
+  color: #c1121f;
+}
+
+.swatch {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  vertical-align: middle;
+  border: 1px solid var(--face-sh);
+}
+
+.swatch.coord {
+  background: #ff2d2d;
+}
+
+.grid-table td.coord:not(.off) {
+  box-shadow: inset 3px 0 0 #ff8c00;
+}
+
+.grid-table tr.given td {
+  color: var(--text-dim);
+}
+
+.lines-grid {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 220px;
+  gap: 14px;
+  align-items: start;
+}
+
+.lines-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.lines-buttons select {
+  width: 100%;
+  background: var(--field);
+  border: 1px solid;
+  border-color: var(--face-sh) var(--face-hi) var(--face-hi) var(--face-sh);
+  font: inherit;
+}
+
+.lines-buttons .doc-btn,
+.lines-buttons .minus {
+  align-self: flex-start;
+}
+
+.lines-result {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lines-result label.check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+@media (max-width: 1000px) {
+  .lines-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---------------- állapotsor ---------------- */
 
 .statusbar {

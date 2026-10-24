@@ -268,10 +268,20 @@ nyomtatással és letöltésekkel), a lépés szakaszánál nyitva.
    hibahatára és statisztikája. A **javítás cellájára kattintva** a mérés logikailag törlődik (piros),
    újabb kattintás visszaveszi; a durva hiba miatt automatikusan kihagyott mérés rózsaszín. A
    „Mérések kizárása” táblázat jelölőnégyzetei a jegyzőkönyvben ugyanezt teszik. Hálózati dátum
-   (önálló hálózat eltolása és forgatása), mérési vázlat.
+   (önálló hálózat eltolása és forgatása), mérési vázlat, valamint **poligon záróhiba** („Ellenőrzés –
+   poligonzárás”): az álláspontokra duplán kattintva előírt zárt poligon (a kezdőpont ismétlése nélkül,
+   a sorrend a nyilakkal állítható) hátra- és előreirányai, törésszögei, oda-vissza távolságai, a
+   szögzáró hiba és a vonalas zárás – ismert koordináta nélkül is.
 4. **Magassági kiegyenlítés** – a felkínált magasságkülönbségek (#, AP, IP, dM, javítás, hibahatár,
-   statisztika); kattintással kihagyhatók. A **számítás élessége** cm / mm / 0.1 mm, a paraméterek
-   (átlagos távolság, középhiba, súlyozás, önálló hálózat) és az **adott magasságú pontok** kiválasztása.
+   statisztika); kattintással kihagyhatók. A **piros** sorokban a mérésnek nincs távolsága (magaspontok,
+   egyirányú mérések): ezeket a program alapértelmezésben nem vonja be, kattintással bevonhatók – a
+   távolságot a koordinátákból, a magasságkülönbséget a zenitszögből számolja (a GMJ nulla távolsággal
+   készült dM-je helyett), a jegyzőkönyv `*`-gal jelöli. A **számítás élessége** cm / mm / 0.1 mm, a
+   paraméterek (átlagos távolság, középhiba, súlyozás, önálló hálózat) és az **adott magasságú pontok**
+   kiválasztása. **Trigonometriai magassági vonalak**: a pontokra duplán kattintva előírt vonal(ak)
+   oda-vissza magasságkülönbségei, a záróhiba, a súgó szerinti hibahatár (15·√t mm, t km-ben) és a
+   vonal hossza; zárt poligonnál a végpont a kezdőpont. Az „Új vonal előírása” elteszi a vonalat, a
+   jegyzőkönyv minden vonalat tartalmaz.
 5. **Részletpontok számítása** – a számítandó álláspontok (→ hozzáadás, ✕ törlés), a koordináta
    export típus szerint (minden / kiinduló / kiegyenlített / részletpontok, vesszővel tagolt `.txt`
    vagy GeoCalc-DB `.PYX2`) és a **munka koordináta-jegyzék** (magasság kijelzése, élesség), a többször
@@ -293,13 +303,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 426 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 437 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **271 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **288 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -405,7 +415,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 34 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 35 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

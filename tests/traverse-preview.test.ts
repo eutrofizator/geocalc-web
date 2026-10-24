@@ -229,10 +229,11 @@ describe('zárt poligon (súgó 55. o.)', () => {
     expect(r.sections[0]!.footer!.join(' ')).toContain('elméletileg 360°');
   });
 
-  it('ismert koordináta nélkül is megrajzolható (tájékozatlan poligon)', () => {
+  it('ismert koordináta nélkül is megrajzolható, a vonalas zárás a visszatérésből adódik (tájékozatlan poligon)', () => {
     const r = traversePreview(['A', 'B', 'C', 'D', 'A'], new Map(), square);
     expect(r.closed).toBe(true);
-    expect(r.linear).toBeNull();
+    expect(r.linear).not.toBeNull();
+    expect(r.linear!.length).toBeCloseTo(0, 6);
     expect(r.sections[0]!.footer!.join(' ')).toContain('tájékozatlan');
     expect(r.vertices[0]!.length).toBeCloseTo(100, 6);
   });
