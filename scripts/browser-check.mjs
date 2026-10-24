@@ -171,7 +171,7 @@ async function main() {
   );
   await check('ikonsáv gombjai', `document.querySelectorAll('.tb-btn').length`, 15);
   await check('a navigátor hat csoportja', `document.querySelectorAll('#navigator .nav-group').length`, 6);
-  await check('a navigátor pontjai', `document.querySelectorAll('#navigator .nav-item').length`, 22);
+  await check('a navigátor pontjai', `document.querySelectorAll('#navigator .nav-item').length`, 23);
   await check('csak a Beállítások csoport kiemelt', `[...document.querySelectorAll('#navigator .nav-group.special .nav-head-label')].map(e => e.textContent).join('|')`, 'Beállítások');
   await check('induláskor a Névjegy látszik', `document.getElementById('win-about').classList.contains('active')`, true);
   await check('egyszerre egy munkalap látszik', `document.querySelectorAll('.mdiwin:not([hidden])').length`, 1);
@@ -270,10 +270,10 @@ async function main() {
 
   // Új munkaterület (Geodéziai számítások menü), hogy a kód beszúrása üres szerkesztőbe kerüljön.
   await clickMenu(1);
-  await clickMenuItem(3);
+  await clickMenuItem(4);
   await check('az Új munkaterület kiüríti a szerkesztőt', `document.getElementById('editor').value`, '');
   await clickMenu(1);
-  await check('a Geodéziai számítások menü lenyílt', `document.querySelectorAll('.menu-btn.open > .menu-drop > .menu-item').length`, 9);
+  await check('a Geodéziai számítások menü lenyílt', `document.querySelectorAll('.menu-btn.open > .menu-drop > .menu-item').length`, 10);
   const codesIndex = await evalJs(`[...document.querySelectorAll('.menu-btn.open > .menu-drop > .menu-item')].findIndex(b => b.textContent.startsWith('Kód beszúrása'))`);
   await evalJs(`document.querySelectorAll('.menu-btn.open > .menu-drop > .menu-item')[${codesIndex}].dispatchEvent(new Event('mouseenter'))`);
   await sleep(80);
@@ -381,7 +381,7 @@ async function main() {
 
   await clickMenu(1);
   await check('a Geodéziai számítások menü lenyílt', `!!document.querySelector('.menu-btn.open')`, true);
-  await clickMenuItem(2);
+  await clickMenuItem(3);
   await check('a beállítások munkalap megnyílt', `document.getElementById('win-settings').hidden`, false);
   await check('a beállítások munkalap aktív', `document.getElementById('win-settings').classList.contains('active')`, true);
 
@@ -1173,6 +1173,31 @@ async function main() {
   await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true, cancelable: true }))`);
   await sleep(500);
   await check('a Ctrl+N új (üres) munkaterületet ad', `document.getElementById('editor').value.trim()`, '');
+
+  /* ---------- Geodéziai számítások/Változási vázrajz (8/2018. AM rendelet) ---------- */
+  await evalJs(`document.getElementById('pc-sample').click()`);
+  await sleep(200);
+  await check('a változási vázrajz munkalap létezik', `!!document.getElementById('win-parcel')`, true);
+  await check('a terület-összevetés és a kimutatás elkészül', `[...document.querySelectorAll('#pc-results .card h3')].map((h) => h.textContent).join('|')`, 'Változás előtti állapot – terület-összevetés|Változás utáni állapot – területarányos ráosztás|Területkimutatás');
+  await check('a minta hibahatáron belül van', `/rendben/.test(document.getElementById('pc-status').textContent)`, true);
+  await evalJs(`(() => {
+    const set = (id, v) => { const e = document.getElementById(id); e.value = v; };
+    set('pc-div-parcel', '123'); set('pc-div-method', 'parallel'); set('pc-div-a', '101'); set('pc-div-b', '104');
+    set('pc-div-area', '600'); set('pc-div-name1', '123/1'); set('pc-div-name2', '123/2');
+    document.getElementById('pc-divide').click();
+    return true;
+  })()`);
+  await sleep(200);
+  await check('a párhuzamos osztás 600 m²-t választ le', `[...document.querySelectorAll('#pc-results .card')].find((c) => /Területosztás/.test(c.querySelector('h3').textContent)).querySelector('tbody tr td:nth-child(3)').textContent`, '600.00');
+  await check('az osztás két új pontot ad', `document.querySelectorAll('#pc-sketch circle.new').length`, 2);
+  await evalJs(`document.getElementById('pc-take').click()`);
+  await sleep(200);
+  await check('az átvétel után a változás utáni állapotban a két rész', `document.getElementById('pc-after').value.includes('123/1 ; 101 U1 U2 104')`, true);
+  await check('az átvétel után a területek összege egyezik', `/végleges összeg 2765 m² · rendben/.test(document.getElementById('pc-status').textContent)`, true);
+  await evalJs(`(() => { const e = document.getElementById('pc-before'); e.value = '123 ; 1600 ; 101 102 103 104'; e.dispatchEvent(new Event('input')); return true; })()`);
+  await sleep(150);
+  await check('hibahatáron túli eltérésnél hibát jelez', `/meghaladja a hibahatárt/.test(document.getElementById('pc-issues').textContent)`, true);
+  await evalJs(`document.getElementById('pc-sample').click()`);
 
   /* ---------- Sötét téma és angol nyelv ---------- */
   await evalJs(`(() => { const s = document.getElementById('gs-theme'); s.value = 'dark'; s.dispatchEvent(new Event('change')); return true; })()`);

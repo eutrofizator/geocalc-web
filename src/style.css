@@ -3190,3 +3190,75 @@ button.fb-calc {
   background: #3d1f1d;
   color: #ffb4ab;
 }
+
+/* ---------------- változási vázrajz ---------------- */
+
+.form .grid3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 5px 8px;
+  padding: 6px 4px;
+}
+
+.parcel-sketch:empty {
+  display: none;
+}
+
+.parcel-sketch svg {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  height: auto;
+  margin: 6px auto;
+  background: #fff;
+  border: 1px solid var(--face-sh);
+}
+
+.parcel-sketch polygon.before {
+  fill: none;
+  stroke: #8a8a8a;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.parcel-sketch polygon.after {
+  fill: rgba(15, 111, 115, 0.08);
+  stroke: var(--accent);
+  stroke-width: 1.6;
+}
+
+.parcel-sketch text.label {
+  font: 700 12px Tahoma, Arial, sans-serif;
+  text-anchor: middle;
+  fill: #1a1a1a;
+}
+
+.parcel-sketch text.label.before {
+  display: none;
+}
+
+.parcel-sketch .pt {
+  fill: #202020;
+}
+
+.parcel-sketch .pt.new {
+  fill: #c62828;
+}
+
+.parcel-sketch .ptid {
+  font: 10px Tahoma, Arial, sans-serif;
+  fill: #404040;
+}
+
+:root[data-theme='dark'] .parcel-sketch svg {
+  background: #1e1f22;
+}
+
+:root[data-theme='dark'] .parcel-sketch text.label,
+:root[data-theme='dark'] .parcel-sketch .ptid {
+  fill: #e0e0e0;
+}
+
+:root[data-theme='dark'] .parcel-sketch .pt {
+  fill: #e0e0e0;
+}

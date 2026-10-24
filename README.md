@@ -49,6 +49,7 @@ arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jel
 |---|---|
 | Geodéziai számítások/Munkaterület | **működik** (kódolt bemenet, a valódi szerkesztő ikonsora és állapotsora, „Előkép” riportnézegető fejezetfával és nagyítással) |
 | Geodéziai számítások/Adatleíró | **működik** (űrlapos adatbevitel, kódgenerálás, automatikus kódolás) |
+| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás) |
 | Geodéziai számítások/Beállítások | **működik** (a jegyzőkönyv előlapja, `borito.ini` be/ki) |
 | Adatrögzítő/Beállítások | **működik** (rögzítőtípus, távolságredukció, TVET.TXT, átlagok) |
 | Hálózatkiegyenlítés/Munkaterület | **működik** (munkaállomány, koordináták betöltése és hozzáfűzése, GMJ, középelés) |
@@ -91,6 +92,30 @@ képére vagy nem közölt részletre támaszkodik, a munkalap **fenntartást** 
   English” parancsa, illetve az Általános beállítások „Megjelenés és nyelv” csoportja (a téma a
   rendszer beállítását is követheti). Angolul a menük, munkalapok, gombok, súgószövegek és
   állapotüzenetek fordulnak; a generált jegyzőkönyvek és a felhasználói adatok magyarok maradnak.
+
+### Változási vázrajz (8/2018. (VI. 29.) AM rendelet)
+
+A GEOkalkulus saját munkalapja (a GeoCalc 3.5-ben nincs), a földrészlethatár-változással járó
+változási vázrajz területszámításához:
+
+- **Terület-összevetés (18. § (1))** – a műszaki terület a koordinátákból (Gauss-féle trapézképlet), a
+  tulajdoni lapi területtel összevetve. A hibahatár a **8. melléklet** (EOTR térkép digitális
+  átalakítása; 1:500–1:1 000, 1:2 000, 1:4 000) vagy a **9. melléklet** (EOTR előtti vetület; 1:1 000,
+  1:2 000, 1:2 880, 1:4 000) értékének **másfélszerese**, alrészletnél, minőségi osztálynál, jognál és
+  ténynél a **kétszerese**. A táblázatok a Nemzeti Jogszabálytár szövegéből; a sorok között lineáris
+  interpoláció, a legkisebb táblázati terület alatt az első érték. A hibahatáron túli eltérés hibaként
+  jelenik meg (területszámítási hiba vizsgálata).
+- **Területarányos ráosztás (22. § (3))** – a változás utáni végleges területek a négyzetméterre
+  kerekített műszaki területből, a változás előtti tulajdoni lapi összegre ráosztva (legnagyobb
+  maradékok szerint), így a két oldal összege pontosan egyezik (22. § (1)). A program jelzi, ha a
+  változás előtti és utáni földrészletek kerülete nem ugyanazt a területet fedi le.
+- **Területkimutatás (12. §)** – változás előtti és utáni hrsz és terület, összesen sorral; mentés
+  szövegként és táblázatkezelőbe (.csv).
+- **Területosztás** – a kért területű rész leválasztása az A–B oldallal **párhuzamos** osztóvonallal
+  (felezéses kereséssel), vagy egy **törésponton átmenő** osztóvonallal (zárt alakban). Az új pontok
+  pontszámot kapnak (előtag + sorszám), az „Átvétel” a koordinátákhoz és a változás utáni
+  földrészletek közé teszi őket (centiméterre kerekítve). Vázlat mutatja a földrészleteket és az új
+  pontokat. `tests/parcel.test.ts`
 
 ### Adatleíró (súgó 44. o.)
 
@@ -354,13 +379,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 489 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 504 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **325 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **333 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -466,7 +491,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 39 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 40 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

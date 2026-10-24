@@ -36,6 +36,7 @@ export const SHEETS: Sheet[] = [
     icon: '#i-form',
     win: 'win-descriptor',
   },
+  { id: 'parcel', caption: 'Geodéziai számítások/Változási vázrajz', icon: '#i-polygon', win: 'win-parcel' },
   {
     id: 'settings',
     caption: 'Geodéziai számítások/Beállítások',
@@ -138,6 +139,7 @@ export const NAV: NavGroup[] = [
     pages: [
       { id: 'gs-work', label: 'Munkaterület', sheet: 'calc' },
       { id: 'gs-desc', label: 'Adatleíró', sheet: 'descriptor' },
+      { id: 'gs-parcel', label: 'Változási vázrajz', sheet: 'parcel' },
       { id: 'gs-settings', label: 'Beállítások', sheet: 'settings' },
     ],
   },

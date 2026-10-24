@@ -25,6 +25,7 @@ import { initAkgView } from './akg-view';
 import { initAboutView } from './about-view';
 import { initGeneralSettingsView, rememberSheet, startSheet } from './general-settings-view';
 import { initGeoConvertView } from './geo-convert-view';
+import { initParcelView } from './parcel-view';
 import { $, csvButton, download, el, readText, renderReportTree, renderSection, storage } from './ui';
 
 /* ---------- tárolás (csak kényelmi funkció, hiba esetén is működik az oldal) ---------- */
@@ -458,6 +459,7 @@ setCodeProvider(() => MODULES.map((m) => ({ id: m.code, name: m.name })));
 // A JS-ben épülő munkalapok a burok előtt jönnek létre, hogy a navigátor már megtalálja őket.
 initAboutView();
 initGeoConvertView();
+initParcelView();
 const generalSettings = initGeneralSettingsView({ sessionSave: () => sessionSave(), sessionLoad: () => sessionLoad() });
 
 const shell = initShell({

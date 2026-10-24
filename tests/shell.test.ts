@@ -44,7 +44,8 @@ describe('a burok regisztere (menüsor, ikonsáv, navigátor, munkalapok)', () =
     ]);
     const pages = (label: string) => NAV.find((g) => g.label === label)!.pages.map((p) => p.label);
     expect(pages('Adatrögzítő')).toEqual(['Mérési adatok - koordináták', 'Manuális adatbevitel', 'Beállítások']);
-    expect(pages('Geodéziai számítások')).toEqual(['Munkaterület', 'Adatleíró', 'Beállítások']);
+    // A Változási vázrajz a GEOkalkulus saját lapja (8/2018. AM rendelet), a valódi programban nincs.
+    expect(pages('Geodéziai számítások')).toEqual(['Munkaterület', 'Adatleíró', 'Változási vázrajz', 'Beállítások']);
     expect(pages('Hálózatkiegyenlítés')).toEqual([
       'Munkaterület',
       'Előzetes számítások',
