@@ -178,7 +178,7 @@ export function initNetworkView(): void {
     coordinatePrecision: prec.value as CoordinatePrecision,
     free: freeOn.checked,
     excluded: [...excluded],
-    extraPoints: extraInput.value.split(/[s,;]+/).filter((t) => t !== ''),
+    extraPoints: extraInput.value.split(/[\s,;]+/).filter((t) => t !== ''),
   });
   const readVertical = (): VerticalSettings => ({
     sigma: Number(hSigma.value),

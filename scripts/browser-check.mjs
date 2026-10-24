@@ -1,8 +1,8 @@
 /**
  * Böngészős végpróba: a kész, önálló `dist/GEOkalkulus-1.0.html` fájlt betölti egy már futó,
  * fejlesztői porttal indított Chrome-ba, és a DevTools protokollal (CDP) végigpróbálja a burok
- * működését: menük, munkalapok, állapotsor, jegyzőkönyv, letöltések (`.gcd`, `.gcs`, `.csv`),
- * hibakezelés és gyorsbillentyűk.
+ * működését: menük, navigátor, munkalapok, állapotsor, jegyzőkönyv, letöltések (`.gcd`, `.gcs`,
+ * `.csv`), hibakezelés és gyorsbillentyűk.
  *
  * Indítás (a Chrome-ot előbb el kell indítani a fejlesztői porttal, pl.):
  *
@@ -161,29 +161,76 @@ async function main() {
     await sleep(110);
   };
 
-  /* ---------- induló állapot ---------- */
+  /* ---------- induló állapot: a valódi program Névjegy képe ---------- */
   await check('a program neve a lap címében', `document.title`, 'GEOkalkulus 1.0');
   await check('a program neve az ablak címsorában', `document.querySelector('.titlebar-text').textContent`, 'GEOkalkulus 1.0 – Névtelen');
-  await check('menük száma', `document.querySelectorAll('.menu-btn').length`, 9);
+  await check(
+    'a menüsor a valódi program hat modulja',
+    `[...document.querySelectorAll('.menu-btn')].map(b => b.firstChild.textContent).join('|')`,
+    'Adatrögzítő|Geodéziai számítások|Hálózatkiegyenlítés|Térbeli transzformáció|Adatcsere|Beállítások',
+  );
   await check('ikonsáv gombjai', `document.querySelectorAll('.tb-btn').length`, 15);
-  await check('a fő munkalap aktív', `document.getElementById('win-calc').classList.contains('active')`, true);
-  await check('a fő munkalap nagyított', `document.getElementById('win-calc').classList.contains('maximized')`, true);
-  await check('nyitott munkalapok', `document.querySelectorAll('.mdiwin:not([hidden])').length`, 1);
+  await check('a navigátor hat csoportja', `document.querySelectorAll('#navigator .nav-group').length`, 6);
+  await check('a navigátor pontjai', `document.querySelectorAll('#navigator .nav-item').length`, 22);
+  await check('csak a Beállítások csoport kiemelt', `[...document.querySelectorAll('#navigator .nav-group.special .nav-head-label')].map(e => e.textContent).join('|')`, 'Beállítások');
+  await check('induláskor a Névjegy látszik', `document.getElementById('win-about').classList.contains('active')`, true);
+  await check('egyszerre egy munkalap látszik', `document.querySelectorAll('.mdiwin:not([hidden])').length`, 1);
+  await check('a Névjegy fejléce', `document.querySelector('#win-about .mdiwin-caption').textContent`, 'Beállítások / Névjegy');
+  await check('a Névjegy a program nevét mutatja', `document.querySelector('#win-about .about-name').textContent`, 'GEOkalkulus');
   await check('kódlista elemei', `document.querySelectorAll('#module-list li').length`, 19);
   await check('a jegyzőkönyv kártyái', `document.querySelectorAll('#results .card').length > 0`, true);
-  await check('állapotsor: a nézet neve', `document.getElementById('sb-view').textContent`, 'Geodéziai számítások/Munkaterület');
+  await check('állapotsor: a nézet neve', `document.getElementById('sb-view').textContent`, 'Beállítások/Névjegy');
+  await check('állapotsor: dátum', `/^\\d{4}\\.\\d{2}\\.\\d{2}$/.test(document.getElementById('sb-date').textContent)`, true);
+  await check('állapotsor: idő', `/^\\d{2}:\\d{2}:\\d{2}$/.test(document.getElementById('sb-time').textContent)`, true);
   await check('állapotsor: összegzés', `/számított pont/.test(document.getElementById('sb-counts').textContent)`, true);
+
+  /* ---------- navigátor ---------- */
+  const clickNav = async (id) => {
+    await evalJs(`document.querySelector('#navigator [data-nav="${id}"]').click()`);
+    await sleep(140);
+  };
+  await clickNav('gs-work');
+  await check('navigátor: a Munkaterület megnyílt', `document.getElementById('win-calc').classList.contains('active')`, true);
+  await check('a munkalap fejléce „Modul / Lap”', `document.querySelector('#win-calc .mdiwin-caption').textContent`, 'Geodéziai számítások / Munkaterület');
+  await check('a navigátor jelöli az aktív pontot', `document.querySelector('#navigator .nav-item.current').dataset.nav`, 'gs-work');
+  await check('a Névjegy elrejtve', `document.getElementById('win-about').hidden`, true);
+  await check('állapotsor követi a munkalapot', `document.getElementById('sb-view').textContent`, 'Geodéziai számítások/Munkaterület');
+
+  await clickNav('rc-manual');
+  await check('navigátor: a Manuális adatbevitel az Adatrögzítőt nyitja', `document.getElementById('win-recorder').classList.contains('active')`, true);
+  await check('a fejléc a részfeladat nevét mutatja', `document.querySelector('#win-recorder .mdiwin-caption').textContent`, 'Adatrögzítő / Manuális adatbevitel');
+  await check('a kézi bevitel szakasza nyitva', `document.getElementById('rc-manual').closest('details').open`, true);
+
+  await clickNav('net-hor');
+  await check('navigátor: a Vízszintes kiegyenlítés a hálózatot nyitja', `document.querySelector('#win-network .mdiwin-caption').textContent`, 'Hálózatkiegyenlítés / Vízszintes kiegyenlítés');
+
+  // A csoport fejléce összecsukja és kinyitja a csoportot.
+  await evalJs(`document.querySelectorAll('#navigator .nav-head')[0].click()`);
+  await sleep(60);
+  await check('a csoport összecsukható', `document.querySelectorAll('#navigator .nav-items')[0].hidden`, true);
+  await evalJs(`document.querySelectorAll('#navigator .nav-head')[0].click()`);
+  await sleep(60);
+  await check('a csoport újra kinyitható', `document.querySelectorAll('#navigator .nav-items')[0].hidden`, false);
+
+  // Az elválasztó nyila elrejti és visszahozza a navigátort.
+  await evalJs(`document.getElementById('nav-splitter').click()`);
+  await sleep(60);
+  await check('a navigátor elrejthető', `getComputedStyle(document.getElementById('navigator')).display`, 'none');
+  await evalJs(`document.getElementById('nav-splitter').click()`);
+  await sleep(60);
+  await check('a navigátor visszahozható', `getComputedStyle(document.getElementById('navigator')).display !== 'none'`, true);
 
   /* ---------- ikonsáv ---------- */
   await clickTb(TB.network);
   await check('ikonsáv: hálózat munkalap megnyílt', `document.getElementById('win-network').hidden`, false);
   await check('ikonsáv: a hálózat munkalap aktív', `document.getElementById('win-network').classList.contains('active')`, true);
-  await check('két munkalap nyitva', `document.querySelectorAll('.mdiwin:not([hidden])').length`, 2);
+  await check('az ikonsáv a munkalap saját fejlécét adja', `document.querySelector('#win-network .mdiwin-caption').textContent`, 'Hálózatkiegyenlítés / Munkaterület');
+  await check('továbbra is egy munkalap látszik', `document.querySelectorAll('.mdiwin:not([hidden])').length`, 1);
   await check('állapotsor követi az aktív munkalapot', `document.getElementById('sb-view').textContent`, 'Hálózatkiegyenlítés/Munkaterület');
 
   await clickTb(TB.transform);
   await check('ikonsáv: transzformáció munkalap megnyílt', `document.getElementById('win-transform').hidden`, false);
-  await check('három munkalap nyitva', `document.querySelectorAll('.mdiwin:not([hidden])').length`, 3);
+  await check('a hálózat munkalap elrejtve', `document.getElementById('win-network').hidden`, true);
 
   await clickTb(TB.help);
   await check('helyettesítő munkalap (Súgó) létrejött', `!!document.getElementById('win-help')`, true);
@@ -191,17 +238,16 @@ async function main() {
   await check('a helyettesítő munkalap ismertet', `document.querySelector('#win-help .pane p').textContent.length > 40`, true);
 
   /* ---------- menük ---------- */
-  await clickMenu(0);
-  await check('a Fájl menü lenyílt', `!!document.querySelector('.menu-btn.open')`, true);
-  await check('menüpontok a Fájl menüben', `document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item').length`, 8);
+  await clickMenu(5);
+  await check('a Beállítások menü lenyílt', `!!document.querySelector('.menu-btn.open')`, true);
   await check('van elválasztó', `document.querySelectorAll('.menu-btn.open .menu-sep').length > 0`, true);
   await check(
-    'a Fájl menü a munkamenet-parancsokat is kínálja',
+    'a Beállítások menü a munkamenet-parancsokat is kínálja',
     `[...document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item .menu-label')].map(e => e.textContent).join('|')`,
-    'Új munkaterület|Megnyitás…|Mentés .gcd állományba|Munkamenet mentése…|Munkamenet betöltése…|Adatbázis beolvasása…|Adatbázis mentése konvertálás után…|Nyomtatás…',
+    'Általános beállítások|Beállítások mentése|Munkamenet mentése…|Munkamenet betöltése…|Nyomtatás…|Súgó|Névjegy',
   );
-  // Munkamenet mentése (.gcs): a menü 4. pontja – a letöltés valóban fájlt ad.
-  await evalJs(`document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item')[3].click()`);
+  // Munkamenet mentése (.gcs): a menü 3. pontja – a letöltés valóban fájlt ad.
+  await evalJs(`document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item')[2].click()`);
   await sleep(1000);
   const gcsName = readdirSync(DL).find((n) => /^munkamenet-\d{4}-\d{2}-\d{2}\.gcs$/.test(n));
   checkNode('a munkamenet mentése .gcs fájlt ad', Boolean(gcsName), true);
@@ -209,19 +255,27 @@ async function main() {
   checkNode('a .gcs formátuma, programneve és változata a helyes', `${gcs.format}|${gcs.program}|${gcs.version}`, 'GEOkalkulus-munkamenet|GEOkalkulus 1.0|1');
   checkNode('a .gcs munkalapokat gyűjt be', Object.keys(gcs.data ?? {}).length >= 1, true);
   checkNode('a .gcs minden kulcsa a program sajátja', Object.keys(gcs.data ?? {}).every((k) => k.startsWith('geocalc-web.')), true);
-  await clickMenu(0);
+  await clickMenu(5);
   await clickMenuItem(0);
   await check('a menüpont kiválasztása bezárja a menüt', `document.querySelectorAll('.menu-btn.open').length`, 0);
+  await check('az Általános beállítások megnyílt', `document.getElementById('win-general-settings').classList.contains('active')`, true);
+  await check('az Általános beállítások az automatikus számítást tükrözik', `document.getElementById('gs-auto').checked === document.getElementById('auto').checked`, true);
 
   await clickMenu(0);
   await check('újra lenyitható', `document.querySelectorAll('.menu-btn.open').length`, 1);
+  await check('az Adatrögzítő menü a navigátor pontjait adja', `document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item').length`, 3);
   await evalJs(`document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
   await sleep(80);
   await check('kattintás máshol bezárja', `document.querySelectorAll('.menu-btn.open').length`, 0);
 
+  // Új munkaterület (Geodéziai számítások menü), hogy a kód beszúrása üres szerkesztőbe kerüljön.
   await clickMenu(1);
-  await check('a Szerkesztés menü lenyílt', `document.querySelectorAll('.menu-btn.open > .menu-drop > .menu-item').length`, 2);
-  await evalJs(`document.querySelectorAll('.menu-btn.open .menu-item')[1].dispatchEvent(new Event('mouseenter'))`);
+  await clickMenuItem(3);
+  await check('az Új munkaterület kiüríti a szerkesztőt', `document.getElementById('editor').value`, '');
+  await clickMenu(1);
+  await check('a Geodéziai számítások menü lenyílt', `document.querySelectorAll('.menu-btn.open > .menu-drop > .menu-item').length`, 9);
+  const codesIndex = await evalJs(`[...document.querySelectorAll('.menu-btn.open > .menu-drop > .menu-item')].findIndex(b => b.textContent.startsWith('Kód beszúrása'))`);
+  await evalJs(`document.querySelectorAll('.menu-btn.open > .menu-drop > .menu-item')[${codesIndex}].dispatchEvent(new Event('mouseenter'))`);
   await sleep(80);
   await check('a „Kód beszúrása” almenü 19 kódot ad', `document.querySelectorAll('.menu-sub .menu-item').length`, 19);
   await check('az almenü a program kódsorrendjét követi', `document.querySelectorAll('.menu-sub .menu-item .menu-label')[0].textContent.slice(0, 2)`, 'IT');
@@ -230,26 +284,59 @@ async function main() {
   await check('a kód beszúrása a szerkesztőbe került', `document.getElementById('editor').value.trim().slice(0, 2).toLowerCase()`, 'it');
   await check('a menü bezárult beszúrás után', `document.querySelectorAll('.menu-btn.open').length`, 0);
 
-  await clickMenu(7);
-  await check('az Ablak menü a nyitott munkalapokat listázza', `document.querySelectorAll('.menu-btn.open .menu-item[role="menuitemradio"]').length`, 4);
-  await check('az Ablak menüben egy van bejelölve', `document.querySelectorAll('.menu-btn.open [role="menuitemradio"][aria-checked="true"]').length`, 1);
-  await clickMenuItem(1);
-  await check('az Ablak menüből váltás működik', `document.getElementById('sb-view').textContent`, 'Hálózatkiegyenlítés/Munkaterület');
+  await clickMenu(2);
+  await clickMenuItem(0);
+  await check('a menüből váltás működik', `document.getElementById('sb-view').textContent`, 'Hálózatkiegyenlítés/Munkaterület');
+  await clickMenu(2);
+  await check('a menü jelöli az aktív pontot', `document.querySelector('.menu-btn.open .menu-item.checked .menu-label').textContent`, 'Munkaterület');
+  await evalJs(`document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))`);
+  await sleep(80);
 
-  /* ---------- ablaktábla-vezérlés ---------- */
-  await check('induláskor nagyított', `document.getElementById('win-network').classList.contains('maximized')`, true);
-  await evalJs(`document.querySelector('#win-network .mdiwin-buttons button[data-act="max"]').click()`);
-  await sleep(120);
-  await check('a visszaállítás normál méretre vált', `document.getElementById('win-network').classList.contains('maximized')`, false);
-  await check('normál méretben van pozíciója', `document.getElementById('win-network').style.width !== '' && document.getElementById('win-network').style.left !== ''`, true);
-  await evalJs(`document.querySelector('#win-network .mdiwin-buttons button[data-act="max"]').click()`);
-  await sleep(120);
-  await check('újra nagyítható', `document.getElementById('win-network').classList.contains('maximized')`, true);
+  /* ---------- a Munkaterület szerkesztője (súgó 43. o.) ---------- */
+  await clickNav('gs-work');
+  await check('a szerkesztő ikonsora', `document.querySelectorAll('#calc-toolbar button.ib').length`, 10);
+  await evalJs(`document.getElementById('btn-codes').click()`);
+  await sleep(60);
+  await check('a kódlista elrejthető', `document.getElementById('calc-codes').hidden`, true);
+  await evalJs(`document.getElementById('btn-codes').click()`);
+  await sleep(60);
+  await check('a kódlista visszahozható', `document.getElementById('calc-codes').hidden`, false);
+  await evalJs(`(() => { const e = document.getElementById('editor'); e.focus(); e.setSelectionRange(0, 0); e.dispatchEvent(new Event('click')); return true; })()`);
+  await check('a szerkesztő állapotsora a kurzor helyét mutatja', `document.getElementById('ed-pos').textContent`, '1:1');
+  await check('a szerkesztő állapotsora az állomány nevét mutatja', `document.getElementById('ed-file').textContent`, 'Névtelen.gcd');
+  await evalJs(`
+    (() => {
+      const e = document.getElementById('editor');
+      e.value = 'k_\\n1 , 3817.26 , 7339.75\\n5 , 2852.34 , 6562.88\\n;;\\nit\\n1\\n5\\n;;';
+      e.dispatchEvent(new Event('input'));
+      document.getElementById('btn-run').click();
+      return true;
+    })()
+  `);
+  await sleep(200);
+  await check('az Előkép fejezetfája kitöltődött', `document.querySelectorAll('#report-tree .tree-item').length > 0`, true);
+  await check('a fejezetfa első pontja az előlap', `document.querySelector('#report-tree .tree-item').textContent`, 'Előlap');
+  await evalJs(`document.getElementById('btn-zoom-in').click()`);
+  await check('az Előkép nagyítható', `document.getElementById('zoom-level').textContent`, '110%');
+  await evalJs(`document.getElementById('btn-zoom-out').click()`);
+  await check('az Előkép kicsinyíthető', `document.getElementById('zoom-level').textContent`, '100%');
 
-  await evalJs(`document.querySelector('#win-network .mdiwin-buttons button[data-act="close"]').click()`);
-  await sleep(140);
-  await check('bezárás után eggyel kevesebb munkalap', `document.querySelectorAll('.mdiwin:not([hidden])').length`, 3);
-  await check('bezáráskor másik munkalap lesz aktív', `document.getElementById('win-network').hidden`, true);
+  /* ---------- Földrajzi koordináták konvertálása ---------- */
+  await clickNav('ex-geo');
+  await check('a konvertáló munkalap megnyílt', `document.getElementById('win-geo-convert').classList.contains('active')`, true);
+  await evalJs(`
+    (() => {
+      const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('change')); };
+      set('gc-from', 'PSEUDO');
+      set('gc-to', 'DMS');
+      set('gc-dec', '5');
+      const t = document.getElementById('gc-input');
+      t.value = 'P 47.182231643 19.182231643 100';
+      t.dispatchEvent(new Event('input'));
+      return true;
+    })()
+  `);
+  await check('az áldecimális szög a súgó szerinti fok-perc-másodperc', `document.querySelector('#gc-results tbody tr td:nth-child(3)').textContent`, '19° 18′ 22.31643″');
 
   /* ---------- számítás és előnézet ---------- */
   await evalJs(`
@@ -292,9 +379,9 @@ async function main() {
   await check('az előlap címe', `document.querySelector('#results .cover-title').textContent`, 'GEODÉZIAI SZÁMÍTÁSOK');
   await check('az előlap lábléce', `document.querySelector('#results .cover-foot').textContent.trim()`, 'by_safi01');
 
-  await clickMenu(6);
-  await check('a Beállítások menü lenyílt', `!!document.querySelector('.menu-btn.open')`, true);
-  await clickMenuItem(0);
+  await clickMenu(1);
+  await check('a Geodéziai számítások menü lenyílt', `!!document.querySelector('.menu-btn.open')`, true);
+  await clickMenuItem(2);
   await check('a beállítások munkalap megnyílt', `document.getElementById('win-settings').hidden`, false);
   await check('a beállítások munkalap aktív', `document.getElementById('win-settings').classList.contains('active')`, true);
 
@@ -821,6 +908,7 @@ async function main() {
   await check('az első parcella célprogramja megmaradt', `(() => { const s = document.getElementById('akg-parcel'); s.value = '0'; s.dispatchEvent(new Event('change')); return document.getElementById('akg-celprg').value === 'a) ad) 1.'; })()`, true);
 
   /* ---------- gyorsbillentyűk ---------- */
+  await clickNav('gs-work');
   await evalJs(`(() => {
     const e = document.getElementById('editor');
     e.value = 'k_\\n1 , 1000 , 2000\\n;;\\n';
@@ -837,8 +925,8 @@ async function main() {
   );
   await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }))`);
   await sleep(1000);
-  checkNode('a Ctrl+S .gcd állományt tölt le', readdirSync(DL).includes('munka.gcd'), true);
-  checkNode('a .gcd tartalma a szerkesztő szövege', readFileSync(join(DL, 'munka.gcd'), 'utf8').includes('k_'), true);
+  checkNode('a Ctrl+S .gcd állományt tölt le', readdirSync(DL).includes('Névtelen.gcd'), true);
+  checkNode('a .gcd tartalma a szerkesztő szövege', readFileSync(join(DL, 'Névtelen.gcd'), 'utf8').includes('k_'), true);
   await evalJs(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ctrlKey: true, bubbles: true, cancelable: true }))`);
   await sleep(500);
   await check('a Ctrl+N új (üres) munkaterületet ad', `document.getElementById('editor').value.trim()`, '');

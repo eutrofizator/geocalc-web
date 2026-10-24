@@ -5,9 +5,10 @@
 **Élő változat (telepítés nélkül):** <https://eutrofizator.github.io/geocalc-web/>
 
 A **GEOkalkulus 1.0** a valódi GeoCalc 3.5 földmérési program webes változata. A cél nem egy „modern
-újraírás”, hanem az eredeti program **küllemének és működésének** követése: a felület egy klasszikus
-Windows/Delphi alkalmazás (menüsor, ikonsáv, MDI munkalap-ablakok, állapotsor), a bemenet és a
-kimenet pedig a valódi `.gcd` nyelv, illetve a valódi `.PYX` / `.PYX2` / jegyzőkönyv-formátum.
+újraírás”, hanem az eredeti program **küllemének és működésének** követése: a felület a GeoCalc 3.5
+Windows-alkalmazás szerkezete (menüsor a hat modullal, ikonsáv, bal oldali lenyitható modulpanel,
+kékeszöld fejlécű munkalapok, dátumos-órás állapotsor), a bemenet és a kimenet pedig a valódi `.gcd`
+nyelv, illetve a valódi `.PYX` / `.PYX2` / jegyzőkönyv-formátum.
 
 A számítómag tiszta függvényekből áll (egy futás eredménye csak a bemenettől függ), ezért a
 számítások nem keveredhetnek össze, és újraindítás sem kell.
@@ -23,19 +24,30 @@ oldalról is letölthető: <https://eutrofizator.github.io/geocalc-web/GEOkalkul
 
 ## Felület (a valódi program szerkezete)
 
+A felület a valódi GeoCalc 3.5 súgójába ágyazott képernyőképek alapján készült (a színeket, az
+arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jelkép – saját rajzok).
+
 - **Címsor** – `GEOkalkulus 1.0 – <munkaterület>`.
-- **Menüsor** – Fájl · Szerkesztés · Számítás · Hálózat · Transzformáció · Adatcsere · Beállítások ·
-  Ablak · Súgó.
-- **Ikonsáv** – a súgó 3. oldalán felsorolt **15 parancsikon**, ugyanabban a sorrendben.
-- **Munkaterület (MDI)** – a munkalapok önálló ablakokban nyílnak (nagyítva indulnak, visszaállítva
-  áthelyezhetők, kaszkádba rendezhetők; az Ablak menü listázza őket).
-- **Állapotsor** – állapotüzenet, összegzés, az aktív munkalap neve.
+- **Menüsor** – a hat modul: Adatrögzítő · Geodéziai számítások · Hálózatkiegyenlítés · Térbeli
+  transzformáció · Adatcsere · Beállítások. Minden modulmenü a modul részeit adja (mint a navigátor);
+  a Geodéziai számítások menü a szerkesztő parancsait is (Új, Megnyitás, Mentés, Számítás, Kód
+  beszúrása), a Beállítások menü a munkamenetet, a nyomtatást, a Súgót és a Névjegyet.
+- **Ikonsáv** – a súgó 3. oldalán felsorolt **15 parancsikon**, ugyanabban a sorrendben és csoportokban.
+- **Modulpanel (navigátor)** – bal oldalon a hat modul lenyitható csoportja a súgó 5–10. oldala szerinti
+  részekkel (a Beállítások csoport fejléce sötét, mint a valódi programban); a csoportok egyenként
+  összecsukhatók, az elválasztó kis nyilával a teljes panel elrejthető.
+- **Munkalap** – egyszerre egy látszik, a fejléce kékeszöld sávban `Modul / Lap`. Ahol a valódi program
+  egy modulrészt külön lapon kezel, de a webes változat egy közös munkalapon (pl. a hálózat
+  Előzetes / Vízszintes / Magassági / Részletpontok része), a navigátor a megfelelő részhez görget.
+- **Indulás** – a valódi programhoz hasonlóan a **Névjegy** lappal (az Általános beállításokban az
+  utoljára használt munkalap vagy a Munkaterület is választható).
+- **Állapotsor** – dátum, idő (élő), állapotüzenet, összegzés, az aktív munkalap neve.
 
 ### Munkalapok
 
 | Munkalap | Állapot |
 |---|---|
-| Geodéziai számítások/Munkaterület | **működik** (kódolt bemenet + jegyzőkönyv) |
+| Geodéziai számítások/Munkaterület | **működik** (kódolt bemenet, a valódi szerkesztő ikonsora és állapotsora, „Előkép” riportnézegető fejezetfával és nagyítással) |
 | Geodéziai számítások/Adatleíró | **működik** (űrlapos adatbevitel, kódgenerálás, automatikus kódolás) |
 | Geodéziai számítások/Beállítások | **működik** (a jegyzőkönyv előlapja, `borito.ini` be/ki) |
 | Adatrögzítő/Beállítások | **működik** (rögzítőtípus, távolságredukció, TVET.TXT, átlagok) |
@@ -45,8 +57,11 @@ oldalról is letölthető: <https://eutrofizator.github.io/geocalc-web/GEOkalkul
 | Térbeli transzformáció/Átszámítás | **működik** (megadott paraméterekkel, **interpolációval**, kimeneti formátumokkal) |
 | Mérési adatok és koordináták | **működik** (állományok + beolvasott pontok) |
 | Adatcsere/Koordináta kezelő | **működik** (válogatás, mezők, feltétel, export) |
+| Adatcsere/Földrajzi koordináták konvertálása | **működik** (áldecimális, tizedes fok, fok-perc-másodperc, WGS 84 X,Y,Z, UTM 33/34) |
 | Adatcsere/Koordináta állomány készítése | **működik** (kézi jegyzék + GeoCalc-DB / .PYX / földrajzi kimenet) |
 | Adatcsere/AKG jegyzőkönyv készítése | **működik** (parcellák, AKG_* leíró adatok, szöveges jegyzőkönyv) |
+| Beállítások/Általános beállítások | **működik** (munkamenet, automatikus számítás, induló munkalap, tárolt adatok) |
+| Beállítások/Névjegy | **működik** (induló kép) |
 | Súgó | **működik** (a súgó kivonata) |
 
 A menüsor, az ikonsáv és a munkalap-nevek a valódi program szerintiek; ahol a webes változat a súgó
@@ -57,9 +72,10 @@ képére vagy nem közölt részletre támaszkodik, a munkalap **fenntartást** 
 
 - **Gyorsbillentyűk** – a menükben kiírt billentyűk működnek: `F5` vagy `Ctrl+Enter` (számítás
   futtatása), `Ctrl+N` (új munkaterület), `Ctrl+O` (megnyitás), `Ctrl+S` (mentés `.gcd` állományba),
-  `Ctrl+P` (nyomtatás), `Ctrl+A` (minden kijelölése a szerkesztőben), `F10` (menüsor), `Esc` (menü).
-  A gépelést nem zavarják: a `Ctrl+A` csak a szerkesztőben és a menükben érvényesül.
-- **Munkamenet (`.gcs`)** – a Fájl menü „Munkamenet mentése…” parancsa a **teljes munkaterületet**
+  `Ctrl+P` (nyomtatás), `Ctrl+A` (minden kijelölése a szerkesztőben), `F1` (súgó), `F10` (menüsor),
+  `Esc` (menü), a szerkesztőben `Insert` (beszúrás / átírás). A gépelést nem zavarják: a `Ctrl+A` csak
+  a Munkaterület szerkesztőjében érvényesül.
+- **Munkamenet (`.gcs`)** – a Beállítások menü „Munkamenet mentése…” parancsa a **teljes munkaterületet**
   (minden munkalap beállítását és tartalmát) egyetlen, önmagát leíró JSON-fájlba gyűjti; a
   „Munkamenet betöltése…” visszatölti és újratölti az oldalt. Így a munka hálózat és szerver nélkül
   átvihető másik böngészőbe vagy gépre.
@@ -188,6 +204,16 @@ paraméterekkel az `A` pont `604155.249 / 213879.069` értéket ad, a valódi `m
 `604155.24 / 213879.06` értékével szemben (**1 cm** eltérés) – ezt a `tests/apply.test.ts` és a
 böngészős végpróba is rögzíti.
 
+### Földrajzi koordináták konvertálása (Adatcsere, súgó 9. o.)
+
+A kézi, navigációs célú GPS-vevők és más programok koordinátáinak átírása. Bemenet és kimenet:
+**áldecimális** (`19.182231643` = `19° 18′ 22.31643″`, a súgó példája), **tizedes fok**,
+**fok-perc-másodperc** (jelekkel – `47°30′12.3″` – vagy három számmal, égtájbetűvel is), **WGS 84
+geocentrikus X, Y, Z** és **UTM 33/34**. Az átszámítás a WGS 84 ellipszoidon pontos; EOV-be a Térbeli
+transzformáció modul számol közös pontokból. A hibás sor kimarad, a többi feldolgozható; a „Bemenet ⇄
+kimenet” gomb az eredményt teszi vissza bemenetnek (oda-vissza ellenőrzés). A `tests/geo-convert.test.ts`
+rögzíti a súgó példáját és az UTM-egyezést a transzformáció moduljával.
+
 ### Koordináta állomány készítése (súgó 74. o.)
 
 Kézzel begépelt pontok jegyzéke. A **típus** oszlopban `Y, X, M`; `X, Y, Z` (WGS 84 geocentrikus)
@@ -242,15 +268,15 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 403 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 416 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **212 ellenőrzésen** (menük, munkalapok,
-állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma, hibakezelés,
-gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome kell:
+A kész, önálló fájl valódi böngészőben is végigmegy **239 ellenőrzésen** (menük, navigátor,
+munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
+hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
 ```
 chrome.exe --headless=new --remote-debugging-port=9222 --user-data-dir=%TEMP%\geocalc-chrome about:blank
@@ -352,9 +378,9 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | Mappa | Tartalom |
 |---|---|
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
-| `src/` | felület (`main.ts`, `shell.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
-| `src/shell.ts` | a Windows-hű burok: menüsor, ikonsáv, MDI-ablakkezelő, állapotsor, munkalap-regiszter |
-| `tests/` | 32 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
+| `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
+| `tests/` | 33 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

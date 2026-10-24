@@ -112,6 +112,48 @@
           <rect x="3" y="3" width="18" height="18" rx="2" />
           <path d="m8 12 3 3 5-6" />
         </symbol>
+        <symbol id="i-save-as" viewBox="0 0 24 24">
+          <path d="M13 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h10.2a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V11" />
+          <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+          <path d="m16 22 5-5-2-2-5 5v2Z" />
+        </symbol>
+        <symbol id="i-undo" viewBox="0 0 24 24">
+          <path d="M9 14 4 9l5-5" />
+          <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+        </symbol>
+        <symbol id="i-scissors" viewBox="0 0 24 24">
+          <circle cx="6" cy="6" r="3" />
+          <circle cx="6" cy="18" r="3" />
+          <path d="M20 4 8.12 15.88M14.47 14.48 20 20M8.12 8.12 12 12" />
+        </symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24">
+          <rect x="8" y="8" width="14" height="14" rx="2" />
+          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+        </symbol>
+        <symbol id="i-clipboard" viewBox="0 0 24 24">
+          <rect x="8" y="2" width="8" height="4" rx="1" />
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+        </symbol>
+        <symbol id="i-select-all" viewBox="0 0 24 24">
+          <path d="M5 3a2 2 0 0 0-2 2M19 3a2 2 0 0 1 2 2M21 19a2 2 0 0 1-2 2M5 21a2 2 0 0 1-2-2M9 3h1M9 21h1M14 3h1M14 21h1M3 9v1M21 9v1M3 14v1M21 14v1" />
+          <rect x="8" y="8" width="8" height="8" rx="1" />
+        </symbol>
+        <symbol id="i-list" viewBox="0 0 24 24">
+          <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+        </symbol>
+        <symbol id="i-zoom-in" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3M11 8v6M8 11h6" />
+        </symbol>
+        <symbol id="i-zoom-out" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3M8 11h6" />
+        </symbol>
+        <symbol id="i-globe" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M3 12h18" />
+          <path d="M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18Z" />
+        </symbol>
         <symbol id="i-help" viewBox="0 0 24 24">
           <circle cx="12" cy="12" r="9" />
           <path d="M9.5 9a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8v.5" />
@@ -138,99 +180,122 @@
       <!-- Ikonsáv: a valódi program 15 parancsikonja (súgó 3. oldal) -->
       <div class="toolbar" id="toolbar" role="toolbar" aria-label="Ikonsáv"></div>
 
-      <!-- MDI munkaterület: ide kerülnek a munkalap-ablakok -->
+      <div class="workspace">
+        <!-- Navigátor: a valódi program bal oldali, lenyitható modulpanele (a JS építi fel) -->
+        <nav class="navigator" id="navigator" aria-label="Modulok"></nav>
+        <button type="button" class="nav-splitter" id="nav-splitter" aria-controls="navigator" aria-expanded="true" title="A modulpanel elrejtése">
+          <span aria-hidden="true"></span>
+        </button>
+      <!-- Munkalapok: egyszerre egy látszik, a fejléce „Modul / Lap” -->
       <div class="client" id="mdi">
         <section class="mdiwin" id="win-calc" hidden aria-label="Geodéziai számítások/Munkaterület">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-calculator" /></svg>
             <span class="mdiwin-caption">Geodéziai számítások/Munkaterület</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
-          <div class="mdiwin-body">
-            <div class="split">
-              <aside class="sidepanel" aria-label="Számítási kódok">
+          <div class="mdiwin-body calc-body">
+            <!-- A valódi program szerkesztőjének ikonsora (súgó 43. o., vp-1 kép) -->
+            <div class="edit-toolbar" id="calc-toolbar" role="toolbar" aria-label="Munkaterület műveletei">
+              <button id="btn-new" type="button" class="ib" title="Új, üres munkaterület (Ctrl+N)" aria-label="Új">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-plus" /></svg>
+              </button>
+              <button id="btn-open" type="button" class="ib" title="Bemeneti állomány megnyitása – .gcd, .txt, .rtf (Ctrl+O)" aria-label="Megnyitás">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
+              </button>
+              <button id="btn-save" type="button" class="ib" title="A bemenet mentése .gcd állományba (Ctrl+S)" aria-label="Mentés">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save" /></svg>
+              </button>
+              <button id="btn-save-as" type="button" class="ib" title="Mentés másként (új állománynévvel)" aria-label="Mentés másként">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save-as" /></svg>
+              </button>
+              <span class="tb-sep"></span>
+              <button id="btn-undo" type="button" class="ib" title="Visszavonás (Ctrl+Z)" aria-label="Visszavonás">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-undo" /></svg>
+              </button>
+              <button id="btn-cut" type="button" class="ib" title="Kivágás (Ctrl+X)" aria-label="Kivágás">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-scissors" /></svg>
+              </button>
+              <button id="btn-copy" type="button" class="ib" title="Másolás (Ctrl+C)" aria-label="Másolás">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy" /></svg>
+              </button>
+              <button id="btn-paste" type="button" class="ib" title="Beillesztés (Ctrl+V)" aria-label="Beillesztés">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-clipboard" /></svg>
+              </button>
+              <button id="btn-selall" type="button" class="ib" title="Minden kijelölése (Ctrl+A)" aria-label="Minden kijelölése">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-select-all" /></svg>
+              </button>
+              <span class="tb-sep"></span>
+              <button id="btn-codes" type="button" class="ib toggle" aria-pressed="true" title="A számítási kódok listája (beszúrás és mintapéldák)" aria-label="Kódok">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-list" /></svg>
+              </button>
+              <button id="btn-run" type="button" class="run" title="Számítás futtatása (F5 vagy Ctrl+Enter)">
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-play" /></svg>
+                <span>Számítás</span>
+              </button>
+              <label class="auto">
+                <input id="auto" type="checkbox" checked />
+                <span>Automatikus számítás</span>
+              </label>
+            </div>
+            <div class="calc-split">
+              <aside class="sidepanel" id="calc-codes" aria-label="Számítási kódok">
                 <div class="panel-head">Kódok</div>
                 <p class="hint">A név beszúrja a kód vázát a kurzorhoz, a „példa” betölti a súgó mintáját.</p>
                 <ul id="module-list" class="modules"></ul>
               </aside>
-              <div class="panes">
-                <section class="pane editor-pane" aria-label="Bemenet">
-                  <div class="pane-head">
-                    <h2>Munkaterület</h2>
-                    <div class="pane-actions">
-                      <button id="btn-run" type="button" class="primary" title="Számítás futtatása (F5 vagy Ctrl+Enter)">
-                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-play" /></svg>
-                        <span>Számítás</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div class="commandbar" id="calc-toolbar" role="toolbar" aria-label="Munkaterület műveletei">
-                    <button id="btn-new" type="button" title="Új, üres munkaterület">
-                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-plus" /></svg>
-                      <span>Új</span>
-                    </button>
-                    <button id="btn-open" type="button" title="Bemeneti állomány megnyitása (.gcd, .txt)">
-                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-folder-open" /></svg>
-                      <span>Megnyitás</span>
-                    </button>
-                    <button id="btn-save" type="button" title="A bemenet mentése .gcd állományba">
-                      <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-save" /></svg>
-                      <span>Mentés</span>
-                    </button>
-                    <label class="auto">
-                      <input id="auto" type="checkbox" checked />
-                      <span>Automatikus számítás</span>
-                    </label>
-                  </div>
-                  <textarea
-                    id="editor"
-                    data-autofocus
-                    spellcheck="false"
-                    autocapitalize="off"
-                    autocomplete="off"
-                    wrap="off"
-                    aria-label="Geodéziai számítások kódolása"
-                    placeholder="k_&#10;1 , 3817.26 , 7339.75&#10;5 , 2852.34 , 6562.88&#10;;;&#10;it&#10;1&#10;5&#10;;;"
-                  ></textarea>
-                </section>
+              <section class="editor-pane" aria-label="Bemenet">
+                <textarea
+                  id="editor"
+                  data-autofocus
+                  spellcheck="false"
+                  autocapitalize="off"
+                  autocomplete="off"
+                  wrap="off"
+                  aria-label="Geodéziai számítások kódolása"
+                  placeholder="k_&#10;1 , 3817.26 , 7339.75&#10;5 , 2852.34 , 6562.88&#10;;;&#10;it&#10;1&#10;5&#10;;;"
+                ></textarea>
+                <div class="editor-status" aria-label="A szerkesztő állapota">
+                  <span id="ed-pos" title="Sor:oszlop">1:1</span>
+                  <span id="ed-mode" title="Insert billentyű: beszúrás / átírás">Beszúrás</span>
+                  <span id="ed-file" class="ed-file" title="A munkaterület állománya">Névtelen.gcd</span>
+                </div>
+              </section>
 
-                <section class="pane result-pane" aria-label="Eredmény">
-                  <div class="pane-head">
-                    <h2>Jegyzőkönyv</h2>
-                    <div class="pane-actions">
-                      <button id="btn-txt" type="button" title="Az eredmény mentése szövegként">
-                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
-                        <span>Szöveg</span>
-                      </button>
-                      <button id="btn-print" type="button" title="Nyomtatás vagy mentés PDF-be">
-                        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
-                        <span>Nyomtatás / PDF</span>
-                      </button>
-                    </div>
+              <!-- Előkép: a valódi program riportnézegetője (súgó 43. o., clip0050 kép) -->
+              <section class="pane result-pane preview-pane" aria-label="Eredmény">
+                <div class="preview-toolbar">
+                  <span class="preview-title">Előkép</span>
+                  <button id="btn-print" type="button" class="ib" title="Nyomtatás vagy mentés PDF-be (Ctrl+P)" aria-label="Nyomtatás / PDF">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-printer" /></svg>
+                  </button>
+                  <button id="btn-txt" type="button" class="ib" title="A jegyzőkönyv mentése szövegként" aria-label="Szöveg">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
+                  </button>
+                  <span class="tb-sep"></span>
+                  <button id="btn-zoom-out" type="button" class="ib" title="Kicsinyítés" aria-label="Kicsinyítés">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-zoom-out" /></svg>
+                  </button>
+                  <span id="zoom-level" class="zoom-level">100%</span>
+                  <button id="btn-zoom-in" type="button" class="ib" title="Nagyítás" aria-label="Nagyítás">
+                    <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-zoom-in" /></svg>
+                  </button>
+                </div>
+                <div id="status" class="status" role="status" aria-live="polite"></div>
+                <div id="issues" class="issues"></div>
+                <div class="preview-split">
+                  <nav id="report-tree" class="report-tree" aria-label="A jegyzőkönyv fejezetei"></nav>
+                  <div class="preview-paper-wrap">
+                    <div id="results" class="results paper"></div>
                   </div>
-                  <div id="status" class="status" role="status" aria-live="polite"></div>
-                  <div id="issues" class="issues"></div>
-                  <div id="results" class="results"></div>
-                  <div id="downloads" class="downloads"></div>
-                </section>
-              </div>
+                </div>
+                <div id="downloads" class="downloads"></div>
+              </section>
             </div>
           </div>
         </section>
 
         <section class="mdiwin" id="win-coords" hidden aria-label="Mérési adatok és koordináták">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-table" /></svg>
             <span class="mdiwin-caption">Mérési adatok és koordináták</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="pane">
@@ -256,13 +321,7 @@
 
         <section class="mdiwin" id="win-settings" hidden aria-label="Geodéziai számítások/Beállítások">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-gear" /></svg>
             <span class="mdiwin-caption">Geodéziai számítások/Beállítások</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="pane">
@@ -340,13 +399,7 @@
 
         <section class="mdiwin" id="win-descriptor" hidden aria-label="Geodéziai számítások/Adatleíró">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-form" /></svg>
             <span class="mdiwin-caption">Geodéziai számítások/Adatleíró</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="split">
@@ -474,13 +527,7 @@
 
         <section class="mdiwin" id="win-exchange-coords" hidden aria-label="Adatcsere/Koordináta kezelő">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-table" /></svg>
             <span class="mdiwin-caption">Adatcsere/Koordináta kezelő</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="split">
@@ -557,13 +604,7 @@
 
         <section class="mdiwin" id="win-network" hidden aria-label="Hálózatkiegyenlítés/Munkaterület">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-network" /></svg>
             <span class="mdiwin-caption">Hálózatkiegyenlítés/Munkaterület</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="panes">
@@ -687,13 +728,7 @@
 
         <section class="mdiwin" id="win-network-settings" hidden aria-label="Hálózatkiegyenlítés/Beállítások">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-gear" /></svg>
             <span class="mdiwin-caption">Hálózatkiegyenlítés/Beállítások</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="pane network-form" aria-label="A kiegyenlítés beállításai">
@@ -810,13 +845,7 @@
 
         <section class="mdiwin" id="win-transform" hidden aria-label="Térbeli transzformáció">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-axes" /></svg>
             <span class="mdiwin-caption">Térbeli transzformáció/Transzformációs paraméterek számítása</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="panes">
@@ -919,13 +948,7 @@
 
         <section class="mdiwin" id="win-recorder" hidden aria-label="Adatrögzítő/Beállítások">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-reader" /></svg>
             <span class="mdiwin-caption">Adatrögzítő/Beállítások</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="panes">
@@ -982,7 +1005,7 @@
                     </p>
                   </details>
                   <details class="settings" open>
-                    <summary>Mérési adatok (kézi bevitel)</summary>
+                    <summary id="rc-manual">Mérési adatok (kézi bevitel)</summary>
                     <p class="hint">
                       Írd be a méréseket soronként a táblázatba. A <b>Hz</b> a vízszintes, a <b>Zi</b> a magassági
                       szög – mindkettő a <b>GeoCalc FOK.PPMMSS</b> alakjában, például <code>91.2345</code> =
@@ -1053,13 +1076,7 @@
 
         <section class="mdiwin" id="win-transform-apply" hidden aria-label="Térbeli transzformáció/Átszámítás">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-swap" /></svg>
             <span class="mdiwin-caption">Térbeli transzformáció/Átszámítás</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="panes">
@@ -1089,7 +1106,7 @@
                     <p class="hint" id="ta-cols"></p>
                   </fieldset>
                   <details class="settings" open>
-                    <summary>Transzformációs paraméterek (kézi megadás)</summary>
+                    <summary id="ta-params">Transzformációs paraméterek (kézi megadás)</summary>
                     <div class="grid2">
                       <label>Eltolás X [m]<input id="ta-tx" type="number" step="0.0001" /></label>
                       <label>Eltolás Y [m]<input id="ta-ty" type="number" step="0.0001" /></label>
@@ -1157,13 +1174,7 @@
 
         <section class="mdiwin" id="win-exchange-file" hidden aria-label="Adatcsere/Koordináta állomány készítése">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-file-text" /></svg>
             <span class="mdiwin-caption">Adatcsere/Koordináta állomány készítése</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="panes">
@@ -1224,13 +1235,7 @@
 
         <section class="mdiwin" id="win-exchange-akg" hidden aria-label="Adatcsere/AKG jegyzőkönyv">
           <div class="mdiwin-title">
-            <svg class="mdiwin-icon" aria-hidden="true" focusable="false"><use href="#i-check-square" /></svg>
             <span class="mdiwin-caption">Adatcsere/AKG jegyzőkönyv</span>
-            <div class="mdiwin-buttons">
-              <button type="button" data-act="min" aria-label="Kicsinyítés">&#8211;</button>
-              <button type="button" data-act="max" aria-label="Nagyítás">&#9744;</button>
-              <button type="button" data-act="close" aria-label="Bezárás">&#10005;</button>
-            </div>
           </div>
           <div class="mdiwin-body">
             <div class="panes">
@@ -1315,9 +1320,12 @@
           <input id="akg-ams-file" type="file" accept=".txt,.ams,csv,text/plain" hidden />
         </section>
       </div>
+      </div>
 
-      <!-- Állapotsor -->
+      <!-- Állapotsor: dátum, idő, üzenet, összegzés, az aktív munkalap neve -->
       <div class="statusbar" id="statusbar">
+        <span class="sb-panel sb-date" id="sb-date"></span>
+        <span class="sb-panel sb-time" id="sb-time"></span>
         <span class="sb-panel sb-grow" id="sb-hint">Kész</span>
         <span class="sb-panel" id="sb-counts"></span>
         <span class="sb-panel" id="sb-view"></span>

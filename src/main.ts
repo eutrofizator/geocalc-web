@@ -11,11 +11,14 @@ import { initNetworkView } from './network-view';
 import { initNetSettingsView } from './net-settings-view';
 import { initRecorderView } from './recorder-view';
 import { downloadReport, initSettingsView, onMeta, renderCover } from './report-view';
-import { initShell, setCodeProvider } from './shell';
+import { SHEETS, initShell, setCodeProvider } from './shell';
 import { initTransformApplyView } from './transform-apply-view';
 import { initTransformView } from './transform-view';
 import { initExchangeFileView } from './exchange-file-view';
 import { initAkgView } from './akg-view';
+import { initAboutView } from './about-view';
+import { initGeneralSettingsView, rememberSheet, startSheet } from './general-settings-view';
+import { initGeoConvertView } from './geo-convert-view';
 import { $, csvButton, download, el, readText, renderSection, storage } from './ui';
 
 /* ---------- tárolás (csak kényelmi funkció, hiba esetén is működik az oldal) ---------- */
@@ -31,6 +34,14 @@ const files = new Map<string, { name: string; content: string }>();
 let last: RunResult | null = null;
 let lastLoadedSource = '';
 let timer: number | undefined;
+/** A munkaterület állományneve (a szerkesztő állapotsorában és a címsorban). */
+let fileName = 'Névtelen.gcd';
+
+function setFileName(name: string): void {
+  fileName = /\.[a-z0-9]+$/i.test(name) ? name : `${name}.gcd`;
+  $('ed-file').textContent = fileName;
+  $('workname').textContent = fileName.replace(/\.[^.]+$/, '');
+}
 
 /* ---------- szerkesztő ---------- */
 function insertAtCursor(text: string): void {
@@ -108,6 +119,7 @@ function render(result: RunResult): void {
     resultsBox.append(renderCover(CALC_TITLE));
     for (const s of result.sections) resultsBox.append(renderSection(s));
   }
+  renderReportTree(resultsBox);
 
   const notes = new Set<string>();
   for (const f of result.exports) {
@@ -122,6 +134,29 @@ function render(result: RunResult): void {
   }
   if (result.sections.length > 0) downloads.append(csvButton('szamitas_tablazatok', () => result.sections));
   for (const note of notes) downloads.append(el('span', 'fmt-note', note));
+}
+
+/** Az Előkép bal oldali fejezetfája: a jegyzőkönyv szakaszai, kattintásra odagörget. */
+function renderReportTree(resultsBox: HTMLElement): void {
+  const tree = $('report-tree');
+  tree.replaceChildren();
+  const cards = [...resultsBox.querySelectorAll<HTMLElement>(':scope > .card')];
+  if (cards.length === 0) return;
+  const ul = el('ul');
+  cards.forEach((card, i) => {
+    const title = card.dataset.role === 'cover' ? 'Előlap' : (card.querySelector('h3')?.textContent ?? `${i + 1}. szakasz`);
+    const b = el('button', 'tree-item', title.replace(/\s*:\s*$/, ''));
+    b.type = 'button';
+    b.title = title;
+    b.addEventListener('click', () => {
+      card.scrollIntoView({ block: 'start' });
+      for (const x of tree.querySelectorAll('.tree-item')) x.classList.toggle('current', x === b);
+    });
+    const li = el('li');
+    li.append(b);
+    ul.append(li);
+  });
+  tree.append(ul);
 }
 
 function compute(): void {
@@ -161,7 +196,7 @@ function buildModuleList(): void {
     const insert = el('button', 'insert');
     insert.type = 'button';
     insert.disabled = !m.ready;
-    insert.title = m.ready ? `${m.code} váz beszúrása` : 'Ez a számítás még nem érhető el';
+    insert.title = m.ready ? `${m.code} – ${m.name}: a kód vázának beszúrása` : 'Ez a számítás még nem érhető el';
     insert.append(el('span', 'chip', m.code), el('span', 'label', m.name));
     if (m.ready) insert.addEventListener('click', () => insertAtCursor(m.template));
     li.append(insert);
@@ -209,6 +244,7 @@ $('btn-new').addEventListener('click', () => {
   if (editor.value.trim() !== '' && editor.value !== lastLoadedSource && !confirm('Az új munkaterület törli a jelenlegi tartalmat. Folytatod?')) return;
   editor.value = '';
   lastLoadedSource = '';
+  setFileName('Névtelen.gcd');
   editor.dispatchEvent(new Event('input'));
   compute();
   editor.focus();
@@ -222,11 +258,89 @@ fileOpen.addEventListener('change', async () => {
   if (!f) return;
   editor.value = await readText(f);
   lastLoadedSource = editor.value;
+  setFileName(f.name);
   editor.dispatchEvent(new Event('input'));
   compute();
 });
 
-$('btn-save').addEventListener('click', () => download('munka.gcd', editor.value));
+$('btn-save').addEventListener('click', () => download(fileName, editor.value));
+$('btn-save-as').addEventListener('click', () => {
+  const name = prompt('Az állomány neve:', fileName);
+  if (!name || name.trim() === '') return;
+  setFileName(name.trim());
+  download(fileName, editor.value);
+});
+
+/* ---------- a szerkesztő ikonsora és állapotsora (a valódi program beépített szerkesztője) ---------- */
+function editCommand(cmd: 'undo' | 'cut' | 'copy'): void {
+  editor.focus();
+  // A böngésző saját szerkesztőparancsai a szövegmező visszavonási sorát is megtartják.
+  document.execCommand(cmd);
+}
+$('btn-undo').addEventListener('click', () => editCommand('undo'));
+$('btn-cut').addEventListener('click', () => editCommand('cut'));
+$('btn-copy').addEventListener('click', () => editCommand('copy'));
+$('btn-paste').addEventListener('click', async () => {
+  editor.focus();
+  try {
+    const text = await navigator.clipboard.readText();
+    document.execCommand('insertText', false, text);
+  } catch {
+    shell.setHint('A vágólap olvasását a böngésző nem engedte – használd a Ctrl+V billentyűt.');
+  }
+});
+$('btn-selall').addEventListener('click', () => {
+  editor.focus();
+  editor.select();
+});
+
+const CODES_KEY = 'geocalc-web.codes-panel';
+const codesBtn = $('btn-codes');
+const setCodesPanel = (on: boolean) => {
+  $('calc-codes').hidden = !on;
+  codesBtn.setAttribute('aria-pressed', String(on));
+  storage.set(CODES_KEY, on ? '1' : '0');
+};
+codesBtn.addEventListener('click', () => setCodesPanel($('calc-codes').hidden === true));
+setCodesPanel(storage.get(CODES_KEY) !== '0');
+
+let overwrite = false;
+const edPos = $('ed-pos');
+const edMode = $('ed-mode');
+function updateCaret(): void {
+  const upto = editor.value.slice(0, editor.selectionStart);
+  const line = upto.split('\n').length;
+  const col = upto.length - upto.lastIndexOf('\n');
+  edPos.textContent = `${line}:${col}`;
+}
+for (const ev of ['keyup', 'click', 'select', 'input', 'focus']) editor.addEventListener(ev, updateCaret);
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Insert' && !e.shiftKey && !e.ctrlKey) {
+    overwrite = !overwrite;
+    edMode.textContent = overwrite ? 'Átírás' : 'Beszúrás';
+    e.preventDefault();
+  }
+});
+// Átíró módban a beírt karakter a kurzor utáni karaktert váltja fel (sor végén nem nyel el sortörést).
+editor.addEventListener('beforeinput', (e) => {
+  if (!overwrite || e.inputType !== 'insertText') return;
+  const { selectionStart: s, selectionEnd: end, value } = editor;
+  if (s === end && s < value.length && value[s] !== '\n' && value[s] !== '\r') editor.setSelectionRange(s, s + 1);
+});
+
+let zoom = 100;
+const applyZoom = () => {
+  $('results').style.zoom = String(zoom / 100);
+  $('zoom-level').textContent = `${zoom}%`;
+};
+$('btn-zoom-in').addEventListener('click', () => {
+  zoom = Math.min(200, zoom + 10);
+  applyZoom();
+});
+$('btn-zoom-out').addEventListener('click', () => {
+  zoom = Math.max(50, zoom - 10);
+  applyZoom();
+});
 
 const fileCoords = $<HTMLInputElement>('file-coords');
 $('btn-files').addEventListener('click', () => fileCoords.click());
@@ -261,7 +375,7 @@ document.addEventListener('keydown', (e) => {
   // A menükben kiírt gyorsbillentyűk (Fájl, Szerkesztés) valóban működnek.
   if (key === 's') {
     e.preventDefault();
-    download('munka.gcd', editor.value);
+    download(fileName, editor.value);
   } else if (key === 'o') {
     e.preventDefault();
     fileOpen.click();
@@ -271,7 +385,7 @@ document.addEventListener('keydown', (e) => {
   } else if (key === 'p') {
     e.preventDefault();
     window.print();
-  } else if (key === 'a' && (!typingInForm() || document.activeElement === editor)) {
+  } else if (key === 'a' && shell.active() === 'calc' && (!typingInForm() || document.activeElement === editor)) {
     e.preventDefault();
     editor.focus();
     editor.select();
@@ -355,13 +469,18 @@ function sessionLoad(): void {
   input.click();
 }
 
-/* ---------- a burok: menüsor, ikonsáv, munkalapok, állapotsor ---------- */
+/* ---------- a burok: menüsor, ikonsáv, navigátor, munkalapok, állapotsor ---------- */
 setCodeProvider(() => MODULES.map((m) => ({ id: m.code, name: m.name })));
+
+// A JS-ben épülő munkalapok a burok előtt jönnek létre, hogy a navigátor már megtalálja őket.
+initAboutView();
+initGeoConvertView();
+const generalSettings = initGeneralSettingsView({ sessionSave: () => sessionSave(), sessionLoad: () => sessionLoad() });
 
 const shell = initShell({
   new: () => $<HTMLButtonElement>('btn-new').click(),
   open: () => fileOpen.click(),
-  save: () => download('munka.gcd', editor.value),
+  save: () => download(fileName, editor.value),
   print: () => window.print(),
   run: () => compute(),
   'session-save': sessionSave,
@@ -382,10 +501,12 @@ const shell = initShell({
     saveDraft(editor.value);
     shell.setHint('A beállítások mentve a böngésző tárolójába.');
   },
-  about: () => shell.open('help'),
+  about: () => shell.open('about'),
 });
 
 shell.onShow((id) => {
+  rememberSheet(id);
+  if (id === 'general-settings') generalSettings.refresh();
   if (id === 'coords') renderCoordsPreview(last);
   if (id === 'descriptor') refreshDescriptor();
   if (id === 'exchange-coords') refreshExchange();
@@ -435,4 +556,5 @@ onMeta(() => {
 });
 compute();
 renderCoordsPreview(last);
-shell.open('calc');
+const first = startSheet();
+shell.open(SHEETS.some((x) => x.id === first) ? first : 'about');

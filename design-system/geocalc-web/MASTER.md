@@ -7,8 +7,14 @@
 > A generátor eredeti kimenete csak történeti hivatkozás.
 
 **Project:** GEOkalkulus 1.0
-**Irány:** klasszikus Win32 / Delphi VCL (a valódi program külleme)
-**Utolsó frissítés:** 2026-10-19
+**Irány:** a GeoCalc 3.5 Delphi-alkalmazás külleme (a súgóba ágyazott képernyőképek szerint)
+**Utolsó frissítés:** 2026-10-24
+
+> **2026-10-24 – a burok a valódi GeoCalc 3.5-höz igazítva.** A súgó-program (`gc35_help.exe`)
+> tömörített tartalmából kibontott 195 képernyőkép szerint a valódi program **nem MDI**: bal oldalon
+> lenyitható modulpanel (navigátor), jobbra egyetlen munkalap kékeszöld `Modul / Lap` fejléccel,
+> alul dátumos-órás állapotsor. A színeket ezekről a képekről mértük. A képek a program
+> szerzői jogi védelem alatt álló részei, ezért nem kerülnek a repóba; az ikonok és a jelkép saját rajzok.
 
 > **Névhasználat:** a program neve **GEOkalkulus 1.0**; a kimeneti fájl `dist/GEOkalkulus-1.0.html`.
 > Az eredeti **formátumneveket** (GeoCalc adatbázis / GeoCalc-DB, `.PYX`, `.PYX2`, `FOK.PPMMSS`,
@@ -27,7 +33,7 @@
 | Árnyék | `box-shadow`-alapú mélység | `inset`/`outset` 3D keretek | A klasszikus Windows mélységet keretpárokkal adja. |
 | Gomb hover | `transform: translateY(-1px)` | keret + háttér váltás | Nincs elmozdulás (layout-shifting hover tiltva). |
 | Mozgás | GSAP scroll reveal | nincs animáció | Eszköz; a tartalom nem jelenhet meg késleltetve. |
-| Oldalminta | Hero + Features + CTA | menüsor + ikonsáv + MDI ablakok + állapotsor | Alkalmazás-héj, nem landoló oldal. |
+| Oldalminta | Hero + Features + CTA | menüsor + ikonsáv + modulpanel + munkalap + állapotsor | Alkalmazás-héj, nem landoló oldal. |
 
 ---
 
@@ -35,18 +41,26 @@
 
 | Token | Érték | Szerep |
 |---|---|---|
-| `--face` | `#d4d0c8` | gomb/ablak alap (klasszikus) |
+| `--face` | `#ebe7e2` | ablak- és panelszín (a GeoCalc 3.5 meleg szürkéje) |
 | `--face-hi` | `#ffffff` | 3D-s keret világos éle |
-| `--face-sh` | `#808080` | 3D-s keret sötét éle |
-| `--face-sh2` | `#404040` | 3D-s keret legkülső sötét éle |
+| `--face-sh` | `#a39d95` | 3D-s keret sötét éle |
+| `--face-sh2` | `#6c6862` | 3D-s keret legkülső sötét éle |
 | `--field` | `#ffffff` | beviteli mező háttere |
 | `--text` / `--text-dim` | `#000000` / `#4a4a4a` | szöveg / másodlagos szöveg |
-| `--disabled` | `#808080` | letiltott szöveg |
-| `--select` / `--select-text` | `#000080` / `#ffffff` | kijelölés (menü, lista) |
-| `--title-1/2/3` | `#0a246a` / `#3a6ea5` / `#6f9fd0` | aktív címsor színátmenete |
-| `--mdi-bg` | `#808080` | MDI munkaterület háttere |
+| `--disabled` | `#8c8780` | letiltott szöveg |
+| `--select` / `--select-text` | `#316ac5` / `#ffffff` | kijelölés (menü, lista) |
+| `--menu-bg` | `#f9f8f6` | lenyíló menü háttere |
+| `--title-1/2/3` | `#4b6072` / `#64798a` / `#8397a5` | a címsor palaszürke színátmenete |
+| `--page-1` / `--page-2` | `#008080` / `#2b8c91` | a munkalap-fejléc kékeszöld színátmenete |
+| `--accent` | `#0f6f73` | csoportfeliratok, jelölőnégyzetek |
+| `--nav-bg-1/2` | `#c9c5c0` / `#a29f9b` | a modulpanel háttere (függőleges színátmenet) |
+| `--nav-head` / `--nav-head-text` | `#e6e0da` / `#2f3b4a` | csoportfejléc |
+| `--nav-body` | `#f1eeea` | a csoport pontjainak háttere |
+| `--nav-special-1/2` | `#3c4756` / `#6d7685` | a kiemelt (Beállítások) csoport fejléce |
+| `--client-bg` | `#e4e0db` | a munkalap mögötti terület |
 | `--font` | `Tahoma, "Segoe UI", Verdana, sans-serif` | alap betűtípus, 11 px |
 | `--mono` | `Consolas, "Lucida Console", monospace` | szerkesztő és kód |
+| `--report-font` | `"Courier New", Courier, monospace` | jegyzőkönyv (a valódi riportgenerátor betűje) |
 
 **3D-s keret (kiemelés):** `border: 1px solid; border-color: #fff #404040 #404040 #fff;`
 **3D-s keret (besüllyesztés):** `border-color: #404040 #fff #fff #404040;`
@@ -56,8 +70,9 @@
 ## Komponensek
 
 ### Ablak és címsor
-`.window` (függőleges flex) → `.titlebar` (navy színátmenet, fehér félkövér szöveg, `– □ ✕` gombok,
-a bezárás piros) → tartalom → `.statusbar`.
+`.window` (függőleges flex) → `.titlebar` (palaszürke színátmenet, fehér félkövér szöveg, díszítő
+`– □ ✕` gombok) → `.menubar` → `.toolbar` → `.workspace` (navigátor + elválasztó + munkalap) →
+`.statusbar` (dátum, idő, üzenet, összegzés, aktív munkalap).
 
 ### Menüsor
 `.menubar` + `.menu-btn` (hover/open esetén keret, illetve `--select` háttér).
@@ -70,10 +85,15 @@ A lenyíló `.menu-drop` 240 px, 2 px belső margó, 3D keret, árnyék.
 lenyomásra besüllyesztett). `.tb-sep` csoportelválasztó. Az ikonok SVG-sprite-ból (`<use href>`),
 16 px, 1,75 px vonalvastagság, `stroke: currentColor`.
 
-### MDI munkalap-ablak
-`.mdiwin` (abszolút, 3D keret, árnyék; `.maximized` esetén `inset: 0`, árnyék nélkül).
-`.mdiwin-title` – inaktívan szürke, aktívan navy színátmenet; a `.mdiwin-buttons` három gombja
-(`data-act="min|max|close"`). Az ablak húzással mozgatható (csak visszaállított méretben).
+### Modulpanel (navigátor)
+`.navigator` (190 px, függőleges szürke színátmenet) → `.nav-group` (`.special` a sötét fejlécű
+Beállítások) → `.nav-head` (félkövér felirat + kerek `.nav-chevron` ˄/˅; kattintásra összecsuk) →
+`.nav-items` → `.nav-item` (hoverre aláhúzott kék, az aktív `.current` kékeszöld félkövér).
+A `.nav-splitter` kis nyila a panelt elrejti (`body.nav-hidden`).
+
+### Munkalap
+`.mdiwin` (egyszerre egy látszik, `inset: 0`). `.mdiwin-title` – kékeszöld színátmenet, fehér, 17 px
+félkövér Verdana: `Modul / Lap` (a navigátor pontja szerint). `.mdiwin-body` 6 px belső margó.
 
 ### Elrendezés a munkalapon
 `.split` (bal oldali `.sidepanel` + jobb oldali `.panes`), `.panes` (két `.pane` egymás mellett),
@@ -84,8 +104,17 @@ lenyomásra besüllyesztett). `.tb-sep` csoportelválasztó. Az ikonok SVG-sprit
 fókusznál 1 px navy belső körvonal.
 
 ### Eredmény (jegyzőkönyv)
-`.results` szürke „nyomtatási vászon”, rajta `.card` (fehér lap, navy fejlécsáv, `.table-wrap`
-görgethető, ragadós fejléc és első oszlop, `tabular-nums`). A `.card .footer` a lábjegyzetek.
+`.results` szürke „nyomtatási vászon”, rajta `.card` (fehér lap, `--report-font` írógépes betűk,
+szaggatott vonalas fejléc – a valódi riportgenerátor mintájára; `.table-wrap` görgethető, ragadós
+fejléc és első oszlop, `tabular-nums`). A `.card .footer` a lábjegyzetek.
+
+### Geodéziai számítások / Munkaterület
+`.edit-toolbar` – a valódi szerkesztő ikonsora (`button.ib` 24×23 px ikongombok: Új, Megnyitás,
+Mentés, Mentés másként | Visszavonás, Kivágás, Másolás, Beillesztés, Minden kijelölése | Kódok
+kapcsoló; `button.run` Számítás). `.calc-split`: `#calc-codes` kódlista, `.editor-pane` (szerkesztő +
+`.editor-status`: sor:oszlop, Beszúrás/Átírás, állománynév), `.preview-pane` „Előkép” (riportnézegető:
+`.preview-toolbar` nyomtatás/szöveg/nagyítás, `.report-tree` fejezetfa, `.preview-paper-wrap` sötét
+vászon, rajta a `.results.paper` fehér lap). Keskeny Előképben (container query) a fejezetfa elrejtve.
 
 ### Jegyzőkönyv-előlap (`.cover`)
 A jegyzőkönyv első kártyája (`data-role="cover"`), a valódi program előlapjának mintájára:
