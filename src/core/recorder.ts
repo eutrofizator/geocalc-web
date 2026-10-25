@@ -44,6 +44,11 @@ export const RECORDER_TYPES: RecorderType[] = [
     label: 'FOIF (FieldGenius / SurvCE RW5)',
     note: 'A FOIF műszereken futó FieldGenius és SurvCE nyers állománya (Carlson/TDS RW5); a Carlson/TDS RW5 is.',
   },
+  {
+    id: 'foif-mes',
+    label: 'FOIF (MES nyers mérés)',
+    note: 'A FOIF műszer nyers mérési állománya (.MES): álláspont (A) és mérés (F) rekordok, 1/7200 fokos szögek.',
+  },
 ];
 
 export type ReductionMode = 'none' | 'external' | 'projection';

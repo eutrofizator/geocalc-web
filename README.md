@@ -124,14 +124,11 @@ változási vázrajz területszámításához:
   (mérési vonal); szabatosan felmért terület – 16. § (1) a) (± 0,10 m megjelölt, ± 0,20 m meg nem
   jelölt határ); a hosszakra az E) táblázat (fekvés szerint). A mérési vonal hossza szerint 50–300 m
   között lineárisan interpolál. `tests/boundary-check.test.ts`
-- **Kitűzési jegyzőkönyv (.MES)** – a terepi adatgyűjtő kitűzési naplója (A: álláspont, B/C/D/K: tájékozás,
-  szabad álláspont; H: kitűzendő pont, F: kitűzött pont, J: eltérés). A „Kitűzési jegyzőkönyv (.MES)…”
-  a kitűzött pontokat a mért pontok közé, a tervezett pontokat (ha még nincsenek) a koordinátákhoz tölti,
-  így a határpont-azonosítás azonnal kiértékeli a kitűzés eltéréseit a 7. melléklet szerint; az ismételt
-  kitűzésből az utolsó számít, a J rekord és a koordináták ellentmondását jelzi. Egy valódi kitűzésen
-  ellenőrizve (19 kitűzött pont, a kitűzött koordináta-jegyzékkel 0,5 mm-en belül). A koordinátamezők az
-  ITR koordinátajegyzékét (pontszám, Y, X, Z, pontkód, középhiba) és a címkoordináta CSV-t is olvassák, a
-  fejlécsorokat kihagyják. `tests/stakeout-mes.test.ts`
+- **Kitűzési jegyzőkönyv (.txt)** – a „Kitűzési jegyzőkönyv (.txt)…” a kitűzött pontok jegyzékét
+  (pontszám, Y, X [, Z], pl. az ITR-ből mentett `…_kituzott.txt`) a mért pontok közé tölti, így a
+  határpont-azonosítás azonnal kiértékeli a kitűzés eltéréseit a 7. melléklet szerint. A koordinátamezők
+  az ITR koordinátajegyzékét (pontszám, Y, X, Z, pontkód, középhiba) és a címkoordináta CSV-t is
+  olvassák, a fejlécsorokat kihagyják.
 - **Igazgatási szolgáltatási díjak (1/2024. (I. 30.) KTM rendelet)** – tájékoztató díjszámítás a
   jegyzőkönyvben: telekalakítás engedélyezése (10. §), a változási vázrajz vizsgálata (12–15. §:
   földrészlethatár a változás utáni földrészletek száma szerint, építmény, társasház, művelési ág, jog és
@@ -224,6 +221,11 @@ irány).
   - **Geodimeter** (címke=érték): 2= álláspont, 3= műszermagasság, 5= pont, 4= kód, 6= jelmagasság,
     7= Hz, 8= V, 9= ferde, 11= vízszintes távolság.
   - **Topcon GTS-7**: UNITS, STN, BS/FS/SS, SD/HD/HV rekordok.
+  - **FOIF MES** – a FOIF műszer nyers mérési állománya (.MES): álláspont (A: pontszám, X, Y, H,
+    műszermagasság) és mérés (F: irány, magassági szög, vízszintes és ferde távolság, jelmagasság); a
+    szögek egysége 1/7200 fok, a magassági szög 360° − zenitszög alakú. Egy valódi kitűzési
+    állományon ellenőrizve: az irány a koordinátákból számolt irányszöggel, a vízszintes távolság a
+    koordinátákból számolt távolsággal egyezik.
   - **FOIF** (a FOIF műszereken futó FieldGenius és SurvCE nyers állománya) és **Carlson/TDS RW5**:
     MO (szög- és távolságegység), OC, LS (HI, HR), BK, SS/TR/BD/BR/FD/FR (AR, ZE, SD/HD).
   - A **szögegység** választható azokhoz a formátumokhoz, amelyek nem jelölik (Geodimeter, UNITS nélküli
@@ -435,13 +437,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 555 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 553 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **346 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **348 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -547,7 +549,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 47 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 46 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

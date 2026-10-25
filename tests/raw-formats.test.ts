@@ -184,3 +184,31 @@ describe('felismerés és konvertálás', () => {
     expect(() => parseFieldData('x', 'geoprofi-mjk')).toThrow(/mintaállományt/);
   });
 });
+
+describe('FOIF nyers mérés (.MES)', () => {
+  // A szögek 1/7200 fokban: 1140869 → 158.4540°; V = 1944932 → 270.1294° = 360° − 89.8706° zenitszög.
+  const mes = [
+    ' PROBA1,87,87,9,10,23,15,40,30,0,0,5,-34,9971,240,128,13,1,1,0,0,',
+    'A,1,240000.0000,650000.0000,0.0000,1.5600,3,9,10,23,15,57,27,',
+    'K,0,1,0.0035,0.0050,0.1353,9,10,23,15,57,27,',
+    'H,101,------,239981.0000,650007.5000,0.0000,0,2,9,10,23,16,9,31,',
+    'F,101,1140869,1944932,20.4299,20.4300,0.0461,1.5500,239981.0000,650007.5000,0.0461,0,2,9,10,23,16,9,31,------,',
+    'J,101,0.0000,0.0000,-0.0461,9,10,23,16,9,32,',
+  ].join('\r\n');
+
+  it('álláspont (A) és mérés (F): irány, zenitszög, vízszintes és ferde távolság, jelmagasság', () => {
+    expect(detectFieldFormat(mes)).toBe('foif-mes');
+    const r = parseFieldData(mes, 'foif-mes');
+    expect(r.issues).toEqual([]);
+    expect(r.rows.map((x) => `${x.kind}:${x.id}`)).toEqual(['station:1', 'obs:101']);
+    expect(r.rows[0]!.mm).toBe(1.56);
+    const o = r.rows[1]!;
+    expect(o.hz).toBeCloseTo(1140869 / 7200, 9);
+    expect(o.zi).toBeCloseTo(360 - 1944932 / 7200, 9);
+    expect(o).toMatchObject({ tv: 20.4299, tf: 20.43, mj: 1.55 });
+  });
+
+  it('mérés álláspont nélkül hibát ad', () => {
+    expect(parseFieldData('F,101,1,1,1,1,0,1.5,0,0,0,', 'foif-mes').issues[0]!.message).toMatch(/álláspont/);
+  });
+});

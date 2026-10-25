@@ -393,5 +393,5 @@ export function initFieldBookView(deps: FieldBookDeps): void {
   }
   render();
   if (rows.length > 0) setStatus(`A munkaterületen: ${counts()}.`);
-  else setStatus('Válaszd ki az adatrögzítő típusát, majd olvasd be a mérési adatokat (GeoCalc GMJ, Leica GSI, Sokkia SDR, Topcon GTS-7, Geodimeter, FOIF/Carlson RW5).');
+  else setStatus('Válaszd ki az adatrögzítő típusát, majd olvasd be a mérési adatokat (GeoCalc GMJ, Leica GSI, Sokkia SDR, Topcon GTS-7, Geodimeter, FOIF MES, FOIF/Carlson RW5).');
 }

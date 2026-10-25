@@ -2,7 +2,7 @@ import { encodeWindows1250, readDat, writeDat, type DatImport } from './core/dat
 import { checkBoundary, type Area, type CheckOptions, type MapKind, type PointOrder } from './core/boundary-check';
 import { CHANGE_KINDS, feesSection, type ChangeKind } from './core/fees';
 import { sectionsToText } from './core/format';
-import { readStakeoutMes } from './core/stakeout-mes';
+import { parseMeasured } from './core/boundary-check';
 import { writeLst } from './core/lst';
 import { decodeText, mergeRegistered, readCadastralDxf, readRegisteredAreas, readZip, type CadastralMap, type RegisteredParcel } from './core/land-office';
 import { polygonArea } from './core/geometry';
@@ -187,21 +187,21 @@ export function initParcelView(): void {
   const markedLabel = el('label', 'check');
   markedLabel.append(markedChk, el('span', undefined, 'Szabatosan megjelölt határ (± 0,10 m, különben ± 0,20 m)'));
   const measured = area('pc-measured', 5);
-  const mesBtn = button('pc-mes-open', 'Kitűzési jegyzőkönyv (.MES)…', 'A kitűzés terepi naplója: a tervezett pontok a koordinátákhoz, a kitűzött pontok a mért pontokhoz kerülnek');
-  const mesFile = el('input');
-  mesFile.type = 'file';
-  mesFile.accept = '.mes,.MES,text/plain';
-  mesFile.hidden = true;
-  mesFile.id = 'pc-mes-input';
-  const mesAct = el('div', 'pane-actions');
-  mesAct.append(mesBtn, mesFile);
+  const stakeBtn = button('pc-stake-open', 'Kitűzési jegyzőkönyv (.txt)…', 'A kitűzött pontok jegyzéke (pontszám, Y, X [, Z]) a mért pontok közé');
+  const stakeFile = el('input');
+  stakeFile.type = 'file';
+  stakeFile.accept = '.txt,.csv,.koo,text/plain';
+  stakeFile.hidden = true;
+  stakeFile.id = 'pc-stake-input';
+  const stakeAct = el('div', 'pane-actions');
+  stakeAct.append(stakeBtn, stakeFile);
   const g4 = el('div', 'grid3');
   g4.append(labelled('Az alaptérkép készítése', mapKindSel), labelled('Fekvés', areaSel), labelled('Alapértelmezett rendűség', orderSel));
   chk.append(
     g4,
     markedLabel,
     labelled('Mért pontok (pontszám, Y, X [, R1–R4])', measured),
-    mesAct,
+    stakeAct,
     el(
       'p',
       'hint',
@@ -759,30 +759,15 @@ export function initParcelView(): void {
     if (f) await openDat(f);
   });
   datSaveBtn.addEventListener('click', saveDat);
-  mesBtn.addEventListener('click', () => mesFile.click());
-  mesFile.addEventListener('change', async () => {
-    const f = mesFile.files?.[0];
-    mesFile.value = '';
+  stakeBtn.addEventListener('click', () => stakeFile.click());
+  stakeFile.addEventListener('change', async () => {
+    const f = stakeFile.files?.[0];
+    stakeFile.value = '';
     if (!f) return;
-    const log = readStakeoutMes(await readText(f));
-    datNotes = log.warnings.map((message) => ({ level: 'warning' as const, message: `MES: ${message}` }));
-    if (log.points.length === 0) {
-      datNotes.unshift({ level: 'error', message: `MES: a(z) ${f.name} állományban nincs kitűzött pont.` });
-      run();
-      return;
-    }
-    // A tervezett pontok a koordinátákhoz (a meglévő – pl. DAT-ból betöltött – térképi koordináta marad).
-    const known = parsePoints(coords.value).points;
-    const add = [...log.design.values()].filter((p) => !known.has(p.id)).map((p) => `${p.id}  ${p.y.toFixed(3)}  ${p.x.toFixed(3)}`);
-    if (add.length > 0) coords.value = `${coords.value.replace(/\s*$/, '')}\n# kitűzési jegyzőkönyv (${log.job}) tervezett pontjai\n${add.join('\n')}`;
-    measured.value = log.points.map((p) => `${p.id}  ${p.staked.y.toFixed(3)}  ${p.staked.x.toFixed(3)}`).join('\n');
-    datNotes.push({
-      level: 'info',
-      message:
-        `MES: ${f.name} (${log.job}) – ${log.stations.length} álláspont, ${log.points.length} kitűzött pont` +
-        (log.notStaked.length > 0 ? `; nem kitűzött: ${log.notStaked.join(', ')}` : '') +
-        (add.length > 0 ? `; ${add.length} tervezett pont a koordinátákhoz került.` : '.'),
-    });
+    const text = await readText(f);
+    const parsed = parseMeasured(text);
+    measured.value = text.replace(/\s+$/, '');
+    datNotes = [{ level: parsed.points.size > 0 ? 'info' : 'error', message: `Kitűzési jegyzőkönyv: ${f.name} – ${parsed.points.size} kitűzött pont.` }];
     run();
   });
   lstBtn.addEventListener('click', () => {

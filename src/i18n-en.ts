@@ -188,8 +188,8 @@ export const EN: Record<string, string> = {
   'Beolvasott pontok': 'Loaded points',
   'Nincs mit konvertálni: előbb olvasd be a mérési adatokat.': 'Nothing to convert: load the measurements first.',
   'A mérési adatok a Hálózatkiegyenlítés munkaterületére kerültek.': 'The measurements were moved to the Network adjustment workspace.',
-  'Válaszd ki az adatrögzítő típusát, majd olvasd be a mérési adatokat (GeoCalc GMJ, Leica GSI, Sokkia SDR, Topcon GTS-7, Geodimeter, FOIF/Carlson RW5).':
-    'Choose the data recorder type, then load the measurements (GeoCalc GMJ, Leica GSI, Sokkia SDR, Topcon GTS-7, Geodimeter, FOIF/Carlson RW5).',
+  'Válaszd ki az adatrögzítő típusát, majd olvasd be a mérési adatokat (GeoCalc GMJ, Leica GSI, Sokkia SDR, Topcon GTS-7, Geodimeter, FOIF MES, FOIF/Carlson RW5).':
+    'Choose the data recorder type, then load the measurements (GeoCalc GMJ, Leica GSI, Sokkia SDR, Topcon GTS-7, Geodimeter, FOIF MES, FOIF/Carlson RW5).',
   'Jelöld ki a mérés(eke)t a táblázatban (kattintás, Shift + kattintás).': 'Select observation(s) in the table (click, Shift + click).',
   'Nincs középelendő bal/jobb irány (a pontszám után -b/-j vagy _b/_j kell).': 'No left/right readings to average (the point id needs a -b/-j or _b/_j suffix).',
   'Nincs középelhető irány: ugyanarra a pontszámra I. és II. távcsőállású mérés kell (a II. állás zenitszöge 180° fölötti).':
@@ -865,8 +865,8 @@ export const EN: Record<string, string> = {
   'Közigazgatási vagy fekvéshatár módosítása': 'Administrative or area boundary change',
   'Használati megosztás': 'Use division',
   'Földrészlethatár-kitűzési vázrajz': 'Boundary setting-out plan',
-  'Kitűzési jegyzőkönyv (.MES)…': 'Stake-out log (.MES)…',
-  'A kitűzés terepi naplója: a tervezett pontok a koordinátákhoz, a kitűzött pontok a mért pontokhoz kerülnek': 'The field stake-out log: design points go to the coordinates, staked points to the measured points',
+  'Kitűzési jegyzőkönyv (.txt)…': 'Stake-out list (.txt)…',
+  'A kitűzött pontok jegyzéke (pontszám, Y, X [, Z]) a mért pontok közé': 'The list of staked points (point, Y, X [, Z]) into the measured points',
   'Területkimutatás': 'Area statement',
   'A területszámítás jegyzőkönyvének mentése': 'Save the area calculation report',
   'A földrészletek vázlata': 'Parcel sketch',
@@ -941,6 +941,7 @@ export const EN_PATTERNS: [RegExp, string | ((m: RegExpMatchArray) => string)][]
   [/^(\d+) földrészlet előtte, (\d+) utána · tulajdoni lapi összeg (\d+) m²(?: · végleges összeg (\d+) m²)? · (?:(\d+) hiba|rendben)$/, (m) =>
       `${m[1]} parcel(s) before, ${m[2]} after · registered total ${m[3]} m²` + (m[4] ? ` · final total ${m[4]} m²` : '') + (m[5] ? ` · ${m[5]} error(s)` : ' · OK')],
   [/^DAT: (.+) – (\d+) pont, (\d+) földrészlet(.*)\.$/, 'DAT: $1 – $2 points, $3 parcels$4.'],
+  [/^Kitűzési jegyzőkönyv: (.+) – (\d+) kitűzött pont\.$/, 'Stake-out list: $1 – $2 staked points.'],
   [/^Területosztás: (.+)$/, 'Area division: $1'],
   [/^A számítás nem futott le: (.+)$/, 'The calculation did not run: $1'],
   [/^A feldolgozás nem futott le: (.+)$/, 'Processing did not run: $1'],

@@ -690,6 +690,56 @@ export function parseRw5(text: string): FieldParseResult {
 }
 
 /** Az adatrögzítő típusa szerinti beolvasás. */
+/**
+ * FOIF nyers mérés (.MES): vesszővel tagolt rekordok, az első mező a fajtájuk. A szögek egysége
+ * 1/7200 fok (0,5″); a vízszintes irány tájékozott irány, a magassági szög 360° − zenitszög
+ * alakú (pl. 270.13° = 89.87° zenitszög). A rekordok:
+ * - A: álláspont – pontszám, X, Y, H, műszermagasság;
+ * - F: mérés (kitűzés) – pontszám, Hz, V, vízszintes távolság, ferde távolság, magasságkülönbség,
+ *   jelmagasság, majd a számított X, Y, H;
+ * - H: kitűzendő pont, J: kitűzési eltérés, B/C/D/K: tájékozás és szabad álláspont (ezek nem mérések).
+ * Az ellenőrzés: a valódi állományban a Hz/7200 a koordinátákból számolt irányszöggel, a 4. mező a
+ * koordinátákból számolt távolsággal egyezik.
+ */
+export function parseFoifMes(text: string): FieldParseResult {
+  const rows: FieldRow[] = [];
+  const issues: Issue[] = [];
+  const unit = 7200;
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const f = raw.trim().split(',').map((x) => x.trim());
+    const n = (k: number) => {
+      const v = Number(f[k]);
+      return f[k] !== undefined && f[k] !== '' && Number.isFinite(v) ? v : null;
+    };
+    switch (f[0]) {
+      case 'A': {
+        const st = emptyRow('station', f[1] ?? '');
+        st.mm = n(5);
+        rows.push(st);
+        break;
+      }
+      case 'F': {
+        if (!rows.some((r) => r.kind === 'station')) {
+          issues.push({ level: 'error', message: `${f[1]}: mérés álláspont (A rekord) előtt.`, line: i + 1 });
+          return;
+        }
+        const hz = n(2);
+        const v = n(3);
+        const o = emptyRow('obs', f[1] ?? '');
+        o.hz = hz === null ? null : (((hz / unit) % 360) + 360) % 360;
+        o.zi = v === null ? null : v / unit > 180 ? 360 - v / unit : v / unit;
+        o.tv = n(4);
+        o.tf = n(5);
+        o.mj = n(7);
+        rows.push(o);
+        break;
+      }
+    }
+  });
+  if (rows.length === 0) issues.push({ level: 'error', message: 'Az állományban nincs álláspont (A) és mérés (F) rekord.' });
+  return { rows, issues, format: 'FOIF MES' };
+}
+
 export function parseFieldData(text: string, recorder: string, opts: FieldParseOptions = {}): FieldParseResult {
   switch (recorder) {
     case 'geocalc-ar':
@@ -708,6 +758,8 @@ export function parseFieldData(text: string, recorder: string, opts: FieldParseO
       return parseGts7(text, opts.angleUnit ?? 'dms');
     case 'foif-rw5':
       return parseRw5(text);
+    case 'foif-mes':
+      return parseFoifMes(text);
     default:
       throw new CalcError(
         'Ehhez az adatrögzítő-típushoz még nincs beolvasó. Küldj egy mintaállományt a műszerből, vagy mentsd az adatokat a gyári programmal GSI vagy GeoCalc GMJ formátumba.',
@@ -723,6 +775,7 @@ export function detectFieldFormat(text: string): string | null {
   if (/,-[12]\s*$/.test(first) || /,\s*-[12](,|\s*$)/.test(first)) return 'geocalc-ar';
   if (/^00NM/.test(first) || lines.some((l) => /^09(F1|F2|MD|MC)/.test(l))) return 'sokkia-sdr-n';
   if (lines.some((l) => /^(MO|OC|LS|BK|SS|TR),/.test(l))) return 'foif-rw5';
+  if (lines.some((l) => /^A,/.test(l)) && lines.some((l) => /^F,/.test(l))) return 'foif-mes';
   if (/^GTS-?7/i.test(first) || lines.some((l) => /^(STN|BS|FS|SS)[ ,]/.test(l)) && lines.some((l) => /^(SD|HD|HV)[ ,]/.test(l))) return 'topcon';
   if (lines.slice(0, 20).filter((l) => /^\d+=/.test(l)).length >= 3) return 'geodimeter-uds';
   return null;
