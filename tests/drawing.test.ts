@@ -69,9 +69,9 @@ describe('rajzelemek', () => {
 
   it('a vázrajzon az új épület vastag vonallal, a felirat és a szomszéd hrsz', () => {
     const { svg } = renderPlan('change', input, meta);
-    expect(svg).toMatch(/<polygon points="[^"]+" fill="none" stroke="#000" stroke-width="0\.5"\/>/);
+    expect(svg).toMatch(/<polygon points="[^"]+" fill="none" stroke="#000" stroke-width="0\.6"\/>/);
     expect(svg).toContain('>35<');
-    expect(svg).toContain('fill="#777">101<');
+    expect(svg).toContain('font-style="italic" text-anchor="middle">101<');
   });
 
   it('DXF: R12, ANSI_1250, a rétegek a földhivatali nevekkel, EOV Y → X, EOV X → Y', () => {

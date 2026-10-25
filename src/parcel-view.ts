@@ -781,13 +781,18 @@ export function initParcelView(): void {
     const ring = (ids: string[]) => ids.map((id) => pts.get(id)!);
     const bDefs = parseParcels(before.value, true, '').parcels.filter((p) => p.points.every((id) => pts.has(id)));
     const finals = new Map(st.after.map((a) => [a.hrsz, a.final]));
+    const elements = parseDrawing(drawing.value, pts).elements;
+    const subs = subsFor(elements, st);
+    const mp = parseMeasured(measured.value).points;
     return {
       before: bDefs.map((p) => ({ hrsz: p.hrsz, ring: ring(p.points), area: p.registered ?? st.before.find((b) => b.hrsz === p.hrsz)?.technical })),
       after: afterRings().map((p) => ({ ...p, area: finals.get(p.hrsz) })),
       address: plAddr.checked ? addressPoints() : [],
-      measured: new Set(parseMeasured(measured.value).points.keys()),
-      drawing: parseDrawing(drawing.value, pts).elements,
+      measured: new Set(mp.keys()),
+      measuredPts: mp,
+      drawing: elements,
       background,
+      subs: { before: subs.before, after: subs.after },
     };
   }
 

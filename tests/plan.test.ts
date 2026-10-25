@@ -3,11 +3,14 @@ import {
   chooseScale,
   coordinateList,
   generateAddressPoints,
+  haM2,
   parsePointAttrs,
   pointGroup,
   renderPlan,
+  subjectSentence,
   type PlanMeta,
 } from '../src/core/plan';
+import { JOBS } from '../src/core/jobs';
 
 /** Koordinátajegyzék, címkoordináták és a vázrajz (8/2018. AM rendelet 4., 10., 15. melléklet, 46. §). */
 
@@ -97,23 +100,53 @@ describe('vázrajz', () => {
     expect(chooseScale(400, 300, 190, 150)).toBe(4000);
   });
 
-  it('a változási vázrajz fejléce, a megszűnő és az új helyrajzi szám, az új határ', () => {
-    const { svg, scale } = renderPlan('change', input, meta);
+  it('a változási vázrajz a 15. melléklet mintája szerint: fejléc, tárgymondat, területkimutatás ha.m²-ben, lábrész', () => {
+    const { svg, scale } = renderPlan('change', input, meta, { template: JOBS.subdivision.plan, job: 'subdivision' });
     expect(scale).toBe(500);
-    for (const s of ['VÁLTOZÁSI VÁZRAJZ', 'telekfelosztás', 'Hrsz: 100, 100/1, 100/2', 'Iktatószám: 700/1/2026', 'Méretarány: 1:500', 'A változás akaratunknak megfelelően történt:', 'A vázrajz méretek levételére nem alkalmas.', 'Területkimutatás', 'Címkoordináták'])
+    for (const s of [
+      'VÁLTOZÁSI VÁZRAJZ',
+      'a 100 helyrajzi számú földrészlet megosztásáról',
+      'Munka száma: 12/2026',
+      'Adatszolg. ikt.sz.: 700/1/2026',
+      'M= 1:500',
+      'A változás akaratunknak megfelelően történt:',
+      'A vázrajz méretek levételére nem alkalmas.',
+      'Változás előtti állapot',
+      'Változás utáni állapot',
+      'Szolgalmi és egyéb jogok',
+      '>0.1000<',
+      '>0.0300<',
+      '>0.0700<',
+      'Címkoordináták 100/1 hrsz',
+      'Szükség esetén:',
+      'földminősítési záradék',
+      'Az 51. § (1) bekezdés szerinti záradékszöveg.',
+    ])
       expect(svg).toContain(s);
-    // Az új határ (U1–U2) vastag vonallal.
+    // Az új határ (U1–U2) vastag vonallal; az oszlopszámozás 1–14.
     expect(svg).toMatch(/stroke-width="0\.7"/);
-    // A megszűnő 100 helyrajzi szám szürke, áthúzva; az új 100/1 vastagon.
-    expect(svg).toMatch(/fill="#555">100<\/text>/);
+    expect(svg).toContain('font-weight="bold">14<');
+    // Az új 100/1 vastagon; a megszűnő 100 áthúzva.
     expect(svg).toMatch(/font-weight="bold">100\/1<\/text>/);
+    expect(svg).toMatch(/font-style="italic">100<\/text><line /);
   });
 
-  it('a mérési vázlat az új határ természetbeni méretével és a záradékkal', () => {
-    const { svg } = renderPlan('sketch', { ...input, measured: new Set(['U1']) }, meta);
+  it('ha.m² alak és tárgymondat egyesítésnél', () => {
+    expect(haM2(1102)).toBe('0.1102');
+    expect(haM2(12345.4)).toBe('1.2345');
+    expect(subjectSentence('subdivision', { before: input.after, after: input.before, address: [] }, '')).toBe('a 100/1, 100/2 helyrajzi számú földrészletek egyesítéséről');
+  });
+
+  it('a mérési vázlat (10/A. minta) a 11. melléklet színeivel: mért zöld, új piros', () => {
+    const measuredPts = new Map([['U1', { y: 650012.01, x: 240000 }], ['U2', { y: 650012, x: 240025.02 }]]);
+    const { svg } = renderPlan('sketch', { ...input, measured: new Set(['U1', 'U2']), measuredPts }, meta, { template: JOBS.subdivision.sketch, job: 'subdivision' });
     expect(svg).toContain('MÉRÉSI VÁZLAT');
     expect(svg).toContain('>25.00<');
     expect(svg).toContain('-val jelöltem meg.');
-    expect(svg).toMatch(/<rect x="[\d.]+" y="[\d.]+" width="1\.6" height="1\.6" fill="#000"\/>/);
+    expect(svg).toContain('A …………. sz. záradékolt munkából átvett méretek.');
+    // A mért távolság zölden, dőlten, aláhúzva; a mért pontszám zölden.
+    expect(svg).toMatch(/text-decoration="underline" fill="#118a2e"[^>]*>25\.02</);
+    expect(svg).toMatch(/fill="#118a2e">U1</);
+    expect(svg).not.toContain('Változás előtti állapot');
   });
 });

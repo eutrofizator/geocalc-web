@@ -129,15 +129,26 @@ változási vázrajz területszámításához:
   határpont-azonosítás azonnal kiértékeli a kitűzés eltéréseit a 7. melléklet szerint. A koordinátamezők
   az ITR koordinátajegyzékét (pontszám, Y, X, Z, pontkód, középhiba) és a címkoordináta CSV-t is
   olvassák, a fejlécsorokat kihagyják.
-- **Változási vázrajz és mérési vázlat (8/2018. AM rendelet 15. és 10. melléklet)** – nyomtatható A4 oldal
-  (Nyomtatás / PDF, SVG): fejléc (készítő, székhely, munkaszám, település, fekvés, az adatszolgáltatás
-  iktatószáma, a vázrajz megnevezése a helyrajzi számokkal, méretarány), térképi kivágat szabványos
-  méretarányban (a megszűnő határ szaggatottan áthúzva, a megszűnő helyrajzi szám áthúzva, az új határ és
-  az új helyrajzi szám vastagon, a pontszámok, a címkoordináták jele, északjel), a területkimutatás és a
-  címkoordináták, valamint a lábrész („A változás akaratunknak megfelelően történt:”, „A vázrajz méretek
-  levételére nem alkalmas.”, záradék és aláírás helye, földmérő igazolvány száma). A mérési vázlat az új
-  földrészletek oldalainak természetbeni méreteit, a mért pontokat és a 10. melléklet záradékát mutatja.
-  A töréspont beszúrásával kettévált, de nem változott határvonalat nem jelöli változásként.
+- **Változási vázrajz és mérési vázlat (8/2018. AM rendelet 10., 11., 15., 17., 19., 27–28. melléklet)** –
+  nyomtatható A4 oldal (Nyomtatás / PDF, SVG) a földhivatal által közzétett mellékletminták elrendezésében:
+  bal felül a vállalkozás neve, székhelye és a munkaszám, jobb felül a település, a fekvés és az
+  adatszolgáltatás iktatószáma; középen a felirat, a tárgymondat (pl. „a 100 helyrajzi számú földrészlet
+  megosztásáról”, „…egyesítéséről”, „…telekhatár-rendezéséről”, „…földrészleten lévő épület
+  feltüntetéséhez”, „…művelési ág változásáról”, „…kitűzéséről”) és az „M= 1:500” méretarány; keret
+  nélküli térképi kivágat szabványos méretarányban (a megszűnő határ áthúzva, a megszűnő helyrajzi szám
+  áthúzva, az új határ és az új helyrajzi szám vastagon, a pontszámok, a címkoordináták jele és
+  helyrajzi számonkénti „Címkoordináták … hrsz” táblázata, északjel), „A vázrajz méretek levételére nem
+  alkalmas.”; a területkimutatás a minták táblázatával („Változás előtti / utáni állapot”, Hrsz,
+  alrészlet jel, művelési ág, minőségi osztály, terület ha.m²-ben, AK; telekalakításnál és művelési
+  ágnál „Szolgalmi és egyéb jogok” és „Megjegyzés” – 14 oszlop –, épületfeltüntetésnél „Jegyzet” – 13
+  oszlop –, oszlopszámozással, alrészletenként, „Összesen” sorral); a lábrész a minták szövegeivel
+  („A változás akaratunknak megfelelően történt:”, „Készítés helye, időpontja:”, „Készítő: … földmérő
+  ig. száma:”, „Minőséget tanúsító: … Ing.rend.min.sz.:”, „Szükség esetén:” keret, a 30. § (2)–(3)
+  szerinti földminősítési záradék kerete, az 51. § (1) vagy (2) szerinti záradék helye). A mérési
+  vázlat a 11. melléklet színeivel készül: a mért pontszám és a mért távolság zöld, dőlt, aláhúzott; az
+  új (kitűzött) pontszám és a kitűzési méret piros, aláhúzott; a lábrészen „A … sz. záradékolt munkából
+  átvett méretek.” és „A változással érintett földrészlet új határpontjait …-val jelöltem meg.”. A
+  töréspont beszúrásával kettévált, de nem változott határvonalat nem jelöli változásként.
 - **Munkák és leadandó munkarészek** – a „Munka” csoportban a munka fajtája: **kitűzés**,
   **telekalakítás**, **épületfeltüntetés**, **művelési ág változás**. Ez szabja meg a rajzok feliratát
   és lábrészét a 8/2018. AM rendelet szerint (kitűzés: KITŰZÉSI VÁZLAT / VÁZRAJZ, 27–28. melléklet, a

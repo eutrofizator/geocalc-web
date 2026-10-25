@@ -1247,7 +1247,7 @@ async function main() {
   await check('a címkoordináták táblázata a változás utáni földrészletekhez', `[...document.querySelectorAll('#pc-results .card')].find((c) => c.querySelector('h3').textContent === 'Címkoordináták').querySelectorAll('tbody tr').length`, 2);
   await evalJs(`document.getElementById('pc-plan-change').click()`);
   await sleep(200);
-  await check('a változási vázrajz előnézete (15. melléklet)', `(() => { const t = document.querySelector('#pc-plan svg').textContent; return ['VÁLTOZÁSI VÁZRAJZ', 'Területkimutatás', 'A változás akaratunknak megfelelően történt:', 'Méretarány: 1:'].every((s) => t.includes(s)); })()`, true);
+  await check('a változási vázrajz előnézete (15. melléklet)', `(() => { const t = document.querySelector('#pc-plan svg').textContent; return ['VÁLTOZÁSI VÁZRAJZ', 'Változás előtti állapot', 'Változás utáni állapot', 'A változás akaratunknak megfelelően történt:', 'M= 1:', 'helyrajzi számú földrészlet'].every((s) => t.includes(s)); })()`, true);
   await evalJs(`document.getElementById('pc-plan-sketch').click()`);
   await sleep(200);
   await check('a mérési vázlat előnézete (10. melléklet)', `document.querySelector('#pc-plan svg').textContent.includes('MÉRÉSI VÁZLAT')`, true);
@@ -1269,7 +1269,7 @@ async function main() {
   await check('a hibás rajzelem sorszámmal jelez', `/Rajzelemek 4\. sor: ismeretlen épülettípus/.test(document.getElementById('pc-issues').textContent)`, true);
   await evalJs(`document.getElementById('pc-plan-change').click()`);
   await sleep(200);
-  await check('az új épület a vázrajzon (vastag vonal) és a házszám', `(() => { const s = document.querySelector('#pc-plan svg'); return !!s.querySelector('polygon[stroke-width="0.5"]') && s.textContent.includes('35'); })()`, true);
+  await check('az új épület a vázrajzon (vastag vonal) és a házszám', `(() => { const s = document.querySelector('#pc-plan svg'); return !!s.querySelector('polygon[stroke-width="0.6"]') && s.textContent.includes('35'); })()`, true);
   await evalJs(`document.getElementById('pc-plan-dxf').click()`);
   await sleep(900);
   checkNode('a vázrajz DXF-ben a földhivatali rétegekkel', (() => {
@@ -1284,7 +1284,7 @@ async function main() {
   await evalJs(`document.getElementById('pc-sample').click()`);
   await evalJs(`(() => { const j = document.getElementById('pc-job'); j.value = 'setout'; j.dispatchEvent(new Event('change')); document.getElementById('pc-plan-change').click(); return true; })()`);
   await sleep(200);
-  await check('kitűzésnél a rajz KITŰZÉSI VÁZRAJZ a 43. § (3) feliratával', `(() => { const t = document.querySelector('#pc-plan svg').textContent; return t.includes('KITŰZÉSI VÁZRAJZ') && t.includes('43. § (3)'); })()`, true);
+  await check('kitűzésnél a rajz KITŰZÉSI VÁZRAJZ a 43. § (3) szerinti felirattal (28. melléklet)', `(() => { const t = document.querySelector('#pc-plan svg').textContent; return t.includes('KITŰZÉSI VÁZRAJZ') && t.includes('határpontjait') && t.includes('Nyilvántartásba véve:'); })()`, true);
   await evalJs(`(() => { const j = document.getElementById('pc-job'); j.value = 'subdivision'; j.dispatchEvent(new Event('change')); document.getElementById('pc-package').click(); return true; })()`);
   await sleep(900);
   await check('a leadandó csomag elkészül (telekalakítás: 8 mappa)', `(() => { const t = document.getElementById('pc-issues').textContent; return t.includes('_subdivision.zip') && t.includes('(8 mappa)'); })()`, true);

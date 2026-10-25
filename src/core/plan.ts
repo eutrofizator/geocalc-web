@@ -2,7 +2,7 @@ import { interiorPoint } from './dat';
 import { landUseLabel, type DrawingElement } from './drawing';
 import type { DxfEntity } from './dxf-writer';
 import type { LayerKey } from './layers';
-import type { JobKind, PlanTemplate } from './jobs';
+import type { FooterItem, JobKind, PlanTemplate } from './jobs';
 import { fix } from './format';
 import { distance, polygonArea, type Pt } from './geometry';
 import type { NamedPt } from './parcel';
@@ -163,6 +163,10 @@ export interface PlanInput {
   drawing?: DrawingElement[];
   /** A környezet (a szomszédos földrészletek és épületek) az adatszolgáltatásból. */
   background?: { parcels: PlanParcel[]; buildings: { layer: LayerKey; ring: NamedPt[] }[] };
+  /** Az alrészletek a területkimutatáshoz (változás előtt és után). */
+  subs?: { before: { hrsz: string; letter: string; use: string; area: number }[]; after: { hrsz: string; letter: string; use: string; area: number }[] };
+  /** A mért pontok koordinátái (a vázlaton a mért távolságokhoz). */
+  measuredPts?: Map<string, Pt>;
 }
 
 /** A határvonalak és a helyrajzi számok besorolása: változatlan, megszűnő, új. */
@@ -283,17 +287,23 @@ const m2 = (a: number | undefined) => (a === undefined ? '' : Math.round(a).toLo
 const DEFAULT_TEMPLATES: Record<'change' | 'sketch', PlanTemplate> = {
   change: {
     title: 'VÁLTOZÁSI VÁZRAJZ',
-    footer: ['A változás akaratunknak megfelelően történt:', '§sign', 'A vázrajz méretek levételére nem alkalmas.'],
-    stampBox: 'Záradék (51. § (1)):',
-    areaTable: true,
+    subject: 'auto',
+    left: ['sign', 'place', 'maker', 'cert'],
+    right: ['optional', 'soil', 'clause511'],
+    notForMeasure: 'A vázrajz méretek levételére nem alkalmas.',
+    areaTable: 'full',
     dimensions: false,
+    colored: false,
   },
   sketch: {
     title: 'MÉRÉSI VÁZLAT',
-    footer: ['A változással érintett földrészlet új határpontjait', '.......................................... -val jelöltem meg.'],
-    stampBox: '',
-    areaTable: false,
+    subject: 'auto',
+    left: ['place', 'taken', 'maker'],
+    right: ['newmarked', 'cert'],
+    notForMeasure: '',
+    areaTable: null,
     dimensions: true,
+    colored: true,
   },
 };
 
@@ -322,13 +332,76 @@ function dimensionEdges(input: PlanInput, job: JobKind | undefined): [NamedPt, N
   return [...edges(input.after.filter((p) => !beforeHrsz.has(p.hrsz))).values()];
 }
 
+/** A tárgymondat a mellékletminták szerint (pl. „a 12242 helyrajzi számú földrészlet megosztásáról”). */
+export function subjectSentence(subject: JobKind | 'auto', input: PlanInput, fallback: string): string {
+  const bh = [...new Set(input.before.map((p) => p.hrsz))].sort(byNumber);
+  const ah = [...new Set(input.after.map((p) => p.hrsz))].sort(byNumber);
+  const list = (h: string[]) => (h.length === 1 ? `a ${h[0]} helyrajzi számú földrészlet` : `a ${h.join(', ')} helyrajzi számú földrészletek`);
+  switch (subject) {
+    case 'setout':
+      return `${list(ah.length ? ah : bh)} kitűzéséről`;
+    case 'building':
+      return `a ${(ah.length ? ah : bh).join(', ')} helyrajzi számú földrészlet${ah.length > 1 ? 'ek' : ''}en lévő épület feltüntetéséhez`;
+    case 'landuse':
+      return `${list(ah.length ? ah : bh)} művelési ág változásáról`;
+    case 'subdivision':
+      if (bh.length === 1 && ah.length > 1) return `${list(bh)} megosztásáról`;
+      if (bh.length > 1 && ah.length === 1) return `${list(bh)} egyesítéséről`;
+      return `${list(bh)} telekhatár-rendezéséről`;
+    default:
+      return fallback;
+  }
+}
+
+/** Terület „ha.m²” alakban (1102 m² → 0.1102; 12 345 m² → 1.2345). */
+export const haM2 = (m2: number | undefined) => {
+  if (m2 === undefined || !Number.isFinite(m2)) return '';
+  const a = Math.round(m2);
+  return `${Math.floor(a / 10000)}.${String(a % 10000).padStart(4, '0')}`;
+};
+
+const RED = '#d01010';
+const GREEN = '#118a2e';
+const BLUE = '#1530c0';
+
+/**
+ * A4 álló oldal (210 × 297 mm) a földhivatal által közzétett mellékletminták elrendezésében: bal felül a
+ * vállalkozás neve, székhelye és a munkaszám, jobb felül a település, a fekvés és az adatszolgáltatás
+ * iktatószáma; középen a felirat, a tárgymondat és a méretarány; keret nélküli térképi kivágat; a
+ * területkimutatás 14 (13) oszlopos táblázata ha.m² területekkel; a lábrész a minták szerinti
+ * feliratokkal, aláírás- és záradékhelyekkel.
+ */
 export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta, opts: PlanOptions = {}): { svg: string; scale: number } {
   const tpl = opts.template ?? DEFAULT_TEMPLATES[kind];
   const W = 210;
   const H = 297;
-  const M = 10;
-  const header = { x: M, y: M, w: W - 2 * M, h: 30 };
-  const frame = { x: M, y: header.y + header.h + 2, w: W - 2 * M, h: 150 };
+  const M = 12;
+  const out: string[] = [];
+  const t = (x: number, y: number, s: string, size = 3, extra = '') =>
+    out.push(`<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-size="${size}" ${extra}>${esc(s)}</text>`);
+  const it = 'font-style="italic"';
+  const bi = 'font-weight="bold" font-style="italic"';
+
+  // Fejléc a minták szerint (keret nélkül)
+  t(M, 17, meta.keszito || 'Geodéziai vállalkozás neve', 4, bi);
+  t(M, 22, meta.szekhely || 'Székhelyének címe', 3.2, it);
+  t(M, 26.5, `Munka száma: ${meta.munkaszam}`, 3.2, 'font-weight="bold"');
+  t(W - M, 17, meta.telepules || 'Település neve', 4.4, `${it} text-anchor="end"`);
+  t(W - M, 22, meta.fekves || 'fekvés (kerület)', 3.2, `${it} text-anchor="end"`);
+  t(W - M, 26.5, `Adatszolg. ikt.sz.: ${meta.iktatoszam || '………/……….'}`, 3.2, `${it} text-anchor="end"`);
+  t(W / 2, 38, tpl.title, 8, `${bi} text-anchor="middle"`);
+  t(W / 2, 45.5, subjectSentence(tpl.subject, input, meta.megnevezes), 4.4, `${it} text-anchor="middle"`);
+
+  // A térképi kivágat helye: a táblázat és a lábrész alatta
+  const subRows = input.subs ?? { before: [], after: [] };
+  const tableRows = tpl.areaTable ? Math.max(rowsFor(input.before, subRows.before).length, rowsFor(input.after, subRows.after).length, 1) : 0;
+  const tableH = tpl.areaTable ? 15.5 + (tableRows + 1) * 5.5 : 0;
+  const footerH = 58;
+  const fy = H - M - footerH;
+  const mapTop = 54;
+  const mapBottom = fy - (tableH ? tableH + 11 : 0) - 8;
+  const frame = { x: M, y: mapTop, w: W - 2 * M, h: mapBottom - mapTop };
+
   const all = [...input.before, ...input.after].flatMap((p) => p.ring);
   const ys = all.map((p) => p.y);
   const xs = all.map((p) => p.x);
@@ -338,224 +411,390 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   const maxX = Math.max(...xs);
   const pad = 0.15;
   const scale = chooseScale((maxY - minY) * (1 + 2 * pad) || 1, (maxX - minX) * (1 + 2 * pad) || 1, frame.w, frame.h);
+  t(W / 2, 51.5, `M= 1:${scale}`, 3.8, `${it} text-anchor="middle"`);
   const k = 1000 / scale; // mm / m
   const cy = (minY + maxY) / 2;
   const cx = (minX + maxX) / 2;
   const sx = (y: number) => frame.x + frame.w / 2 + (y - cy) * k;
   const sy = (x: number) => frame.y + frame.h / 2 - (x - cx) * k;
-  const out: string[] = [];
-  const t = (x: number, y: number, s: string, size = 3, extra = '') =>
-    out.push(`<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-size="${size}" ${extra}>${esc(s)}</text>`);
-  const line = (a: Pt, b: Pt, w: number, extra = '') =>
-    out.push(`<line x1="${sx(a.y).toFixed(2)}" y1="${sy(a.x).toFixed(2)}" x2="${sx(b.y).toFixed(2)}" y2="${sy(b.x).toFixed(2)}" stroke="#000" stroke-width="${w}" ${extra}/>`);
-
-  // Fejléc (15. / 10. melléklet 1. pont)
-  out.push(`<rect x="${header.x}" y="${header.y}" width="${header.w}" height="${header.h}" fill="none" stroke="#000" stroke-width="0.3"/>`);
-  out.push(`<line x1="${header.x + 60}" y1="${header.y}" x2="${header.x + 60}" y2="${header.y + header.h}" stroke="#000" stroke-width="0.2"/>`);
-  out.push(`<line x1="${header.x + header.w - 60}" y1="${header.y}" x2="${header.x + header.w - 60}" y2="${header.y + header.h}" stroke="#000" stroke-width="0.2"/>`);
-  t(header.x + 2, header.y + 5, meta.keszito || 'Készítő', 3, 'font-weight="bold"');
-  t(header.x + 2, header.y + 10, meta.szekhely, 2.6);
-  t(header.x + 2, header.y + 16, `Munkaszám: ${meta.munkaszam}`, 2.6);
-  const mid = header.x + header.w / 2;
-  t(mid, header.y + 9, tpl.title, 5, 'font-weight="bold" text-anchor="middle"');
-  t(mid, header.y + 16, meta.megnevezes, 3, 'text-anchor="middle"');
-  const hrszList = [...new Set([...input.before, ...input.after].map((p) => p.hrsz))].sort(byNumber).join(', ');
-  t(mid, header.y + 22, `Hrsz: ${hrszList}`, 2.8, 'text-anchor="middle"');
-  const right = header.x + header.w - 58;
-  t(right, header.y + 5, meta.telepules, 3, 'font-weight="bold"');
-  t(right, header.y + 10, meta.fekves, 2.6);
-  t(right, header.y + 16, `Iktatószám: ${meta.iktatoszam}`, 2.6);
-  t(right, header.y + 22, `Méretarány: 1:${scale}`, 2.8, 'font-weight="bold"');
-
-  // Térképi kivágat
-  out.push(`<rect x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${frame.h}" fill="none" stroke="#000" stroke-width="0.3"/>`);
-  out.push(`<g clip-path="url(#frame)">`);
-  // Környezet: a szomszédos földrészletek és épületek vékony szürke vonallal.
+  const line = (a: Pt, b: Pt, w: number, extra = '', color = '#000') =>
+    out.push(`<line x1="${sx(a.y).toFixed(2)}" y1="${sy(a.x).toFixed(2)}" x2="${sx(b.y).toFixed(2)}" y2="${sy(b.x).toFixed(2)}" stroke="${color}" stroke-width="${w}" ${extra}/>`);
   const poly = (ring: Pt[], closed: boolean, attrs: string) =>
-    out.push(
-      `<${closed ? 'polygon' : 'polyline'} points="${ring.map((q) => `${sx(q.y).toFixed(2)},${sy(q.x).toFixed(2)}`).join(' ')}" fill="none" ${attrs}/>`,
-    );
+    out.push(`<${closed ? 'polygon' : 'polyline'} points="${ring.map((q) => `${sx(q.y).toFixed(2)},${sy(q.x).toFixed(2)}`).join(' ')}" fill="none" ${attrs}/>`);
+
+  out.push(`<g clip-path="url(#frame)">`);
+  // Környezet
   const own = new Set([...input.before, ...input.after].map((p) => p.hrsz));
   for (const p of input.background?.parcels ?? [])
     if (!own.has(p.hrsz)) {
-      poly(p.ring, true, 'stroke="#777" stroke-width="0.15"');
+      poly(p.ring, true, 'stroke="#000" stroke-width="0.18"');
       const c = centroid(p.ring);
-      t(sx(c.y), sy(c.x), p.hrsz, 2.4, 'text-anchor="middle" fill="#777"');
+      t(sx(c.y), sy(c.x), p.hrsz, 2.8, `${it} text-anchor="middle"`);
     }
-  for (const b of input.background?.buildings ?? []) poly(b.ring, true, 'stroke="#777" stroke-width="0.15"');
-  const be = edges(input.before);
-  const af = edges(input.after);
-  for (const [key, [a, b]] of be)
-    if (!af.has(key) && !covered(a, b, af)) {
-      // Megszűnő határvonal: vékony szaggatott vonal, két áthúzással.
-      line(a, b, 0.25, 'stroke-dasharray="1.5 1"');
-      const m = { y: (a.y + b.y) / 2, x: (a.x + b.x) / 2 };
-      out.push(`<path d="M ${(sx(m.y) - 1.2).toFixed(2)} ${(sy(m.x) - 1.2).toFixed(2)} l 2.4 2.4 m 0 -2.4 l -2.4 2.4" stroke="#000" stroke-width="0.3"/>`);
-    } else line(a, b, 0.3);
-  const lengths: [NamedPt, NamedPt][] = [];
-  for (const [key, [a, b]] of af)
-    if (!be.has(key) && !liesOn(a, b, be)) {
-      line(a, b, 0.7); // új határ vastag vonallal
-      lengths.push([a, b]);
+  for (const b of input.background?.buildings ?? []) poly(b.ring, true, 'stroke="#000" stroke-width="0.18"');
+
+  // Határvonalak: változatlan vékony, megszűnő áthúzva, új vastag
+  const cls = classifyPlan(input);
+  for (const [a, b] of cls.kept) line(a, b, 0.25);
+  for (const [a, b] of cls.removed) {
+    line(a, b, 0.25, 'stroke-dasharray="1.5 1"');
+    const m = { y: (a.y + b.y) / 2, x: (a.x + b.x) / 2 };
+    // dupla megszüntető vonal
+    out.push(`<path d="M ${(sx(m.y) - 1.4).toFixed(2)} ${(sy(m.x) - 1.6).toFixed(2)} l 1.6 3.2 M ${(sx(m.y) + 0.2).toFixed(2)} ${(sy(m.x) - 1.6).toFixed(2)} l 1.6 3.2" stroke="#000" stroke-width="0.35"/>`);
+  }
+  for (const [a, b] of cls.added) line(a, b, 0.7, '', tpl.colored ? RED : '#000');
+
+  // Rajzelemek
+  const obstacles = (input.drawing ?? []).flatMap((d) => (d.kind === 'building' ? [d.ring] : []));
+  const hasNewSubs = (input.drawing ?? []).some((d) => d.kind === 'sub' && d.isNew);
+  // a helyrajzi számok helye foglalt az alrészlet-feliratok elől
+  const subLabels: [number, number][] = [...cls.sameHrsz, ...cls.newHrsz].map((p) => {
+    const c = labelPoint(p.ring, obstacles);
+    return [sx(c.y), sy(c.x) - 2.5];
+  });
+  const subEdges = (input.drawing ?? []).flatMap((d) => (d.kind === 'sub' || d.kind === 'building' ? d.ring.map((a, i): [Pt, Pt] => [a, d.ring[(i + 1) % d.ring.length]!]) : []));
+  // az új alrészletek felirata kerül előbb a helyére
+  const ordered = [...(input.drawing ?? [])].sort((p, q) => Number(q.kind === 'sub' && q.isNew) - Number(p.kind === 'sub' && p.isNew));
+  for (const d of ordered) {
+    if (d.kind === 'building') {
+      if (d.type === 'new') poly(d.ring, true, 'stroke="#000" stroke-width="0.6"');
+      else if (d.type === 'old') {
+        poly(d.ring, true, 'stroke="#000" stroke-width="0.25"');
+        d.ring.forEach((a, i) => {
+          const b = d.ring[(i + 1) % d.ring.length]!;
+          const m = { y: (a.y + b.y) / 2, x: (a.x + b.x) / 2 };
+          out.push(`<path d="M ${(sx(m.y) - 1.2).toFixed(2)} ${(sy(m.x) - 1.4).toFixed(2)} l 1.4 2.8 M ${(sx(m.y) + 0.2).toFixed(2)} ${(sy(m.x) - 1.4).toFixed(2)} l 1.4 2.8" stroke="#000" stroke-width="0.4"/>`);
+        });
+      } else if (d.type === 'wall') poly(d.ring, true, 'stroke="#000" stroke-width="0.18" stroke-dasharray="1.5 0.5"');
+      else poly(d.ring, true, 'stroke="#000" stroke-width="0.25"');
+    } else if (d.kind === 'sub') {
+      // 19. melléklet: az új alrészlethatár rövid szaggatott vastag, a megszűnő felirat áthúzva, az új vastagon
+      const ending = !d.isNew && hasNewSubs;
+      poly(d.ring, true, `stroke="#000" stroke-width="${d.isNew ? 0.45 : 0.2}" stroke-dasharray="${d.isNew ? '2 1' : '0.5 0.6'}"`);
+      const c = labelPoint(d.ring, obstacles);
+      // a megszűnő felirat az új alrészlet felirata mellé kerül, nem rá
+      const spots: [number, number][] = ending ? [[0, 11], [14, 4], [-14, 4], [0, -6], [14, 11], [-14, 11], [0, -14], [0, 18]] : [[0, 4], [0, 11], [12, 4], [-12, 4]];
+      const onLine = (x: number, y: number) =>
+        subEdges.some(([a, b]) => {
+          const ax = sx(a.y), ay = sy(a.x), bx = sx(b.y), by = sy(b.x);
+          const l2 = (bx - ax) ** 2 + (by - ay) ** 2 || 1;
+          const u = Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l2));
+          return Math.hypot(ax + u * (bx - ax) - x, ay + u * (by - ay) - y) < 5;
+        });
+      const [dx, dy] =
+        spots.find(([ox, oy]) => !onLine(sx(c.y) + ox, sy(c.x) + oy) && subLabels.every(([px, py]) => Math.abs(sx(c.y) + ox - px) > 11 || Math.abs(sy(c.x) + oy - py) > 7)) ?? spots[0]!;
+      const lx = sx(c.y) + dx;
+      const ly = sy(c.x) + dy;
+      subLabels.push([lx, ly]);
+      t(lx, ly, d.letter, 2.8, `text-anchor="middle" ${it}${d.isNew ? ' font-weight="bold"' : ''}`);
+      t(lx, ly + 3.4, landUseLabel(d.use), 2.6, `text-anchor="middle" ${it}${d.isNew ? ' font-weight="bold"' : ''}`);
+      if (ending) {
+        const w = Math.max(landUseLabel(d.use).length * 1.4, 3);
+        out.push(`<line x1="${(lx - w / 2).toFixed(2)}" y1="${(ly - 1.2).toFixed(2)}" x2="${(lx + w / 2).toFixed(2)}" y2="${(ly + 2.6).toFixed(2)}" stroke="#000" stroke-width="0.35"/>`);
+      }
+    } else if (d.kind === 'polyline') poly(d.pts, false, `stroke="#000" stroke-width="0.2"${d.layer === 'fence' ? ' stroke-dasharray="2 1"' : d.layer === 'servitude' ? ' stroke-dasharray="3 1"' : ''}`);
+    else {
+      const x = sx(d.at.y);
+      const y = sy(d.at.x);
+      t(x, y, d.text, d.layer === 'houseNo' ? 2.6 : 3, `text-anchor="middle" ${it}${d.rotation ? ` transform="rotate(${(-d.rotation).toFixed(1)} ${x.toFixed(2)} ${y.toFixed(2)})"` : ''}`);
     }
-  // Méretek: a mérési vázlaton az új földrészletek / épület / alrészletek oldalai (10. melléklet 2. b)),
-  // a kitűzési vázrajzon és vázlaton a kitűzött földrészlet kitűzési méretei (27–28. melléklet).
+  }
+
+  // Méretek: a vázlaton és a kitűzési vázrajzon (11. melléklet: kitűzési méret aláhúzva, mért zölden)
   if (tpl.dimensions)
     for (const [a, b] of dimensionEdges(input, opts.job)) {
       const ang = (Math.atan2(sy(b.x) - sy(a.x), sx(b.y) - sx(a.y)) * 180) / Math.PI;
-      const rot = ang > 90 || ang < -90 ? ang + 180 : ang;
+      const rot = ang >= 90 ? ang - 180 : ang < -90 ? ang + 180 : ang;
       const mx = (sx(a.y) + sx(b.y)) / 2;
       const my = (sy(a.x) + sy(b.x)) / 2;
-      t(mx, my - 0.8, fix(distance(a, b), 2), 2.4, `text-anchor="middle" transform="rotate(${rot.toFixed(1)} ${mx.toFixed(2)} ${my.toFixed(2)})"`);
+      const tr = `transform="rotate(${rot.toFixed(1)} ${mx.toFixed(2)} ${my.toFixed(2)})"`;
+      const setout = opts.job === 'setout';
+      const color = setout && tpl.colored ? ` fill="${RED}"` : '';
+      t(mx, my - 0.8, fix(distance(a, b), 2), 2.4, `text-anchor="middle"${setout ? ' text-decoration="underline"' : ''}${color} ${tr}`);
+      const ma = input.measuredPts?.get(a.id);
+      const mb = input.measuredPts?.get(b.id);
+      if (tpl.colored && ma && mb) t(mx, my + 2.6, fix(distance(ma, mb), 2), 2.4, `text-anchor="middle" ${it} text-decoration="underline" fill="${GREEN}" ${tr}`);
     }
-  // Helyrajzi számok: a megszűnő áthúzva, az új vastagon.
-  const afterH = new Set(input.after.map((p) => p.hrsz));
-  const beforeH = new Set(input.before.map((p) => p.hrsz));
-  for (const p of input.before)
-    if (!afterH.has(p.hrsz)) {
-      const c = centroid(p.ring);
-      // A felirat helye: a belső pont közelében az első, amely nem esik új határvonalra (a felirat fél szélessége + 1,5 mm).
-      const segDist = (px: number, py: number, a: NamedPt, b: NamedPt) => {
-        const ax = sx(a.y), ay = sy(a.x), bx = sx(b.y), by = sy(b.x);
-        const l2 = (bx - ax) ** 2 + (by - ay) ** 2 || 1;
-        const u = Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / l2));
-        return Math.hypot(ax + u * (bx - ax) - px, ay + u * (by - ay) - py);
-      };
-      const spots: [number, number][] = [[0, 6], [0, -8], [9, 2], [-9, 2], [0, 12], [12, 6], [-12, 6]];
-      const clear = (p.hrsz.length * 1.8) / 2 + 1.5;
-      const free = spots.find(([dx, dy]) => lengths.every(([a, b]) => segDist(sx(c.y) + dx, sy(c.x) + dy - 1, a, b) >= clear)) ?? spots[0]!;
-      const x = sx(c.y) + free[0];
-      const y = sy(c.x) + free[1];
-      t(x, y, p.hrsz, 3.2, 'text-anchor="middle" fill="#555"');
-      const w = p.hrsz.length * 1.8;
-      out.push(`<line x1="${(x - w / 2).toFixed(2)}" y1="${(y - 1).toFixed(2)}" x2="${(x + w / 2).toFixed(2)}" y2="${(y - 1).toFixed(2)}" stroke="#000" stroke-width="0.6"/>`);
-    }
-  const obstacles = (input.drawing ?? []).flatMap((d) => (d.kind === 'building' ? [d.ring] : []));
-  for (const p of input.after) {
+
+  // Helyrajzi számok: a megszűnő áthúzva, az új vastagon (a vázlaton pirosan)
+  const segDist = (px: number, py: number, a: NamedPt, b: NamedPt) => {
+    const ax = sx(a.y), ay = sy(a.x), bx = sx(b.y), by = sy(b.x);
+    const l2 = (bx - ax) ** 2 + (by - ay) ** 2 || 1;
+    const u = Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / l2));
+    return Math.hypot(ax + u * (bx - ax) - px, ay + u * (by - ay) - py);
+  };
+  for (const p of cls.oldHrsz) {
+    const c = centroid(p.ring);
+    const spots: [number, number][] = [[0, 6], [0, -8], [9, 2], [-9, 2], [0, 12], [12, 6], [-12, 6]];
+    const clear = (p.hrsz.length * 1.8) / 2 + 1.5;
+    const free = spots.find(([dx, dy]) => cls.added.every(([a, b]) => segDist(sx(c.y) + dx, sy(c.x) + dy - 1, a, b) >= clear)) ?? spots[0]!;
+    const x = sx(c.y) + free[0];
+    const y = sy(c.x) + free[1];
+    t(x, y, p.hrsz, 3.2, `text-anchor="middle" ${it}`);
+    const w = p.hrsz.length * 1.8;
+    out.push(`<line x1="${(x - w / 2).toFixed(2)}" y1="${(y - 1).toFixed(2)}" x2="${(x + w / 2).toFixed(2)}" y2="${(y - 1).toFixed(2)}" stroke="#000" stroke-width="0.5"/>`);
+  }
+  for (const p of [...cls.sameHrsz, ...cls.newHrsz]) {
     const c = labelPoint(p.ring, obstacles);
-    // A címkoordináta jele a földrészlet belső pontján áll, a helyrajzi szám fölötte.
-    t(sx(c.y), sy(c.x) - 2.5, p.hrsz, 3.4, `text-anchor="middle"${beforeH.has(p.hrsz) ? '' : ' font-weight="bold"'}`);
+    const isNew = cls.newHrsz.includes(p);
+    t(sx(c.y), sy(c.x) - 2.5, p.hrsz, 3.4, `text-anchor="middle" ${it}${isNew ? ` font-weight="bold"${tpl.colored ? ` fill="${RED}"` : ''}` : ''}`);
   }
-  // Rajzelemek: épületek, alrészletek, vonalak, feliratok
-  const hasNewSubs = (input.drawing ?? []).some((d) => d.kind === 'sub' && d.isNew);
-  for (const d of input.drawing ?? []) {
-    if (d.kind === 'building')
-      poly(d.ring, true, d.type === 'new' ? 'stroke="#000" stroke-width="0.5"' : d.type === 'old' ? 'stroke="#000" stroke-width="0.2" stroke-dasharray="1 0.8"' : d.type === 'wall' ? 'stroke="#000" stroke-width="0.18" stroke-dasharray="1.5 0.5"' : 'stroke="#000" stroke-width="0.25"');
-    else if (d.kind === 'sub') {
-      // Ha van kialakuló alrészlet, a meglévők megszűnnek: betűjelük és művelési águk áthúzva (19. melléklet 2. b)).
-      const ending = !d.isNew && hasNewSubs;
-      poly(d.ring, true, `stroke="#000" stroke-width="${d.isNew ? 0.35 : 0.18}" stroke-dasharray="${d.isNew ? '1 0.6' : '0.5 0.5'}"`);
-      const c = labelPoint(d.ring, obstacles);
-      const lx = sx(c.y);
-      const ly = sy(c.x) + (ending ? 11 : 4);
-      t(lx, ly, d.letter, 3, `text-anchor="middle" font-style="italic"${d.isNew ? ' font-weight="bold"' : ending ? ' fill="#555"' : ''}`);
-      t(lx, ly + 3.5, landUseLabel(d.use), 2.4, `text-anchor="middle"${d.isNew ? ' font-weight="bold"' : ending ? ' fill="#555"' : ''}`);
-      if (ending) {
-        const w = Math.max(landUseLabel(d.use).length * 1.4, 3);
-        out.push(`<line x1="${(lx - w / 2).toFixed(2)}" y1="${(ly - 1).toFixed(2)}" x2="${(lx + w / 2).toFixed(2)}" y2="${(ly + 2.6).toFixed(2)}" stroke="#000" stroke-width="0.4"/>`);
-      }
-    } else if (d.kind === 'polyline') poly(d.pts, false, `stroke="#000" stroke-width="0.18"${d.layer === 'fence' ? ' stroke-dasharray="2 1"' : d.layer === 'servitude' ? ' stroke-dasharray="3 1"' : ''}`);
-    else {
-      const size = d.layer === 'houseNo' ? 2.4 : 2.8;
-      const x = sx(d.at.y);
-      const y = sy(d.at.x);
-      t(x, y, d.text, size, `text-anchor="middle"${d.layer === 'street' || d.layer === 'place' ? ' font-style="italic"' : ''}${d.rotation ? ` transform="rotate(${(-d.rotation).toFixed(1)} ${x.toFixed(2)} ${y.toFixed(2)})"` : ''}`);
-    }
-  }
-  // Pontok és pontszámok
+
+  // Pontok és pontszámok (a vázlaton: mért zöld, új / kitűzött piros, aláhúzva)
+  const beforeIds = new Set(input.before.flatMap((p) => p.ring.map((q) => q.id)));
   const seen = new Set<string>();
-  // A földrészletek és a rajzelemek (épület, alrészlet, vonal) töréspontjai.
   const drawingPts = (input.drawing ?? []).flatMap((d) => (d.kind === 'building' || d.kind === 'sub' ? d.ring : d.kind === 'polyline' ? d.pts : []));
   for (const p of [...all, ...drawingPts]) {
     if (seen.has(p.id)) continue;
     seen.add(p.id);
     const measured = input.measured?.has(p.id);
+    const fresh = !beforeIds.has(p.id);
     out.push(
       measured
-        ? `<rect x="${(sx(p.y) - 0.8).toFixed(2)}" y="${(sy(p.x) - 0.8).toFixed(2)}" width="1.6" height="1.6" fill="#000"/>`
-        : `<circle cx="${sx(p.y).toFixed(2)}" cy="${sy(p.x).toFixed(2)}" r="0.6" fill="#fff" stroke="#000" stroke-width="0.25"/>`,
+        ? `<path d="M ${(sx(p.y) - 1).toFixed(2)} ${sy(p.x).toFixed(2)} h 2 M ${sx(p.y).toFixed(2)} ${(sy(p.x) - 1).toFixed(2)} v 2" stroke="${tpl.colored ? GREEN : '#000'}" stroke-width="0.25"/>`
+        : `<circle cx="${sx(p.y).toFixed(2)}" cy="${sy(p.x).toFixed(2)}" r="0.55" fill="#fff" stroke="#000" stroke-width="0.22"/>`,
     );
-    t(sx(p.y) + 1, sy(p.x) - 1, p.id, 2);
+    const style = tpl.colored && measured ? `${it} text-decoration="underline" fill="${GREEN}"` : tpl.colored && fresh ? `text-decoration="underline" fill="${RED}"` : '';
+    t(sx(p.y) + 1, sy(p.x) - 1, p.id, 2, style);
   }
-  // Címkoordináták (jelkulcs: kereszt körben)
+  // Címkoordináták jele
   for (const a of input.address) {
     const x = sx(a.y);
     const y = sy(a.x);
-    out.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="1.2" fill="none" stroke="#000" stroke-width="0.25"/>`);
-    out.push(`<path d="M ${(x - 1.2).toFixed(2)} ${y.toFixed(2)} h 2.4 M ${x.toFixed(2)} ${(y - 1.2).toFixed(2)} v 2.4" stroke="#000" stroke-width="0.2"/>`);
-    t(x + 1.5, y + 2.5, a.id, 2);
+    out.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="1.1" fill="none" stroke="#000" stroke-width="0.25"/>`);
+    out.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="0.35" fill="#000"/>`);
+    t(x + 1.4, y + 2.4, a.id, 2, it);
   }
   out.push('</g>');
-  // Északjel
-  const nx = frame.x + frame.w - 8;
-  const ny = frame.y + 12;
-  out.push(`<path d="M ${nx} ${ny - 7} l 2.5 7 l -2.5 -2 l -2.5 2 z" fill="#000"/>`);
-  t(nx, ny + 4, 'É', 3, 'text-anchor="middle"');
 
-  // Területkimutatás és címkoordináták
-  let y = frame.y + frame.h + 6;
-  if (tpl.areaTable) {
-    t(M, y, 'Területkimutatás', 3.2, 'font-weight="bold"');
-    y += 4.5;
-    t(M, y, 'Változás előtt', 2.6, 'font-weight="bold"');
-    t(M + 95, y, 'Változás után', 2.6, 'font-weight="bold"');
-    const bs = [...input.before].sort((p, q) => byNumber(p.hrsz, q.hrsz));
-    const as = [...input.after].sort((p, q) => byNumber(p.hrsz, q.hrsz));
-    const n = Math.max(bs.length, as.length);
-    for (let i = 0; i < Math.min(n, 8); i++) {
-      y += 3.8;
-      const b = bs[i];
-      const a = as[i];
-      if (b) {
-        t(M, y, b.hrsz, 2.6);
-        t(M + 70, y, `${m2(b.area)} m²`, 2.6, 'text-anchor="end"');
-      }
-      if (a) {
-        t(M + 95, y, a.hrsz, 2.6, afterH.has(a.hrsz) && !beforeH.has(a.hrsz) ? 'font-weight="bold"' : '');
-        t(M + 165, y, `${m2(a.area)} m²`, 2.6, 'text-anchor="end"');
-      }
-    }
-    y += 4.5;
-    const sumB = input.before.reduce((s, p) => s + (p.area ?? 0), 0);
-    const sumA = input.after.reduce((s, p) => s + (p.area ?? 0), 0);
-    t(M, y, 'Összesen', 2.6, 'font-weight="bold"');
-    t(M + 70, y, `${m2(sumB)} m²`, 2.6, 'text-anchor="end" font-weight="bold"');
-    t(M + 165, y, `${m2(sumA)} m²`, 2.6, 'text-anchor="end" font-weight="bold"');
-    if (input.address.length > 0) {
-      y += 6;
-      t(M, y, 'Címkoordináták', 2.8, 'font-weight="bold"');
-      for (const a of input.address.slice(0, 6)) {
-        y += 3.6;
-        t(M, y, `${a.hrsz}   ${a.id}   Y = ${fix(a.y, 0)}   X = ${fix(a.x, 0)}`, 2.5);
-      }
-    }
+  // Címkoordináták táblázata helyrajzi számonként (a kivágat jobb oldalán, a minták szerint)
+  let ty = frame.y + 2;
+  const byHrsz = new Map<string, AddressPoint[]>();
+  for (const a of input.address) byHrsz.set(a.hrsz, [...(byHrsz.get(a.hrsz) ?? []), a]);
+  for (const [h, list] of [...byHrsz].sort((p, q) => byNumber(p[0], q[0]))) {
+    const tx = W - M - 58;
+    const rows = list.length + 2;
+    if (ty + rows * 4.4 > frame.y + frame.h) break;
+    out.push(`<rect x="${tx}" y="${ty.toFixed(2)}" width="58" height="${(rows * 4.4).toFixed(2)}" fill="#fff" stroke="#000" stroke-width="0.25"/>`);
+    t(tx + 29, ty + 3.2, `Címkoordináták ${h} hrsz`, 2.6, 'text-anchor="middle" font-weight="bold"');
+    const cols = [tx, tx + 14, tx + 36, tx + 58];
+    const hy = ty + 4.4;
+    out.push(`<line x1="${tx}" y1="${hy.toFixed(2)}" x2="${tx + 58}" y2="${hy.toFixed(2)}" stroke="#000" stroke-width="0.2"/>`);
+    t(tx + 7, hy + 3.2, 'Psz', 2.5, 'text-anchor="middle" font-weight="bold"');
+    t(tx + 25, hy + 3.2, 'Y', 2.5, 'text-anchor="middle" font-weight="bold"');
+    t(tx + 47, hy + 3.2, 'X', 2.5, 'text-anchor="middle" font-weight="bold"');
+    for (const c of cols.slice(1, 3)) out.push(`<line x1="${c}" y1="${hy.toFixed(2)}" x2="${c}" y2="${(ty + rows * 4.4).toFixed(2)}" stroke="#000" stroke-width="0.2"/>`);
+    list.forEach((a, i) => {
+      const ry = hy + 4.4 * (i + 1);
+      out.push(`<line x1="${tx}" y1="${ry.toFixed(2)}" x2="${tx + 58}" y2="${ry.toFixed(2)}" stroke="#000" stroke-width="0.15"/>`);
+      t(tx + 7, ry + 3.2, a.id, 2.5, 'text-anchor="middle"');
+      t(tx + 25, ry + 3.2, fix(a.y, 0), 2.5, 'text-anchor="middle"');
+      t(tx + 47, ry + 3.2, fix(a.x, 0), 2.5, 'text-anchor="middle"');
+    });
+    ty += rows * 4.4 + 3;
   }
 
-  // Lábrész (15. melléklet 4. pont, illetve 10. melléklet 3. pont)
-  const fy = H - M - 38;
-  out.push(`<rect x="${M}" y="${fy}" width="${W - 2 * M}" height="38" fill="none" stroke="#000" stroke-width="0.3"/>`);
-  out.push(`<line x1="${M + 95}" y1="${fy}" x2="${M + 95}" y2="${fy + 38}" stroke="#000" stroke-width="0.2"/>`);
-  let fl = fy + 5;
-  for (const line of tpl.footer) {
-    if (line === '§sign') {
-      // A tulajdonosok aláírásának helye
-      fl += 6;
-      t(M + 2, fl, '..................................', 2.4);
-      t(M + 50, fl, '..................................', 2.4);
-    } else if (line) t(M + 2, fl, line, 2.5, /nem alkalmas/.test(line) ? 'font-style="italic"' : '');
-    fl += 4.5;
-  }
-  if (kind === 'sketch') t(M + 2, Math.max(fl, fy + 20), '■ mért pont   ○ számított / átvett pont', 2.4);
-  if (tpl.stampBox) t(M + 97, fy + 5, tpl.stampBox, 2.6, 'font-weight="bold"');
-  t(M + 2, fy + 30, `Készült: ${meta.hely} ${meta.datum}`, 2.6);
-  t(M + 2, fy + 35, `${meta.keszito}  ·  földmérő ig. sz.: ${meta.igazolvany}${meta.minosites ? `  ·  IRF minősítés: ${meta.minosites}` : ''}`, 2.4);
-  t(M + 97, fy + 35, 'aláírás, bélyegző', 2.2, 'fill="#555"');
+  // Északjel és a „méretek levételére nem alkalmas” felirat
+  const nx = frame.x + frame.w - 6;
+  out.push(`<path d="M ${nx} ${frame.y + frame.h - 14} l 2.2 6 l -2.2 -1.8 l -2.2 1.8 z" fill="#000"/>`);
+  t(nx, frame.y + frame.h - 4.5, 'É', 2.8, 'text-anchor="middle"');
+  if (tpl.notForMeasure) t(M + 2, frame.y + frame.h + 4, tpl.notForMeasure, 2.8, it);
+
+  // Területkimutatás (5–6. melléklet szerinti oszlopok)
+  if (tpl.areaTable) areaTableSvg(out, t, M, frame.y + frame.h + 7, W - 2 * M, tpl.areaTable, input, subRows);
+
+  // Lábrész
+  footerSvg(out, t, tpl.left, M, fy, 92, meta);
+  footerSvg(out, t, tpl.right, W / 2 + 4, fy + 2, W / 2 - 4 - M, meta);
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">` +
     `<defs><clipPath id="frame"><rect x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${frame.h}"/></clipPath></defs>` +
     `<rect width="${W}" height="${H}" fill="#fff"/>${out.join('')}</svg>`;
   return { svg, scale };
+}
+
+interface SubLike {
+  hrsz: string;
+  letter: string;
+  use: string;
+  area: number;
+}
+
+/** A táblázat sorai egy oldalon: földrészletenként az alrészletek (ha vannak), különben egy sor. */
+function rowsFor(parcels: PlanParcel[], subs: SubLike[]): { hrsz: string; jel: string; use: string; area: number | undefined }[] {
+  const rows: { hrsz: string; jel: string; use: string; area: number | undefined }[] = [];
+  for (const p of [...parcels].sort((a, b) => byNumber(a.hrsz, b.hrsz))) {
+    const list = subs.filter((s) => s.hrsz === p.hrsz);
+    if (list.length === 0) rows.push({ hrsz: p.hrsz, jel: '', use: '', area: p.area });
+    else list.forEach((s, i) => rows.push({ hrsz: i === 0 ? p.hrsz : '', jel: s.letter, use: s.use, area: s.area }));
+  }
+  return rows;
+}
+
+type TextFn = (x: number, y: number, s: string, size?: number, extra?: string) => void;
+
+function areaTableSvg(out: string[], t: TextFn, x0: number, y0: number, w: number, variant: 'full' | 'note', input: PlanInput, subs: { before: SubLike[]; after: SubLike[] }): number {
+  const side = [14, 6, 24, 6, 15, 10]; // hrsz, jel, műv.ága, min.o., ha.m², AK
+  const sideW = side.reduce((s, v) => s + v, 0);
+  const rest = w - 2 * sideW;
+  const extra = variant === 'full' ? [rest - 9, 9] : [rest];
+  const widths = [...side, ...side, ...extra];
+  const xs = widths.reduce<number[]>((acc, v) => [...acc, acc.at(-1)! + v], [x0]);
+  const before = rowsFor(input.before, subs.before);
+  const after = rowsFor(input.after, subs.after);
+  const n = Math.max(before.length, after.length, 1);
+  const h1 = 5;
+  const h2 = 7;
+  const h3 = 3.5;
+  const rh = 5.5;
+  const yEnd = y0 + h1 + h2 + h3 + n * rh + rh;
+  const L = (x1: number, y1: number, x2: number, y2: number, sw = 0.2) =>
+    out.push(`<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="#000" stroke-width="${sw}"/>`);
+  out.push(`<rect x="${x0}" y="${y0.toFixed(2)}" width="${w}" height="${(yEnd - y0).toFixed(2)}" fill="none" stroke="#000" stroke-width="0.35"/>`);
+  // fejléc
+  t(x0 + sideW / 2, y0 + 3.8, 'Változás előtti állapot', 3, 'text-anchor="middle" font-weight="bold"');
+  t(x0 + sideW * 1.5, y0 + 3.8, 'Változás utáni állapot', 3, 'text-anchor="middle" font-weight="bold"');
+  L(x0, y0 + h1, x0 + 2 * sideW, y0 + h1);
+  L(x0 + sideW, y0, x0 + sideW, yEnd, 0.35);
+  L(x0 + 2 * sideW, y0, x0 + 2 * sideW, yEnd, 0.35);
+  const heads = ['Hrsz', 'jel', 'műv. ága', 'min. o.', 'ha.m²', 'AK'];
+  const extraHeads = variant === 'full' ? ['Szolgalmi és egyéb jogok', 'Megj.'] : ['Jegyzet'];
+  const allHeads = [...heads, ...heads, ...extraHeads];
+  allHeads.forEach((hd, i) => {
+    const cx = (xs[i]! + xs[i + 1]!) / 2;
+    const yy = i < 12 ? y0 + h1 + 4.6 : y0 + 7;
+    t(cx, yy, hd, hd.length > 12 ? 2.2 : 2.5, 'text-anchor="middle"');
+  });
+  const yNum = y0 + h1 + h2;
+  L(x0, yNum, x0 + w, yNum);
+  allHeads.forEach((_, i) => t((xs[i]! + xs[i + 1]!) / 2, yNum + 2.8, String(i + 1), 2.2, 'text-anchor="middle" font-weight="bold"'));
+  const yData = yNum + h3;
+  L(x0, yData, x0 + w, yData, 0.3);
+  for (let i = 1; i < widths.length; i++) if (i !== 6 && i !== 12) L(xs[i]!, i >= 12 ? y0 : y0 + h1, xs[i]!, yEnd);
+  const cell = (i: number, r: number, s: string, extra = '') => t(i === 0 || i === 6 ? xs[i]! + 1 : (xs[i]! + xs[i + 1]!) / 2, yData + r * rh + 3.9, s, 2.6, `${i === 0 || i === 6 ? '' : 'text-anchor="middle"'} ${extra}`);
+  for (let r = 0; r < n; r++) {
+    const b = before[r];
+    const a = after[r];
+    if (b) {
+      cell(0, r, b.hrsz, 'font-weight="bold" font-style="italic"');
+      cell(1, r, b.jel, 'font-style="italic"');
+      cell(2, r, b.use, 'font-style="italic"');
+      cell(4, r, haM2(b.area), 'font-weight="bold" font-style="italic"');
+      cell(5, r, '-', '');
+    }
+    if (a) {
+      cell(6, r, a.hrsz, 'font-weight="bold" font-style="italic"');
+      cell(7, r, a.jel, 'font-style="italic"');
+      cell(8, r, a.use, 'font-style="italic"');
+      cell(10, r, haM2(a.area), 'font-weight="bold" font-style="italic"');
+      cell(11, r, '-', '');
+    }
+  }
+  const yt = yData + n * rh;
+  L(x0, yt, x0 + w, yt, 0.3);
+  const sumB = input.before.reduce((s, p) => s + (p.area ?? 0), 0);
+  const sumA = input.after.reduce((s, p) => s + (p.area ?? 0), 0);
+  t(xs[0]! + 1, yt + 3.9, 'Összesen:', 2.6, 'font-weight="bold" font-style="italic"');
+  t((xs[4]! + xs[5]!) / 2, yt + 3.9, haM2(sumB), 2.6, 'text-anchor="middle" font-weight="bold" font-style="italic"');
+  t(xs[6]! + 1, yt + 3.9, 'Összesen:', 2.6, 'font-weight="bold" font-style="italic"');
+  t((xs[10]! + xs[11]!) / 2, yt + 3.9, haM2(sumA), 2.6, 'text-anchor="middle" font-weight="bold" font-style="italic"');
+  return yEnd;
+}
+
+/** A lábrész egy oszlopa a mellékletminták szövegeivel. */
+function footerSvg(out: string[], t: TextFn, items: FooterItem[], x: number, y0: number, w: number, meta: PlanMeta): void {
+  let y = y0;
+  const it = 'font-style="italic"';
+  const box = (lines: [string, string][], h: number) => {
+    out.push(`<rect x="${x.toFixed(2)}" y="${(y - 3.5).toFixed(2)}" width="${w.toFixed(2)}" height="${h}" fill="none" stroke="#000" stroke-width="0.25"/>`);
+    let yy = y;
+    for (const [s, extra] of lines) {
+      t(x + 2, yy, s, 2.5, extra);
+      yy += 4.2;
+    }
+    y += h + 2;
+  };
+  for (const item of items) {
+    switch (item) {
+      case 'sign':
+        t(x, y, 'A változás akaratunknak megfelelően történt:', 2.8, it);
+        t(x, y + 6, '.............................................................', 2.6);
+        t(x, y + 11, '.............................................................', 2.6);
+        y += 17;
+        break;
+      case 'place':
+        t(x, y, `Készítés helye, időpontja: ${meta.hely} ${meta.datum}`, 2.8, it);
+        y += 9;
+        break;
+      case 'maker':
+        t(x, y, `Készítő: ............................................  ${meta.keszito}`, 2.8, it);
+        t(x + 14, y + 4, `földmérő ig. száma: ${meta.igazolvany}`, 2.6, it);
+        y += 11;
+        break;
+      case 'cert':
+        t(x, y, 'Minőséget tanúsító: .......................................', 2.8, it);
+        t(x + 22, y + 4, `Ing.rend.min.sz.: ${meta.minosites}`, 2.6, it);
+        y += 11;
+        break;
+      case 'makercert':
+        t(x, y, 'Készítő és minőséget tanúsító: .............................', 2.8, it);
+        t(x + 30, y + 4, `Ing.rend.min.sz.: ${meta.minosites}`, 2.6, it);
+        y += 11;
+        break;
+      case 'taken':
+        t(x, y, 'A …………. sz. záradékolt munkából átvett méretek.', 2.8, it);
+        y += 8;
+        break;
+      case 'optional':
+        box(
+          [
+            ['Szükség esetén:', 'font-weight="bold" font-style="italic"'],
+            ['Megelőzi az ………… iktatószámú változási vázrajz átvezetése.', it],
+            ['Hatályon kívül helyezi az ………… iktatószámú vázrajzot.', it],
+          ],
+          14,
+        );
+        break;
+      case 'soil':
+        box(
+          [
+            ['Ha a változási vázrajz termőföldet érint a 30. § (2) vagy (3)', 'font-weight="bold" font-style="italic"'],
+            ['bekezdés szerinti földminősítési záradék.', 'font-weight="bold" font-style="italic"'],
+            ['J.H. székhelye, 20…. ……………. hó ……… nap', it],
+            ['                         Záradékoló: …………………………', it],
+          ],
+          18,
+        );
+        break;
+      case 'clause511':
+      case 'clause512':
+        t(x, y, `Az 51. § (${item === 'clause511' ? 1 : 2}) bekezdés szerinti záradékszöveg.`, 2.6, it);
+        t(x, y + 5, 'J.H. székhelye, 20…. ……………. hó ……… nap', 2.6, it);
+        t(x, y + 11, 'P.H.', 2.6, it);
+        t(x + 22, y + 11, 'Záradékoló: …………………………………', 2.6, it);
+        t(x + 40, y + 15, 'Ing.rend.min.sz.:', 2.6, it);
+        y += 19;
+        break;
+      case 'marked':
+        t(x, y, 'A kitűzött földrészlet határpontjait ……………… jelöltem meg.', 2.6, it);
+        y += 7;
+        break;
+      case 'newmarked':
+        t(x, y, 'A változással érintett földrészlet új', 2.8, it);
+        t(x, y + 4, 'határpontjait ……………..-val jelöltem meg.', 2.8, it);
+        y += 11;
+        break;
+      case 'register':
+        t(x, y, 'Nyilvántartásba véve:', 2.6, it);
+        t(x, y + 6, 'J.H. székhelye, 20…. ……………. hó ……… nap', 2.6, it);
+        t(x + 30, y + 12, 'Vizsgáló: ……………………………', 2.6, it);
+        t(x + 36, y + 17, 'Ing.rend.min.sz.: ………./………', 2.6, it);
+        t(x + 14, y + 21, 'P.H.', 2.6, it);
+        y += 24;
+        break;
+    }
+  }
 }
 
 /** A sokszög területe (m²) a vázrajz táblázatához, ha nincs megadva. */

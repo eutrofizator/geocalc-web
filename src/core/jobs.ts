@@ -13,17 +13,36 @@ import type { ChangeKind } from './fees';
 
 export type JobKind = 'setout' | 'subdivision' | 'building' | 'landuse';
 
+/**
+ * A lábrész elemei a földhivatal által közzétett mellékletminták szerint:
+ * - sign: „A változás akaratunknak megfelelően történt:” a tulajdonosok aláírásának helyével;
+ * - place: „Készítés helye, időpontja:”; maker: „Készítő: … földmérő ig. száma:”;
+ * - cert: „Minőséget tanúsító: … Ing.rend.min.sz.:”; makercert: „Készítő és minőséget tanúsító: …”;
+ * - taken: „A … sz. záradékolt munkából átvett méretek.”;
+ * - optional: „Szükség esetén:” (megelőző / hatályon kívül helyezett vázrajz) keret;
+ * - soil: a 30. § (2) vagy (3) szerinti földminősítési záradék kerete;
+ * - clause511 / clause512: az 51. § (1) / (2) szerinti záradék helye (J.H. székhelye, Záradékoló, P.H.);
+ * - marked: „A kitűzött földrészlet határpontjait … jelöltem meg.” (43. § (3));
+ * - newmarked: „A változással érintett földrészlet új határpontjait …-val jelöltem meg.”;
+ * - register: „Nyilvántartásba véve:” (kitűzés, Vizsgáló, P.H.).
+ */
+export type FooterItem = 'sign' | 'place' | 'maker' | 'cert' | 'makercert' | 'taken' | 'optional' | 'soil' | 'clause511' | 'clause512' | 'marked' | 'newmarked' | 'register';
+
 export interface PlanTemplate {
-  /** A rajz felirata (a fejléc közepén). */
+  /** A rajz felirata. */
   title: string;
-  /** A lábrész bal oldali sorai (záradékok, feliratok); a „…” helyére a felhasználó ír. */
-  footer: string[];
-  /** A lábrész jobb oldali mezőjének címe (a hatósági záradék vagy nyilvántartásba vétel helye). */
-  stampBox: string;
-  /** Területkimutatás a rajzon. */
-  areaTable: boolean;
-  /** A kitűzött / új földrészletek oldalainak méretei a rajzon. */
+  /** A tárgymondat fajtája („a … helyrajzi számú földrészlet megosztásáról” stb.). */
+  subject: JobKind | 'auto';
+  left: FooterItem[];
+  right: FooterItem[];
+  /** „A vázrajz (vázlat) méretek levételére nem alkalmas.” – üres, ha a minta nem írja. */
+  notForMeasure: string;
+  /** Területkimutatás a rajzon: a 14 oszlopos (jogok, megjegyzés) vagy a 13 oszlopos (jegyzet) változat. */
+  areaTable: 'full' | 'note' | null;
+  /** Méretmegírás (a munka fajtája szerinti éleken). */
   dimensions: boolean;
+  /** Színes vázlat a 11. melléklet szerint (mért: zöld, kitűzési / új: piros, átvett: kék). */
+  colored: boolean;
 }
 
 export interface JobDef {
@@ -39,26 +58,17 @@ export interface JobDef {
 }
 
 const NOT_FOR_MEASURE = 'A vázrajz méretek levételére nem alkalmas.';
+const SKETCH_NOT_FOR_MEASURE = 'A vázlat méretek levételére nem alkalmas.';
 
 export const JOBS: Record<JobKind, JobDef> = {
   setout: {
     id: 'setout',
     label: 'Kitűzés',
     name: 'földrészlet kitűzése',
-    plan: {
-      title: 'KITŰZÉSI VÁZRAJZ',
-      footer: ['A kitűzött földrészlet határpontjait ........................ jelöltem meg. (43. § (3))', NOT_FOR_MEASURE],
-      stampBox: 'Nyilvántartásba vétel:',
-      areaTable: false,
-      dimensions: true,
-    },
-    sketch: {
-      title: 'KITŰZÉSI VÁZLAT',
-      footer: ['A kitűzött földrészlet határpontjait ........................ jelöltem meg. (43. § (3))', 'A vázlat méretek levételére nem alkalmas.'],
-      stampBox: 'Nyilvántartásba vétel:',
-      areaTable: false,
-      dimensions: true,
-    },
+    // 28. minta
+    plan: { title: 'KITŰZÉSI VÁZRAJZ', subject: 'setout', left: ['place', 'makercert'], right: ['marked', 'register'], notForMeasure: NOT_FOR_MEASURE, areaTable: null, dimensions: true, colored: false },
+    // 27. minta
+    sketch: { title: 'KITŰZÉSI VÁZLAT', subject: 'setout', left: ['place', 'makercert'], right: ['marked', 'register'], notForMeasure: SKETCH_NOT_FOR_MEASURE, areaTable: null, dimensions: true, colored: true },
     fee: 'setout',
     folders: [
       '01_Tartalomjegyzék',
@@ -78,20 +88,10 @@ export const JOBS: Record<JobKind, JobDef> = {
     id: 'subdivision',
     label: 'Telekalakítás',
     name: 'telekalakítással összefüggő változási vázrajz',
-    plan: {
-      title: 'VÁLTOZÁSI VÁZRAJZ',
-      footer: ['A változás akaratunknak megfelelően történt:', '§sign', NOT_FOR_MEASURE],
-      stampBox: 'Záradék (51. § (1)):',
-      areaTable: true,
-      dimensions: false,
-    },
-    sketch: {
-      title: 'MÉRÉSI VÁZLAT',
-      footer: ['A változással érintett földrészlet új határpontjait ................ -val jelöltem meg.'],
-      stampBox: '',
-      areaTable: false,
-      dimensions: true,
-    },
+    // 15. minta
+    plan: { title: 'VÁLTOZÁSI VÁZRAJZ', subject: 'subdivision', left: ['sign', 'place', 'maker', 'cert'], right: ['optional', 'soil', 'clause511'], notForMeasure: NOT_FOR_MEASURE, areaTable: 'full', dimensions: false, colored: false },
+    // 10/A. minta
+    sketch: { title: 'MÉRÉSI VÁZLAT', subject: 'subdivision', left: ['place', 'taken', 'maker'], right: ['newmarked', 'cert'], notForMeasure: '', areaTable: null, dimensions: true, colored: true },
     fee: 'subdivision',
     folders: [
       '01_Adatigénylő lap',
@@ -108,20 +108,10 @@ export const JOBS: Record<JobKind, JobDef> = {
     id: 'building',
     label: 'Épületfeltüntetés',
     name: 'épület feltüntetésével összefüggő változási vázrajz',
-    plan: {
-      title: 'VÁLTOZÁSI VÁZRAJZ',
-      footer: [NOT_FOR_MEASURE],
-      stampBox: 'Záradék (51. § (2)):',
-      areaTable: true,
-      dimensions: false,
-    },
-    sketch: {
-      title: 'MÉRÉSI VÁZLAT',
-      footer: ['Az épület töréspontjait helyszíni méréssel határoztam meg.'],
-      stampBox: '',
-      areaTable: false,
-      dimensions: true,
-    },
+    // 17. minta
+    plan: { title: 'VÁLTOZÁSI VÁZRAJZ', subject: 'building', left: ['place', 'maker', 'cert'], right: ['optional', 'soil', 'clause512'], notForMeasure: NOT_FOR_MEASURE, areaTable: 'note', dimensions: false, colored: false },
+    // 10/B. minta
+    sketch: { title: 'MÉRÉSI VÁZLAT', subject: 'building', left: ['place', 'taken', 'maker'], right: ['cert'], notForMeasure: '', areaTable: null, dimensions: true, colored: true },
     fee: 'building',
     folders: [
       '01_Adatigénylő lap',
@@ -139,20 +129,9 @@ export const JOBS: Record<JobKind, JobDef> = {
     id: 'landuse',
     label: 'Művelési ág változás',
     name: 'művelési ág változásával összefüggő változási vázrajz',
-    plan: {
-      title: 'VÁLTOZÁSI VÁZRAJZ',
-      footer: ['Mezőgazdász-záradék (30. § (2)):', '', NOT_FOR_MEASURE],
-      stampBox: 'Záradék (51. § (1)):',
-      areaTable: true,
-      dimensions: false,
-    },
-    sketch: {
-      title: 'MÉRÉSI VÁZLAT',
-      footer: ['Az alrészlethatárok töréspontjait helyszíni méréssel határoztam meg.'],
-      stampBox: '',
-      areaTable: false,
-      dimensions: true,
-    },
+    // 19. minta
+    plan: { title: 'VÁLTOZÁSI VÁZRAJZ', subject: 'landuse', left: ['place', 'maker', 'cert'], right: ['optional', 'soil', 'clause511'], notForMeasure: NOT_FOR_MEASURE, areaTable: 'full', dimensions: false, colored: false },
+    sketch: { title: 'MÉRÉSI VÁZLAT', subject: 'landuse', left: ['place', 'taken', 'maker'], right: ['cert'], notForMeasure: '', areaTable: null, dimensions: true, colored: true },
     fee: 'cultivation',
     folders: [
       '01_Adatigénylő lap',
