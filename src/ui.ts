@@ -26,8 +26,8 @@ export async function readText(file: File): Promise<string> {
   }
 }
 
-export function download(name: string, content: string, type = 'text/plain'): void {
-  const url = URL.createObjectURL(new Blob([content], { type: `${type};charset=utf-8` }));
+export function download(name: string, content: string | Uint8Array<ArrayBuffer>, type = 'text/plain'): void {
+  const url = URL.createObjectURL(new Blob([content], { type: typeof content === 'string' ? `${type};charset=utf-8` : type }));
   const a = el('a');
   a.href = url;
   a.download = name;

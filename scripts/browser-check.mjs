@@ -1174,6 +1174,9 @@ async function main() {
   await sleep(500);
   await check('a Ctrl+N új (üres) munkaterületet ad', `document.getElementById('editor').value.trim()`, '');
 
+  const OFFICE_DXF = "  0\r\nSECTION\r\n  2\r\nENTITIES\r\n  0\r\nINSERT\r\n  8\r\nBHP\r\n 10\r\n650000\r\n 20\r\n240000\r\n  0\r\nINSERT\r\n  8\r\nBHP\r\n 10\r\n650020\r\n 20\r\n240000\r\n  0\r\nINSERT\r\n  8\r\nBHP\r\n 10\r\n650020\r\n 20\r\n240025\r\n  0\r\nINSERT\r\n  8\r\nBHP\r\n 10\r\n650000\r\n 20\r\n240025\r\n  0\r\nMTEXT\r\n  8\r\nBHP_SZ\r\n 10\r\n650000\r\n 20\r\n240000\r\n  1\r\n1-10_1\r\n  0\r\nMTEXT\r\n  8\r\nBHP_SZ\r\n 10\r\n650020\r\n 20\r\n240000\r\n  1\r\n1-10_2\r\n  0\r\nMTEXT\r\n  8\r\nBHP_SZ\r\n 10\r\n650020\r\n 20\r\n240025\r\n  1\r\n1-10_3\r\n  0\r\nMTEXT\r\n  8\r\nBHP_SZ\r\n 10\r\n650000\r\n 20\r\n240025\r\n  1\r\n1-10_4\r\n  0\r\nMTEXT\r\n  8\r\nHRSZ\r\n 10\r\n650010\r\n 20\r\n240012\r\n  1\r\n100\r\n  0\r\nLWPOLYLINE\r\n  8\r\nBNK_FRSZ\r\n 90\r\n4\r\n 70\r\n1\r\n 10\r\n650000\r\n 20\r\n240000\r\n 10\r\n650020\r\n 20\r\n240000\r\n 10\r\n650020\r\n 20\r\n240025\r\n 10\r\n650000\r\n 20\r\n240025\r\n  0\r\nENDSEC\r\n  0\r\nEOF\r\n";
+  const OFFICE_FK = "   100/     \r\n          -   kivett                               0.0502                0.00           \r\n                                    ÖSSZESEN:      0.0502                0.00          ";
+  const DATTEXT = "PROBA*Teszt adatcsere*DAT1*Járási Hivatal*Kiss Anna*Mérnök Kft.*Nagy Béla*20261024*ITR 5.0*1*\r\nT_PONT*\r\n1*240000.00*650000.00****\r\n2*240000.00*650020.00****\r\n3*240025.00*650020.00****\r\n4*240025.00*650000.00****\r\n5*240000.00*650035.00****\r\n6*240025.00*650035.00****\r\nT_HATARVONAL*\r\n1*1*2*3*0**\r\n2*1*3*4*0**\r\n2*2*4*1*0**\r\n2*3*1*2*0**\r\n3*1*2*5*0**\r\n3*2*5*6*0**\r\n3*3*6*3*0**\r\nT_HATAR*\r\n1*1*2*+*\r\n1*2*1*+*\r\n2*1*3*+*\r\n2*2*1*-*\r\nT_FELULET*\r\n1*1*1*+*\r\n2*1*2*+*\r\nT_OBJ_ATTRAC*\r\n1*AC01*101*1*1*1*20200101*0**1*1*K*\r\nT_OBJ_ATTRBD*\r\n11*BD01*1*123*0*1*502*****1*0***1*1*0*****0**1*1**\r\n12*BD01*2*124*0*1*371*****1*0***1*1*0*****0**1*1**";
   /* ---------- Geodéziai számítások/Változási vázrajz (8/2018. AM rendelet) ---------- */
   await evalJs(`document.getElementById('pc-sample').click()`);
   await sleep(200);
@@ -1197,6 +1200,41 @@ async function main() {
   await evalJs(`(() => { const e = document.getElementById('pc-before'); e.value = '123 ; 1600 ; 101 102 103 104'; e.dispatchEvent(new Event('input')); return true; })()`);
   await sleep(150);
   await check('hibahatáron túli eltérésnél hibát jelez', `/meghaladja a hibahatárt/.test(document.getElementById('pc-issues').textContent)`, true);
+  // DAT adatcsere-állomány (DAT-M1, G Függelék) beolvasása és visszaírása.
+  await evalJs(`(() => {
+    const inp = document.getElementById('pc-dat-input');
+    const dt = new DataTransfer();
+    dt.items.add(new File([${JSON.stringify(DATTEXT)}], 'proba.dat', { type: 'text/plain' }));
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change'));
+    return true;
+  })()`);
+  await sleep(400);
+  await check('a DAT földrészletei a változás előtti állapotba kerülnek', `document.getElementById('pc-before').value.split('\\n').slice(1).join('|')`, '123 ; 502 ; 3 4 101 2|124 ; 371 ; 2 5 6 3');
+  await check('a DAT pontszáma a részletpontok táblázatából', `/^101  650000.00  240000.00$/m.test(document.getElementById('pc-coords').value)`, true);
+  await check('a DAT beolvasás összegzése', `/proba.dat – 6 pont, 2 földrészlet/.test(document.getElementById('pc-issues').textContent)`, true);
+  await evalJs(`document.getElementById('pc-dat-save').click()`);
+  await sleep(900);
+  const datSaved = readdirSync(DL).find((n) => n === 'proba_valtozas.dat');
+  checkNode('a változás DAT-ba menthető (ITR címrekord, földrészletek)', datSaved ? /^GEOK_DAT\*proba_valtozas\*\*-\*-\*-\*/.test(readFileSync(join(DL, datSaved), 'latin1')) && readFileSync(join(DL, datSaved), 'latin1').includes('T_OBJ_ATTRBD*') : false, true);
+  await evalJs(`document.getElementById('pc-lst-save').click()`);
+  await sleep(1200);
+  checkNode('a területszámítás ITR .lst listaként menthető (ve.lst, vu.lst)', ['ve.lst', 'vu.lst'].every((n) => readdirSync(DL).includes(n) && readFileSync(join(DL, n), 'latin1').includes('AK=0.00')), true);
+  await evalJs(`document.getElementById('pc-sample').click()`);
+
+  // Földhivatali adatszolgáltatás: térkép DXF-ben és földkönyvi kivonat (a ZIP helyett külön állományok).
+  await evalJs(`(() => {
+    const inp = document.getElementById('pc-office-input');
+    const dt = new DataTransfer();
+    dt.items.add(new File([${JSON.stringify(OFFICE_DXF)}], 'terkep.dxf'));
+    dt.items.add(new File([${JSON.stringify(OFFICE_FK)}], 'foldkonyv.txt'));
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change'));
+    return true;
+  })()`);
+  await sleep(500);
+  await check('a földhivatali DXF földrészlete a földkönyvi területtel', `document.getElementById('pc-before').value.split('\\n')[1]`, '100 ; 502 ; 1-10_1 1-10_2 1-10_3 1-10_4');
+  await check('a földhivatali adatok összegzése', `/terkep.dxf, foldkonyv.txt – 1 földrészlet/.test(document.getElementById('pc-issues').textContent)`, true);
   await evalJs(`document.getElementById('pc-sample').click()`);
 
   /* ---------- Sötét téma és angol nyelv ---------- */

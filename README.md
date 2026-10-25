@@ -49,7 +49,7 @@ arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jel
 |---|---|
 | Geodéziai számítások/Munkaterület | **működik** (kódolt bemenet, a valódi szerkesztő ikonsora és állapotsora, „Előkép” riportnézegető fejezetfával és nagyítással) |
 | Geodéziai számítások/Adatleíró | **működik** (űrlapos adatbevitel, kódgenerálás, automatikus kódolás) |
-| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás) |
+| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás, DAT be- és kiolvasás, földhivatali ZIP/DXF beolvasás, ITR .lst lista) |
 | Geodéziai számítások/Beállítások | **működik** (a jegyzőkönyv előlapja, `borito.ini` be/ki) |
 | Adatrögzítő/Beállítások | **működik** (rögzítőtípus, távolságredukció, TVET.TXT, átlagok) |
 | Hálózatkiegyenlítés/Munkaterület | **működik** (munkaállomány, koordináták betöltése és hozzáfűzése, GMJ, középelés) |
@@ -116,6 +116,34 @@ változási vázrajz területszámításához:
   pontszámot kapnak (előtag + sorszám), az „Átvétel” a koordinátákhoz és a változás utáni
   földrészletek közé teszi őket (centiméterre kerekítve). Vázlat mutatja a földrészleteket és az új
   pontokat. `tests/parcel.test.ts`
+- **DAT adatcsere** (DAT Szabályzat, DAT-M1 melléklet, G Függelék; MSZ 7772-1) – a „DAT beolvasása…” a
+  `.dat` állományból a pontokat (T_PONT, a pontszám a T_OBJ_ATTRAA/AB/AC táblázatból) és a
+  földrészleteket (T_OBJ_ATTRBC/BD: helyrajzi szám, nyilvántartott terület) tölti a munkalapra; a
+  földrészlet határát a felület → határ → határvonal → pont láncból fűzi össze (irányváltással, a belső
+  határok területét levonva; az ITR által kétszer kiírt földrészletet egyszer veszi). Valódi, ITR 5 DAT
+  7.1.0-val készült leadott állományokon ellenőrizve (telekalakítás, épületfeltüntetés, művelési ág
+  változás, 3773 pontos / 258 földrészletes adatbázis): a számolt területek a tárolttal egyeznek.
+  A „Mentés DAT-ba” **az ITR kimenetének szerkezetében** ír: ITR-féle címrekord, T_PONT (a beolvasott
+  pontok pontossági osztályával), élenként egy T_HATARVONAL (a szomszédos földrészletek közös éle egyszer,
+  a T_HATAR-ban „–” irányváltással), az óramutató járásával egyező határ, T_FELULET, T_OBJ_ATTRAC
+  (pontszámok; az új pont a leggyakoribb osztályt kapja), T_OBJ_ATTRBC/BD (a beolvasott, illetve a
+  „szülő” földrészlet attribútumaival) és földrészletenként egy geokódpont; **Windows-1250** kódolás,
+  CTRL-Z nélkül. Egy valódi telekalakítás DAT-ját visszaírva a határvonalak, határok és felületek száma
+  és a területek pontosan egyeznek az ITR-ével. Nem írja újra a T_OBJ_ATTRBF (minőségi osztály),
+  T_FELIRAT és T_OBJ_ATTRAD (címkoordináta) táblázatokat – ezeket a leadás előtt az ITR-ben kell
+  pótolni. `tests/dat.test.ts`
+- **Területszámítás (.lst)** – a változás előtti (`ve.lst`) és utáni (`vu.lst`) területszámítási lista
+  az ITR .lst szerkezetében (hrsz, felirathely, pontok oldalhosszal, terület 6 tizedessel, „AK=0.00”),
+  Windows-1250 kódolással; egy valódi telekalakítás vu.lst-jével soronként egyező értékek.
+  `tests/lst.test.ts`
+- **Földhivatali adatszolgáltatás** – a „Földhivatali adatok…” gomb a földhivataltól kapott **ZIP
+  csomagot** (vagy annak állományait együtt) olvassa: az ingatlan-nyilvántartási térkép **DXF**-jéből a
+  földrészleteket (zárt vonallánc a `*_FRSZ` fóliákon, a benne álló `HRSZ` felirattal) és a
+  határpontokat (`BHP` blokk, a pontszám a `BHP_SZ` feliratból), a **földrészlet-információból**
+  (Report.txt: terület, műszaki terület, geometria) és a **földkönyvi kivonatból** (ha.m2 terület) a
+  nyilvántartott területet. Csak a szöveges kimenetekben szereplő földrészletek kerülnek a munkalapra (a
+  tulajdonosi adatokat nem olvassa be). Egy valódi budapesti adatszolgáltatáson ellenőrizve: a DXF-ből
+  számolt terület a földhivatali „műszaki terület”-tel 0,001 m²-re egyezik. `tests/land-office.test.ts`
 
 ### Adatleíró (súgó 44. o.)
 
@@ -379,13 +407,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 504 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 526 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **333 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **340 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -491,7 +519,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 40 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 43 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

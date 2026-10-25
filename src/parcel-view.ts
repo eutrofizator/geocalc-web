@@ -1,4 +1,8 @@
+import { encodeWindows1250, readDat, writeDat, type DatImport } from './core/dat';
 import { sectionsToText } from './core/format';
+import { writeLst } from './core/lst';
+import { decodeText, mergeRegistered, readCadastralDxf, readRegisteredAreas, readZip, type CadastralMap, type RegisteredParcel } from './core/land-office';
+import { polygonArea } from './core/geometry';
 import {
   ANNEX_SCALES,
   areaStatement,
@@ -63,7 +67,13 @@ export function initParcelView(): void {
   const lact = el('div', 'pane-actions');
   const sampleBtn = button('pc-sample', 'Minta', 'A mintapélda betöltése');
   const openBtn = button('pc-open', 'Koordináták…', 'Koordináta-állomány beolvasása (pontszám, Y, X)');
-  lact.append(sampleBtn, openBtn);
+  const datBtn = button('pc-dat-open', 'DAT beolvasása…', 'A földhivatali adatszolgáltatás DAT állományának beolvasása (pontok és földrészletek)');
+  const officeBtn = button(
+    'pc-office-open',
+    'Földhivatali adatok…',
+    'A földhivatali adatszolgáltatás beolvasása: a ZIP csomag, vagy a térkép (DXF) a földrészlet-információval (Report.txt) és a földkönyvi kivonattal együtt',
+  );
+  lact.append(sampleBtn, openBtn, officeBtn, datBtn);
   lhead.append(lact);
 
   const form = el('div', 'form');
@@ -143,8 +153,10 @@ export function initParcelView(): void {
   rhead.append(el('h2', undefined, 'Területkimutatás'));
   const ract = el('div', 'pane-actions');
   const saveBtn = button('pc-save', 'Jegyzőkönyv (.txt)', 'A területszámítás jegyzőkönyvének mentése');
+  const datSaveBtn = button('pc-dat-save', 'Mentés DAT-ba', 'A változás utáni földrészletek mentése DAT adatcsere-állományba (egyszerűsített)');
   let sections: Section[] = [];
-  ract.append(saveBtn, csvButton('valtozasi_vazrajz', () => sections));
+  const lstBtn = button('pc-lst-save', 'Területszámítás (.lst)', 'A változás előtti (ve.lst) és utáni (vu.lst) területszámítási lista az ITR szerkezetében');
+  ract.append(saveBtn, lstBtn, datSaveBtn, csvButton('valtozasi_vazrajz', () => sections));
   rhead.append(ract);
   const status = el('div', 'status');
   status.id = 'pc-status';
@@ -163,12 +175,26 @@ export function initParcelView(): void {
   file.type = 'file';
   file.accept = '.txt,.csv,.pkt,.koo,text/plain';
   file.hidden = true;
-  body.append(file);
+  const datFile = el('input');
+  datFile.type = 'file';
+  datFile.accept = '.dat,.DAT,text/plain';
+  datFile.hidden = true;
+  datFile.id = 'pc-dat-input';
+  const officeFile = el('input');
+  officeFile.type = 'file';
+  officeFile.accept = '.zip,.dxf,.txt,.DXF,.TXT,.ZIP';
+  officeFile.multiple = true;
+  officeFile.hidden = true;
+  officeFile.id = 'pc-office-input';
+  body.append(file, datFile, officeFile);
 
   /* ---------- állapot ---------- */
   let saved: Saved = DEFAULTS;
   try {
-    saved = { ...DEFAULTS, ...(JSON.parse(storage.get(KEY) || '{}') as Partial<Saved>) };
+    saved = {
+      ...DEFAULTS,
+      ...(JSON.parse(storage.get(KEY) || '{}') as Partial<Saved>),
+    };
   } catch {
     saved = DEFAULTS;
   }
@@ -180,6 +206,9 @@ export function initParcelView(): void {
   fillScales(saved.scale);
 
   let division: { result: DivisionResult; sections: Section[] } | null = null;
+  /** A beolvasott DAT (a földrészletek attribútumai a visszaíráshoz). */
+  let dat: { name: string; data: DatImport } | null = null;
+  let datNotes: Issue[] = [];
 
   function fillScales(keep?: string): void {
     const annex = Number(annexSel.value) as ToleranceAnnex;
@@ -206,9 +235,16 @@ export function initParcelView(): void {
     };
     storage.set(KEY, JSON.stringify(state));
     fillParcels();
-    const st = areaStatement({ coordinates: state.coords, before: state.before, after: state.after, annex: state.annex, scale: state.scale, kind: state.kind });
+    const st = areaStatement({
+      coordinates: state.coords,
+      before: state.before,
+      after: state.after,
+      annex: state.annex,
+      scale: state.scale,
+      kind: state.kind,
+    });
     sections = [...st.sections, ...(division?.sections ?? [])];
-    showIssues([...st.issues, ...(division?.result.issues ?? [])]);
+    showIssues([...datNotes, ...st.issues, ...(division?.result.issues ?? [])]);
     results.replaceChildren(...sections.map(renderSection));
     if (sections.length === 0) results.append(el('p', 'empty', 'Add meg a koordinátákat és a földrészleteket, vagy töltsd be a mintát.'));
     const errors = st.issues.filter((i) => i.level === 'error').length;
@@ -221,6 +257,172 @@ export function initParcelView(): void {
           (errors > 0 ? ` · ${errors} hiba` : ' · rendben');
     drawSketch(state);
     saveBtn.disabled = sections.length === 0;
+    datSaveBtn.disabled = st.after.length === 0;
+    lstBtn.disabled = st.before.length + st.after.length === 0;
+  }
+
+  async function openDat(f: File): Promise<void> {
+    const d = readDat(await readText(f));
+    datNotes = d.warnings.map((message) => ({
+      level: 'warning' as const,
+      message: `DAT: ${message}`,
+    }));
+    if (d.parcels.length === 0) {
+      datNotes.unshift({
+        level: 'error',
+        message: `DAT: a(z) ${f.name} állományban nincs beolvasható földrészlet.`,
+      });
+      run();
+      return;
+    }
+    dat = { name: f.name, data: d };
+    const holes = d.parcels.filter((p) => p.holes.length > 0).map((p) => p.hrsz);
+    if (holes.length > 0)
+      datNotes.push({
+        level: 'warning',
+        message: `DAT: belső határos (lyukas) földrészlet(ek): ${holes.join(', ')} – a munkalap csak a külső határral számol.`,
+      });
+    datNotes.push({
+      level: 'info',
+      message: `DAT: ${f.name} – ${d.points.length} pont, ${d.parcels.length} földrészlet` + (d.title[1] ? ` (${d.title[1]})` : '') + '.',
+    });
+    const used = new Set(d.parcels.flatMap((p) => p.ring));
+    coords.value = ['# pontszám  Y  X  (DAT)', ...d.points.filter((p) => used.has(p.id)).map((p) => `${p.id}  ${p.y.toFixed(2)}  ${p.x.toFixed(2)}`)].join(
+      '\n',
+    );
+    before.value = ['# hrsz ; tulajdoni lapi terület [m²] ; pontok (DAT)', ...d.parcels.map((p) => `${p.hrsz} ; ${p.area ?? ''} ; ${p.ring.join(' ')}`)].join(
+      '\n',
+    );
+    after.value = ['# hrsz ; pontok', ...d.parcels.map((p) => `${p.hrsz} ; ${p.ring.join(' ')}`)].join('\n');
+    division = null;
+    takeBtn.disabled = true;
+    run();
+  }
+
+  /** A földhivatali csomag: a DXF földrészletei, a szöveges kimenetek nyilvántartott területeivel. */
+  async function openOffice(list: File[]): Promise<void> {
+    const texts: { name: string; text: string }[] = [];
+    try {
+      for (const f of list) {
+        if (/\.zip$/i.test(f.name)) {
+          for (const z of await readZip(await f.arrayBuffer())) if (/\.(dxf|txt)$/i.test(z.name)) texts.push({ name: z.name, text: decodeText(z.data) });
+        } else
+          texts.push({
+            name: f.name,
+            text: decodeText(new Uint8Array(await f.arrayBuffer())),
+          });
+      }
+    } catch (e) {
+      datNotes = [
+        {
+          level: 'error',
+          message: `Földhivatali adatok: ${e instanceof Error ? e.message : String(e)}`,
+        },
+      ];
+      run();
+      return;
+    }
+    const dxfFile = texts.find((t) => /\.dxf$/i.test(t.name));
+    const map: CadastralMap | null = dxfFile ? readCadastralDxf(dxfFile.text) : null;
+    const regs: RegisteredParcel[] = mergeRegistered(texts.filter((t) => /\.txt$/i.test(t.name)).map((t) => readRegisteredAreas(t.text)));
+    // A teljes térképkivágatra vonatkozó megjegyzések; a kiválasztott földrészletekre külön figyelmeztet.
+    datNotes = (map?.warnings ?? []).map((message) => ({
+      level: 'info' as const,
+      message: `DXF: ${message}`,
+    }));
+    const pts = new Map<string, NamedPt>();
+    const rows: { hrsz: string; area: number | null; ring: string[] }[] = [];
+    const wanted = regs.length > 0 ? regs.map((r) => r.hrsz) : (map?.parcels.map((p) => p.hrsz) ?? []);
+    for (const hrsz of [...new Set(wanted)]) {
+      const reg = regs.find((r) => r.hrsz === hrsz);
+      const cands = map?.parcels.filter((p) => p.hrsz === hrsz) ?? [];
+      // Több sokszög esetén a nyilvántartott területhez legközelebbi.
+      const geo = cands.sort((a, b) => Math.abs(a.computed - (reg?.area ?? a.computed)) - Math.abs(b.computed - (reg?.area ?? b.computed)))[0];
+      if (geo) {
+        for (const id of geo.ring)
+          pts.set(
+            id,
+            map!.points.find((q) => q.id === id)!,
+          );
+        rows.push({ hrsz, area: reg?.area ?? null, ring: geo.ring });
+        if (reg?.technical !== undefined && Math.abs(reg.technical - geo.computed) > 0.01)
+          datNotes.push({
+            level: 'warning',
+            message: `${hrsz}: a DXF műszaki területe (${geo.computed.toFixed(2)} m²) eltér a földrészlet-információétól (${reg.technical.toFixed(2)} m²).`,
+          });
+      } else if (reg?.points) {
+        for (const q of reg.points) pts.set(q.id, q);
+        rows.push({ hrsz, area: reg.area, ring: reg.points.map((q) => q.id) });
+      } else
+        datNotes.push({
+          level: 'warning',
+          message: `${hrsz}: nincs geometria (sem a DXF-ben, sem a földrészlet-információban).`,
+        });
+    }
+    const noName = rows.filter((r) => r.ring.some((id) => /^DXF\d+$/.test(id))).map((r) => r.hrsz);
+    if (noName.length > 0)
+      datNotes.push({
+        level: 'warning',
+        message: `Pontszám nélküli töréspont (DXF…) a földrészlet(ek)ben: ${noName.join(', ')}.`,
+      });
+    if (rows.length === 0) {
+      datNotes.unshift({
+        level: 'error',
+        message: 'Földhivatali adatok: nem található földrészlet (DXF: *_FRSZ és HRSZ fólia, vagy Report.txt geometria).',
+      });
+      run();
+      return;
+    }
+    const tech = rows.map((r) => polygonArea(r.ring.map((id) => pts.get(id)!)));
+    datNotes.push({
+      level: 'info',
+      message:
+        `Földhivatali adatok: ${texts.map((t) => t.name).join(', ')} – ${rows.length} földrészlet` +
+        (regs.length > 0 ? ' (a szöveges kimenetek helyrajzi számai)' : ' (a DXF összes földrészlete)') +
+        `, műszaki terület összesen ${tech.reduce((a, b) => a + b, 0).toFixed(2)} m².`,
+    });
+    dat = null;
+    coords.value = ['# pontszám  Y  X  (földhivatali adatszolgáltatás)', ...[...pts.values()].map((p) => `${p.id}  ${p.y.toFixed(2)}  ${p.x.toFixed(2)}`)].join(
+      '\n',
+    );
+    before.value = ['# hrsz ; tulajdoni lapi terület [m²] ; pontok', ...rows.map((r) => `${r.hrsz} ; ${r.area ?? ''} ; ${r.ring.join(' ')}`)].join('\n');
+    after.value = ['# hrsz ; pontok', ...rows.map((r) => `${r.hrsz} ; ${r.ring.join(' ')}`)].join('\n');
+    division = null;
+    takeBtn.disabled = true;
+    run();
+  }
+
+  function saveDat(): void {
+    const state = {
+      coordinates: coords.value,
+      before: before.value,
+      after: after.value,
+    };
+    const st = areaStatement({
+      ...state,
+      annex: Number(annexSel.value) as ToleranceAnnex,
+      scale: scaleSel.value,
+      kind: kindSel.value as ToleranceKind,
+    });
+    const pts = parsePoints(coords.value).points;
+    const defs = parseParcels(after.value, false, '').parcels;
+    const finals = new Map(st.after.map((a) => [a.hrsz, a.final]));
+    const parcels = defs
+      .filter((p) => p.points.every((id) => pts.has(id)) && finals.has(p.hrsz))
+      .map((p) => {
+        const src = dat?.data.parcels.find((q) => q.hrsz === p.hrsz);
+        return {
+          hrsz: p.hrsz,
+          area: finals.get(p.hrsz)!,
+          ring: p.points.map((id) => pts.get(id)!),
+          template: src ? { table: src.table, record: src.record } : undefined,
+        };
+      });
+    if (parcels.length === 0) return;
+    const base = (dat?.name ?? 'valtozas').replace(/\.[^.]*$/, '');
+    const text = writeDat(parcels, { name: `${base}_valtozas`, date: new Date(), pointRecords: dat?.data.pointRecords });
+    // A DAT állomány az ITR-hez hasonlóan Windows-1250 kódolású.
+    download(`${base}_valtozas.dat`, encodeWindows1250(text), 'application/octet-stream');
   }
 
   function showIssues(list: Issue[]): void {
@@ -236,7 +438,10 @@ export function initParcelView(): void {
     const pts = parsePoints(state.coords).points;
     const polys = (text: string, withArea: boolean) =>
       parseParcels(text, withArea, '')
-        .parcels.map((p) => ({ hrsz: p.hrsz, pts: p.points.map((id) => pts.get(id)).filter((q): q is NamedPt => q !== undefined) }))
+        .parcels.map((p) => ({
+          hrsz: p.hrsz,
+          pts: p.points.map((id) => pts.get(id)).filter((q): q is NamedPt => q !== undefined),
+        }))
         .filter((p) => p.pts.length >= 3);
     const b = polys(state.before, true);
     const a = polys(state.after, false);
@@ -278,6 +483,17 @@ export function initParcelView(): void {
     const divided = division ? parcelSel.value : null;
     [...a.filter((p) => p.hrsz !== divided), ...extra].forEach((p) => poly(p, 'after'));
     const newIds = new Set(division?.result.newPoints.map((p) => p.id) ?? []);
+    // A hosszú pontszámok közös előtagja (pl. „1-10_”) a rajzon elhagyható.
+    const ids = [...new Set(all.map((p) => p.id))];
+    let prefix =
+      ids.length > 1
+        ? ids.reduce((a, b) => {
+            let i = 0;
+            while (i < a.length && a[i] === b[i]) i++;
+            return a.slice(0, i);
+          })
+        : '';
+    prefix = prefix.slice(0, Math.max(prefix.lastIndexOf('_'), prefix.lastIndexOf('-')) + 1);
     const seen = new Set<string>();
     for (const p of all) {
       if (seen.has(p.id)) continue;
@@ -291,8 +507,16 @@ export function initParcelView(): void {
       t.setAttribute('x', (sx(p.y) + 5).toFixed(1));
       t.setAttribute('y', (sy(p.x) - 5).toFixed(1));
       t.setAttribute('class', 'ptid');
-      t.textContent = p.id;
+      t.textContent = prefix && p.id.startsWith(prefix) ? p.id.slice(prefix.length) : p.id;
       svg.append(c, t);
+    }
+    if (prefix) {
+      const t = document.createElementNS(ns, 'text');
+      t.setAttribute('x', '6');
+      t.setAttribute('y', String(H - 6));
+      t.setAttribute('class', 'ptid');
+      t.textContent = `pontszám: ${prefix}…`;
+      svg.append(t);
     }
     sketch.append(svg);
   }
@@ -333,7 +557,12 @@ export function initParcelView(): void {
       run();
     } catch (e) {
       run();
-      showIssues([{ level: 'error', message: `Területosztás: ${e instanceof Error ? e.message : String(e)}` }]);
+      showIssues([
+        {
+          level: 'error',
+          message: `Területosztás: ${e instanceof Error ? e.message : String(e)}`,
+        },
+      ]);
     }
   }
 
@@ -344,9 +573,7 @@ export function initParcelView(): void {
     if (lines.length > 0) coords.value = `${coords.value.replace(/\s*$/, '')}\n${lines.join('\n')}`;
     // A változás utáni listában az osztott földrészlet helyére a két rész kerül.
     const parent = parcelSel.value;
-    const kept = after.value
-      .split(/\r?\n/)
-      .filter((l) => l.replace(/#.*/, '').split(';')[0]!.trim() !== parent);
+    const kept = after.value.split(/\r?\n/).filter((l) => l.replace(/#.*/, '').split(';')[0]!.trim() !== parent);
     const parts = r.parts.map((p) => `${p.hrsz} ; ${p.points.map((q) => q.id).join(' ')}`);
     after.value = [...kept.filter((l) => l.trim() !== ''), ...parts].join('\n');
     division = null;
@@ -370,6 +597,8 @@ export function initParcelView(): void {
     before.value = SAMPLE.before;
     after.value = SAMPLE.after;
     division = null;
+    dat = null;
+    datNotes = [];
     takeBtn.disabled = true;
     run();
   });
@@ -380,6 +609,31 @@ export function initParcelView(): void {
     if (!f) return;
     coords.value = await readText(f);
     run();
+  });
+  datBtn.addEventListener('click', () => datFile.click());
+  datFile.addEventListener('change', async () => {
+    const f = datFile.files?.[0];
+    datFile.value = '';
+    if (f) await openDat(f);
+  });
+  datSaveBtn.addEventListener('click', saveDat);
+  lstBtn.addEventListener('click', () => {
+    const pts = parsePoints(coords.value).points;
+    const list = (text: string, withArea: boolean) =>
+      parseParcels(text, withArea, '')
+        .parcels.filter((p) => p.points.every((id) => pts.has(id)))
+        .map((p) => ({ hrsz: p.hrsz, ring: p.points.map((id) => pts.get(id)!) }));
+    const ve = list(before.value, true);
+    const vu = list(after.value, false);
+    // Az ITR listái Windows-1250 kódolásúak.
+    if (ve.length > 0) download('ve.lst', encodeWindows1250(writeLst(ve)), 'application/octet-stream');
+    if (vu.length > 0) setTimeout(() => download('vu.lst', encodeWindows1250(writeLst(vu)), 'application/octet-stream'), 300);
+  });
+  officeBtn.addEventListener('click', () => officeFile.click());
+  officeFile.addEventListener('change', async () => {
+    const list = [...(officeFile.files ?? [])];
+    officeFile.value = '';
+    if (list.length > 0) await openOffice(list);
   });
   saveBtn.addEventListener('click', () => {
     if (sections.length > 0) download('teruletkimutatas.txt', sectionsToText(sections));

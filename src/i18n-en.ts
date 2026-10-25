@@ -815,6 +815,15 @@ export const EN: Record<string, string> = {
   'Az új pontok a koordinátákhoz, a két rész a változás utáni földrészletek közé kerül': 'The new points go to the coordinates, the two parts to the after-change parcels',
   'Párhuzamos osztásnál a leválasztott rész az A–B egyenes mellett marad (A és B általában a földrészlet egyik oldala). Töréspontos osztásnál az osztóvonal az A pontból indul, a leválasztott rész a pontsorrend szerint az A pontot követő oldalak felé esik. Az átvételkor az új pontok centiméterre kerekítve kerülnek a koordináták közé, ezért a rész területe néhány dm²-rel eltérhet a kérttől.':
     'With a parallel division the cut-off part lies along line A–B (usually a side of the parcel). With a vertex division the line starts at point A and the cut-off part lies towards the sides following A in point order. On take-over the new points are rounded to centimetres, so the part may differ from the requested area by a few dm².',
+  'Földhivatali adatok…': 'Land office data…',
+  'A földhivatali adatszolgáltatás beolvasása: a ZIP csomag, vagy a térkép (DXF) a földrészlet-információval (Report.txt) és a földkönyvi kivonattal együtt':
+    'Load the land office data package: the ZIP, or the map (DXF) together with the parcel information (Report.txt) and the land book extract',
+  'Területszámítás (.lst)': 'Area calculation (.lst)',
+  'A változás előtti (ve.lst) és utáni (vu.lst) területszámítási lista az ITR szerkezetében': 'Area calculation lists before (ve.lst) and after (vu.lst) the change, in ITR layout',
+  'DAT beolvasása…': 'Load DAT…',
+  'A földhivatali adatszolgáltatás DAT állományának beolvasása (pontok és földrészletek)': 'Load the land office DAT data file (points and parcels)',
+  'Mentés DAT-ba': 'Save as DAT',
+  'A változás utáni földrészletek mentése DAT adatcsere-állományba (egyszerűsített)': 'Save the after-change parcels to a DAT exchange file (simplified)',
   'Területkimutatás': 'Area statement',
   'A területszámítás jegyzőkönyvének mentése': 'Save the area calculation report',
   'A földrészletek vázlata': 'Parcel sketch',
@@ -888,6 +897,7 @@ export const EN_PATTERNS: [RegExp, string | ((m: RegExpMatchArray) => string)][]
   [/^([^/]+?) \/ ([^/]+)$/, (m) => `${t(m[1]!)} / ${t(m[2]!)}`],
   [/^(\d+) földrészlet előtte, (\d+) utána · tulajdoni lapi összeg (\d+) m²(?: · végleges összeg (\d+) m²)? · (?:(\d+) hiba|rendben)$/, (m) =>
       `${m[1]} parcel(s) before, ${m[2]} after · registered total ${m[3]} m²` + (m[4] ? ` · final total ${m[4]} m²` : '') + (m[5] ? ` · ${m[5]} error(s)` : ' · OK')],
+  [/^DAT: (.+) – (\d+) pont, (\d+) földrészlet(.*)\.$/, 'DAT: $1 – $2 points, $3 parcels$4.'],
   [/^Területosztás: (.+)$/, 'Area division: $1'],
   [/^A számítás nem futott le: (.+)$/, 'The calculation did not run: $1'],
   [/^A feldolgozás nem futott le: (.+)$/, 'Processing did not run: $1'],
