@@ -3288,3 +3288,86 @@ button.fb-calc {
   width: 100%;
   height: auto;
 }
+
+/* DXF megjelenítő */
+.dv-svg {
+  display: block;
+  width: 100%;
+  height: 62vh;
+  min-height: 320px;
+  background: #fff;
+  border: 1px solid var(--face-sh);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dv-svg:active {
+  cursor: grabbing;
+}
+
+.dv-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--face-sh);
+  padding: 4px 6px;
+}
+
+.dv-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+#dv-results tbody tr {
+  cursor: pointer;
+}
+
+/* A vázrajz szerkesztése az előnézeten */
+.plan-edit {
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--face-sh);
+}
+
+.plan-edit .pane-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.plan-edit button[aria-pressed='true'] {
+  background: var(--select);
+  color: var(--select-text);
+}
+
+.plan-preview[data-tool='label'] .plan-page svg,
+.plan-preview[data-tool='dim'] .plan-page svg {
+  cursor: crosshair;
+}
+
+.plan-preview[data-tool='move'] .plan-page [data-line] {
+  cursor: move;
+}
+
+.plan-preview[data-tool='delete'] .plan-page [data-line] {
+  cursor: not-allowed;
+}
+
+.plan-preview[data-tool='move'] .plan-page [data-line]:hover,
+.plan-preview[data-tool='delete'] .plan-page [data-line]:hover {
+  fill: #d01010;
+}
+
+.plan-scroll {
+  max-height: 80vh;
+  overflow: auto;
+}
+
+.plan-scroll .plan-page {
+  width: 100%;
+}

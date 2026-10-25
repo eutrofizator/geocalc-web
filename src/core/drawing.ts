@@ -1,6 +1,7 @@
 import type { Pt } from './geometry';
 import type { LayerKey } from './layers';
 import type { NamedPt } from './parcel';
+import { findSymbol, SYMBOLS, type SymbolDef } from './symbols';
 import type { Issue } from './types';
 
 /**
@@ -12,6 +13,10 @@ import type { Issue } from './types';
  *   új alrészlet ; betűjel ; művelési ág ; pontok…                       – kialakuló alrészlet
  *   vonal ; kerítés | fal | szolgalmi ; pontok…                            – nyitott vonal
  *   felirat ; házszám | utcanév | dűlőnév | egyéb ; szöveg ; @pontszám | Y X [; forgatás°]
+ *   méret ; pontszám pontszám [; szöveg]                                 – méretmegírás két pont között
+ *     (a szöveg a számított távolság helyett, pl. átvett méret)
+ *   jel ; jelkulcsi jel neve | JKDAT… kód ; @pontszám | Y X [; forgatás°] [; megírás]  – jelkulcsi jel
+ *     (DAT1-M2), pl. „jel ; villanyoszlop ; 650010 240005”, „jel ; kapcsolójel ; 650020 240000”
  *
  * A pontok a koordináták pontszámai. A rétegek a földhivatali rajzok rétegrendjét követik.
  */
@@ -20,7 +25,10 @@ export type DrawingElement =
   | { kind: 'building'; type: BuildingType; layer: LayerKey; ring: NamedPt[]; code: string; line: number }
   | { kind: 'sub'; letter: string; use: string; quality: string; isNew: boolean; ring: NamedPt[]; line: number }
   | { kind: 'polyline'; layer: LayerKey; pts: NamedPt[]; line: number }
-  | { kind: 'label'; layer: LayerKey; text: string; at: Pt; rotation: number; line: number };
+  | { kind: 'label'; layer: LayerKey; text: string; at: Pt; rotation: number; line: number }
+  | { kind: 'dim'; a: NamedPt; b: NamedPt; text: string; line: number }
+  /** Jelkulcsi jel; forgatás nélkül a jel a saját tájolási szabálya szerint áll. */
+  | { kind: 'symbol'; def: SymbolDef; at: Pt; rotation: number | null; label: string; line: number };
 
 export type BuildingType = 'new' | 'residential' | 'farm' | 'holiday' | 'old' | 'wall';
 
@@ -129,6 +137,14 @@ export function parseDrawing(text: string, points: Map<string, NamedPt>): { elem
         if (ring) elements.push({ kind: 'sub', letter: letter.toLowerCase(), use: f[2] ?? '', quality, isNew: cmd.startsWith('új') || cmd.startsWith('uj'), ring, line: no });
         return;
       }
+      case 'méret':
+      case 'meret': {
+        const ends = resolve(f[1] ?? '', 2);
+        if (!ends) return;
+        if (ends.length !== 2) return err('a méret két pont között áll („méret ; 101 102”).');
+        elements.push({ kind: 'dim', a: ends[0]!, b: ends[1]!, text: (f[2] ?? '').trim(), line: no });
+        return;
+      }
       case 'vonal': {
         const layer = LINE[(f[1] ?? '').toLowerCase()];
         if (!layer) return err(`ismeretlen vonalfajta „${f[1]}” (kerítés, fal, szolgalmi, egyéb).`);
@@ -156,8 +172,28 @@ export function parseDrawing(text: string, points: Map<string, NamedPt>): { elem
         elements.push({ kind: 'label', layer, text: txt, at, rotation: Number.isFinite(rot) ? rot : 0, line: no });
         return;
       }
+      case 'jel': {
+        const def = findSymbol(f[1] ?? '');
+        if (!def) return err(`ismeretlen jelkulcsi jel „${f[1]}” (pl. ${SYMBOLS.slice(4, 10).map((s) => s.key).join(', ')} …).`);
+        const where = (f[2] ?? '').trim();
+        let at: Pt | null = null;
+        if (where.startsWith('@')) {
+          const p = points.get(where.slice(1).trim());
+          if (!p) return err(`ismeretlen pont: ${where.slice(1)}.`);
+          at = { y: p.y, x: p.x };
+        } else {
+          const [y, x] = where.split(/[\s,]+/).map((v) => Number(v.replace(',', '.')));
+          if (Number.isFinite(y) && Number.isFinite(x)) at = { y: y!, x: x! };
+        }
+        if (!at) return err('a jel helye „@pontszám” vagy „Y X” legyen.');
+        const r = (f[3] ?? '').trim();
+        const rot = r === '' ? null : Number(r.replace(',', '.'));
+        if (rot !== null && !Number.isFinite(rot)) return err(`a forgatás szög fokban („${r}”).`);
+        elements.push({ kind: 'symbol', def, at, rotation: rot, label: f[4] !== undefined ? f[4].trim() : (def.label ?? ''), line: no });
+        return;
+      }
       default:
-        err(`ismeretlen elem „${f[0]}” (épület, alrészlet, új alrészlet, vonal, felirat).`);
+        err(`ismeretlen elem „${f[0]}” (épület, alrészlet, új alrészlet, vonal, felirat, méret, jel).`);
     }
   });
   return { elements, issues };

@@ -60,6 +60,7 @@ describe('a burok regisztere (menüsor, ikonsáv, navigátor, munkalapok)', () =
       'Földrajzi koordináták konvertálása',
       'Koordináta állomány létrehozása',
       'AKG jegyzőkönyv kezelése',
+      'DXF megjelenítő',
     ]);
     expect(pages('Beállítások')).toContain('Általános beállítások');
     expect(pages('Beállítások')).toContain('Névjegy');

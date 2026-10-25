@@ -171,7 +171,7 @@ async function main() {
   );
   await check('ikonsáv gombjai', `document.querySelectorAll('.tb-btn').length`, 15);
   await check('a navigátor hat csoportja', `document.querySelectorAll('#navigator .nav-group').length`, 6);
-  await check('a navigátor pontjai', `document.querySelectorAll('#navigator .nav-item').length`, 23);
+  await check('a navigátor pontjai', `document.querySelectorAll('#navigator .nav-item').length`, 24);
   await check('csak a Beállítások csoport kiemelt', `[...document.querySelectorAll('#navigator .nav-group.special .nav-head-label')].map(e => e.textContent).join('|')`, 'Beállítások');
   await check('induláskor a Névjegy látszik', `document.getElementById('win-about').classList.contains('active')`, true);
   await check('egyszerre egy munkalap látszik', `document.querySelectorAll('.mdiwin:not([hidden])').length`, 1);
@@ -320,6 +320,33 @@ async function main() {
   await check('az Előkép nagyítható', `document.getElementById('zoom-level').textContent`, '110%');
   await evalJs(`document.getElementById('btn-zoom-out').click()`);
   await check('az Előkép kicsinyíthető', `document.getElementById('zoom-level').textContent`, '100%');
+
+  /* ---------- DXF megjelenítő ---------- */
+  await clickNav('ex-dxf');
+  await check('a DXF megjelenítő megnyílt', `document.getElementById('win-dxf-view').classList.contains('active')`, true);
+  await evalJs(`
+    (() => {
+      const E = (...a) => a.join(String.fromCharCode(10));
+      const text = E('0', 'SECTION', '2', 'ENTITIES',
+        E('0', 'LWPOLYLINE', '8', 'BNK_FRSZ', '90', '4', '70', '1', '10', '650000', '20', '240000', '10', '650040', '20', '240000', '10', '650040', '20', '240025', '10', '650000', '20', '240025'),
+        E('0', 'INSERT', '8', 'BHP', '2', 'HP', '10', '650040', '20', '240000'),
+        E('0', 'TEXT', '8', 'BHP_SZ', '10', '650040', '20', '240000', '40', '1', '1', '17'),
+        '0', 'ENDSEC', '0', 'EOF');
+      const inp = document.getElementById('dv-dxf-input');
+      const dt = new DataTransfer();
+      dt.items.add(new File([text], 'proba.dxf'));
+      inp.files = dt.files;
+      inp.dispatchEvent(new Event('change'));
+      const t = document.getElementById('dv-points');
+      t.value = '1 650040.03 239999.96';
+      t.dispatchEvent(new Event('input'));
+      return true;
+    })()
+  `);
+  await new Promise((r) => setTimeout(r, 300));
+  await check('a DXF fóliái a listában', `document.querySelectorAll('#dv-layers input').length`, 3);
+  await check('a saját pont eltérése a számozott határponttól', `[...document.querySelectorAll('#dv-results tbody td')].slice(3).map((c) => c.textContent).join(' ')`, '17 0.030 -0.040 0.050');
+  await check('a saját pont a térképen', `document.querySelectorAll('#dv-svg text').length > 0`, true);
 
   /* ---------- Földrajzi koordináták konvertálása ---------- */
   await clickNav('ex-geo');
@@ -1278,7 +1305,51 @@ async function main() {
     const t = new TextDecoder('windows-1250').decode(readFileSync(join(DL, f)));
     return t.includes('AC1009') && t.includes('Új épület (bármilyen)') && t.includes('Házszám') && t.includes('Alrészlet határ');
   })(), true);
-  await evalJs(`(() => { const d = document.getElementById('pc-drawing'); d.value = ''; d.dispatchEvent(new Event('input')); document.getElementById('pc-plan-close').click(); return true; })()`);
+  // Szerkesztés az előnézeten: felirat kattintással, méret két pontra, törlés, visszavonás
+  await clickNav('gs-parcel');
+  await evalJs(`(() => {
+    const d = document.getElementById('pc-drawing');
+    d.value = '';
+    d.dispatchEvent(new Event('input'));
+    document.getElementById('pc-plan-change').click();
+    document.getElementById('pc-edit-text').value = 'Fő utca';
+    document.getElementById('pc-edit-label').click();
+    const svg = document.querySelector('#pc-plan svg');
+    const r = svg.getBoundingClientRect();
+    svg.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: r.left + r.width / 2, clientY: r.top + r.height * 0.3 }));
+    document.getElementById('pc-edit-dim').click();
+    const at = (c) => { const b = c.getBoundingClientRect(); return { bubbles: true, clientX: b.left + b.width / 2, clientY: b.top + b.height / 2 }; };
+    const circles = [...document.querySelectorAll('#pc-plan svg circle[r="0.55"]')];
+    document.querySelector('#pc-plan svg').dispatchEvent(new MouseEvent('click', at(circles[0])));
+    document.querySelector('#pc-plan svg').dispatchEvent(new MouseEvent('click', at(circles[1])));
+    return true;
+  })()`);
+  await sleep(200);
+  await check('a kattintással felvett felirat és méret a Rajzelemek között', `document.getElementById('pc-drawing').value.split(String.fromCharCode(10)).map((l) => l.split(';')[0].trim()).join(',')`, 'felirat,méret');
+  await check('a kézi felirat a vázrajzon', `[...document.querySelectorAll('#pc-plan svg [data-line]')].map((t) => t.textContent).includes('Fő utca')`, true);
+  await evalJs(`(() => {
+    document.getElementById('pc-edit-delete').click();
+    const t = [...document.querySelectorAll('#pc-plan svg [data-line]')].find((x) => x.textContent === 'Fő utca');
+    t.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return true;
+  })()`);
+  await sleep(200);
+  await check('a kézi felirat törölhető', `document.getElementById('pc-drawing').value.includes('Fő utca')`, false);
+  await evalJs(`document.getElementById('pc-edit-undo').click()`);
+  await sleep(200);
+  await check('a törlés visszavonható', `document.getElementById('pc-drawing').value.includes('Fő utca')`, true);
+  await evalJs(`(() => {
+    document.getElementById('pc-edit-symbol').click();
+    document.getElementById('pc-edit-symbol-kind').value = 'villanyoszlop';
+    const svg = document.querySelector('#pc-plan svg');
+    const r = svg.getBoundingClientRect();
+    svg.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: r.left + r.width * 0.45, clientY: r.top + r.height * 0.32 }));
+    return true;
+  })()`);
+  await sleep(200);
+  await check('a jelkulcsi jel kattintással a rajzra kerül', `(() => { const l = document.getElementById('pc-drawing').value.split(String.fromCharCode(10)).at(-1); const n = document.getElementById('pc-drawing').value.split(String.fromCharCode(10)).length; return /^jel ; villanyoszlop ; \\d+\\.\\d\\d \\d+\\.\\d\\d$/.test(l) && !!document.querySelector('#pc-plan svg g[data-line="' + n + '"] path'); })()`, true);
+  await evalJs(`(() => { document.getElementById('pc-edit-delete').click(); const d = document.getElementById('pc-drawing'); d.value = ''; d.dispatchEvent(new Event('input')); document.getElementById('pc-plan-close').click(); return true; })()`);
+  await clickNav('gs-work');
 
   // A munka fajtája: kitűzés → KITŰZÉSI VÁZRAJZ; a leadandó csomag a munka mappáival.
   await evalJs(`document.getElementById('pc-sample').click()`);

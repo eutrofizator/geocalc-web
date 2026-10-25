@@ -144,6 +144,32 @@ describe('vázrajz', () => {
     expect(svg).toContain('>szántó<');
   });
 
+  it('a választott méretarány felülírja az automatikusat', () => {
+    const r = renderPlan('change', input, meta, { template: JOBS.subdivision.plan, job: 'subdivision', scale: 250 });
+    expect(r.scale).toBe(250);
+    expect(r.autoScale).toBe(500);
+    expect(r.svg).toContain('M= 1:250');
+    expect(renderPlan('change', input, meta, { template: JOBS.subdivision.plan, scale: 1000 }).svg).toContain('M= 1:1000');
+  });
+
+  it('a rajzlap és a terep közötti átszámítás (kattintásos szerkesztés), a kézi felirat és méret', () => {
+    const r = renderPlan('change', input, meta, { template: JOBS.subdivision.plan, job: 'subdivision' });
+    const p = { y: 650012.5, x: 240010.25 };
+    const q = r.toPaper(p);
+    const g = r.toGround(q.x, q.y);
+    expect(g.y).toBeCloseTo(p.y, 6);
+    expect(g.x).toBeCloseTo(p.x, 6);
+    const a = input.after[0]!.ring[0]!;
+    const b = input.after[0]!.ring[1]!;
+    const drawing = [
+      { kind: 'label' as const, layer: 'street' as const, text: 'Fő utca', at: p, rotation: 0, line: 1 },
+      { kind: 'dim' as const, a, b, text: '', line: 2 },
+    ];
+    const svg = renderPlan('change', { ...input, drawing }, meta, { template: JOBS.subdivision.plan, job: 'subdivision' }).svg;
+    expect(svg).toMatch(/data-line="1"[^>]*>Fő utca</);
+    expect(svg).toMatch(new RegExp(`data-line="2"[^>]*>${Math.hypot(a.y - b.y, a.x - b.x).toFixed(2)}<`));
+  });
+
   it('ha.m² alak és tárgymondat egyesítésnél', () => {
     expect(haM2(1102)).toBe('0.1102');
     expect(haM2(12345.4)).toBe('1.2345');

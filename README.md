@@ -65,6 +65,7 @@ arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jel
 | Adatcsere/Földrajzi koordináták konvertálása | **működik** (áldecimális, tizedes fok, fok-perc-másodperc, WGS 84 X,Y,Z, UTM 33/34) |
 | Adatcsere/Koordináta állomány készítése | **működik** (kézi jegyzék + GeoCalc-DB / .PYX / földrajzi kimenet) |
 | Adatcsere/AKG jegyzőkönyv készítése | **működik** (parcellák, AKG_* leíró adatok, szöveges jegyzőkönyv) |
+| Adatcsere/DXF megjelenítő | **új** (a GEOkalkulus saját munkalapja: DXF térkép fóliánként, rajta a saját pontok eltéréssel) |
 | Beállítások/Általános beállítások | **működik** (munkamenet, automatikus számítás, induló munkalap, tárolt adatok) |
 | Beállítások/Névjegy | **működik** (induló kép) |
 | Súgó | **működik** (a súgó kivonata) |
@@ -135,7 +136,9 @@ változási vázrajz területszámításához:
   adatszolgáltatás iktatószáma; középen a felirat, a tárgymondat (pl. „a 100 helyrajzi számú földrészlet
   megosztásáról”, „…egyesítéséről”, „…telekhatár-rendezéséről”, „…földrészleten lévő épület
   feltüntetéséhez”, „…művelési ág változásáról”, „…kitűzéséről”) és az „M= 1:500” méretarány; keret
-  nélküli térképi kivágat szabványos méretarányban (a megszűnő határ áthúzva, a megszűnő helyrajzi szám
+  nélküli térképi kivágat szabványos méretarányban – automatikusan a legnagyobb, amelyben a rajz a
+  keretbe fér, vagy „A vázrajz méretaránya” mezőben választva (1:100 … 1:10 000; ha a rajz nem fér
+  ki, az előnézet szól) – (a megszűnő határ áthúzva, a megszűnő helyrajzi szám
   áthúzva, az új határ és az új helyrajzi szám vastagon, a pontszámok, a címkoordináták jele és
   helyrajzi számonkénti „Címkoordináták … hrsz” táblázata, északjel), „A vázrajz méretek levételére nem
   alkalmas.”; a területkimutatás a minták táblázatával („Változás előtti / utáni állapot”, Hrsz,
@@ -169,10 +172,28 @@ változási vázrajz területszámításához:
   üres), ez kerül a területkimutatás 4. és 10. oszlopába (a DAT nem hordozza); az új épület T_OBJ_ATTRCA rekordként (az obj_fels kód a rajzelem 4.
   mezője, alapértelmezésben CA01). A DAT beolvasásakor a meglévő alrészletek és épületek
   rajzelemként kerülnek a munkalapra. `tests/subparcels.test.ts`
+- **Szerkesztés a rajzon** – a vázrajz és a vázlat előnézete fölötti eszközsorral: *Felirat* (a Szöveg
+  mező tartalma oda kerül, ahová a rajzon kattintasz, a választott fajtával és forgatással), *Méret*
+  (kattintás két pontra – a legközelebbi pontra ugrik), *Jel* (jelkulcsi jel a listából, kattintásra),
+  *Mozgatás* (a kézi feliratot vagy jelet meg kell fogni és húzni), *Törlés* (kattintás a kézi feliratra,
+  méretre vagy jelre) és *Visszavonás*; az előnézet 100–300%-ra nagyítható. Minden szerkesztés egy sor a
+  „Rajzelemek” mezőben, így szöveggel is javítható, és a DXF-be is bekerül.
+- **Jelkulcsi jelek (DAT1-M2)** – a „DAT1-M2. A digitális alaptérkép jelkulcsai” szabályzatmelléklet
+  (FM 24.459/1996.) szimbólumlapjainak méreteivel (1:1000 oszlop, mm-ben, a rajz méretarányától
+  függetlenül): határjelek (határkő, határpont, határdomb, kővel / faoszloppal állandósított határdomb),
+  alappontok (ötödrendű, kővel állandósított és egyéb felmérési, magassági), kapcsolójel, épületjel,
+  tartópillérek, fényaknák, fák (tűlevelű, lombos), akna, dögkút, kereszt, sír, villanyoszlop, alapozott
+  oszlop, nagyfeszültségű vezeték nyilai, földelő kút, oszloptrafó, trafóház, tűzcsap, forrás, közkút,
+  gémeskút, szökőkút, kút, aknafedlapok, kótált pont – összesen 36 jel (`src/core/symbols.ts`). Sora:
+  `jel ; név vagy JKDAT-kód ; @pontszám vagy Y X [; forgatás] [; megírás]`. Forgatás nélkül a jel a
+  melléklet szerint áll: É-i irányban, a kapcsolójel (merőlegesen), a fényakna és a négyzetes jelek
+  (párhuzamosan) a legközelebbi vonalhoz igazodva; a melléklet megírásai (Akna, sír, Vk, k, dögk.) a
+  jeltől jobbra 0,7 mm-re. `tests/symbols.test.ts`
 - **Rajzelemek és DXF a földhivatali rétegrenddel** – a „Rajzelemek” mezőben soronként: `épület ; új |
   lakó | gazdasági | üdülő | megszűnő | falsík ; pontok`, `alrészlet ; betűjel ; művelési ág ; pontok [; minőségi osztály]`,
   `új alrészlet ; …`, `vonal ; kerítés | fal | szolgalmi ; pontok`, `felirat ; házszám | utcanév |
-  dűlőnév | objektum | egyéb ; szöveg ; @pontszám vagy Y X [; forgatás]`. A rajzelemek a vázrajzon
+  dűlőnév | objektum | egyéb ; szöveg ; @pontszám vagy Y X [; forgatás]`, `méret ; pontszám pontszám [;
+  szöveg]` (kézi méretmegírás; a szöveg a számított távolság helyett, pl. átvett méret). A rajzelemek a vázrajzon
   megjelennek (az új épület vastagon, a felirat a helyén, a művelési ág a 18. § (2) rövidítésével), a
   „DXF (földhivatali rétegek)” pedig R12 DXF-et ír (ANSI_1250, DXF X = EOV Y, DXF Y = EOV X) a leadott
   rajzok rétegeivel, színeivel és vonaltípusaival (pl. `Földrészlet határ`, `Előzetes földrészlet vonal`,
@@ -405,6 +426,18 @@ geoidmodell nélkül változatlanul megy át; centiméteres átszámításhoz a 
 pontok, interpoláció) vagy a GNSS Szolgáltató Központ EHT² szolgáltatása kell. A hibás sor kimarad, a többi feldolgozható; a „Bemenet ⇄
 kimenet” gomb az eredményt teszi vissza bemenetnek (oda-vissza ellenőrzés). A `tests/geo-convert.test.ts`
 rögzíti a súgó példáját és az UTM-egyezést a transzformáció moduljával.
+
+### DXF megjelenítő (Adatcsere)
+
+A földhivatali adatszolgáltatás DXF-je (vagy a DXF-et tartalmazó ZIP) megnyitható és megtekinthető:
+vonalak, vonalláncok (LWPOLYLINE, POLYLINE), körök, ívek, feliratok (TEXT, MTEXT) és pontszerű elemek
+(INSERT, POINT) fóliánként színezve, a fóliák egyenként ki-be kapcsolhatók. Nagyítás egérgörgővel vagy
+a +/− gombbal, mozgatás húzással, a kurzor Y, X koordinátája a sávban. A saját pontok (pontszám Y X)
+beírhatók, állományból beolvashatók, vagy átvehetők a Változási vázrajz munkalapról (a mért pontok,
+ha nincsenek, a koordináták); pirossal kerülnek a térképre. A táblázat minden saját ponthoz megadja a
+legközelebbi DXF pontot (a „_SZ” fólia feliratával számozott pont, pl. BHP + BHP_SZ, egyéb pontszerű
+elem vagy töréspont) a választott sugáron belül, dY, dX és eltérés értékkel; a sorra kattintva a térkép
+a pontra áll. `tests/dxf-drawing.test.ts`
 
 ### Koordináta állomány készítése (súgó 74. o.)
 

@@ -73,6 +73,7 @@ export const SHEETS: Sheet[] = [
     win: 'win-exchange-coords',
   },
   { id: 'geo-convert', caption: 'Adatcsere/Földrajzi koordináták konvertálása', icon: '#i-globe', win: 'win-geo-convert' },
+  { id: 'dxf-view', caption: 'Adatcsere/DXF megjelenítő', icon: '#i-map', win: 'win-dxf-view' },
   {
     id: 'exchange-file',
     caption: 'Adatcsere/Koordináta állomány készítése',
@@ -169,6 +170,7 @@ export const NAV: NavGroup[] = [
       { id: 'ex-geo', label: 'Földrajzi koordináták konvertálása', sheet: 'geo-convert' },
       { id: 'ex-file', label: 'Koordináta állomány létrehozása', sheet: 'exchange-file' },
       { id: 'ex-akg', label: 'AKG jegyzőkönyv kezelése', sheet: 'exchange-akg' },
+      { id: 'ex-dxf', label: 'DXF megjelenítő', sheet: 'dxf-view' },
     ],
   },
   {

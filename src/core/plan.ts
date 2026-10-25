@@ -6,6 +6,7 @@ import type { FooterItem, JobKind, PlanTemplate } from './jobs';
 import { fix } from './format';
 import { distance, polygonArea, type Pt } from './geometry';
 import type { NamedPt } from './parcel';
+import { symbolPaths } from './symbols';
 import type { Row, Section } from './types';
 
 /**
@@ -311,6 +312,8 @@ export interface PlanOptions {
   template?: PlanTemplate;
   /** A munka fajtája: ettől függ, minek a méreteit írja a rajz (kitűzött földrészlet, új épület, új alrészlet). */
   job?: JobKind;
+  /** A rajz méretaránya (pl. 500); ha nincs megadva, a legnagyobb, amelyben a kivágat a keretbe fér. */
+  scale?: number;
 }
 
 /** A méretmegírással ellátott élek a munka fajtája szerint. */
@@ -371,7 +374,45 @@ const BLUE = '#1530c0';
  * területkimutatás 14 (13) oszlopos táblázata ha.m² területekkel; a lábrész a minták szerinti
  * feliratokkal, aláírás- és záradékhelyekkel.
  */
-export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta, opts: PlanOptions = {}): { svg: string; scale: number } {
+/**
+ * A jelkulcsi jel forgatása (fok, az óramutatóval ellentétesen): a megadott érték, vagy a jel tájolási
+ * szabálya szerint a legközelebbi vonal (földrészlethatár, épület, alrészlet, vonal) irányában.
+ */
+export function symbolRotation(d: Extract<DrawingElement, { kind: 'symbol' }>, input: PlanInput): number {
+  if (d.rotation !== null) return d.rotation;
+  if (d.def.orient !== 'parallel' && d.def.orient !== 'perpendicular') return 0;
+  const rings: [Pt[], boolean][] = [
+    ...[...input.before, ...input.after].map((p): [Pt[], boolean] => [p.ring, true]),
+    ...(input.background?.parcels ?? []).map((p): [Pt[], boolean] => [p.ring, true]),
+    ...(input.background?.buildings ?? []).map((b): [Pt[], boolean] => [b.ring, true]),
+    ...(input.drawing ?? []).flatMap((e): [Pt[], boolean][] => (e.kind === 'building' || e.kind === 'sub' ? [[e.ring, true]] : e.kind === 'polyline' ? [[e.pts, false]] : [])),
+  ];
+  let best: { d: number; ang: number } | null = null;
+  for (const [ring, closed] of rings)
+    for (let i = 0; i < ring.length - (closed ? 0 : 1); i++) {
+      const a = ring[i]!;
+      const b = ring[(i + 1) % ring.length]!;
+      const dy = b.y - a.y;
+      const dx = b.x - a.x;
+      const l2 = dy * dy + dx * dx || 1;
+      const u = Math.max(0, Math.min(1, ((d.at.y - a.y) * dy + (d.at.x - a.x) * dx) / l2));
+      const dist = Math.hypot(a.y + u * dy - d.at.y, a.x + u * dx - d.at.x);
+      if (!best || dist < best.d) best = { d: dist, ang: (Math.atan2(dx, dy) * 180) / Math.PI };
+    }
+  return best?.ang ?? 0;
+}
+
+export interface PlanRender {
+  svg: string;
+  scale: number;
+  autoScale: number;
+  /** A rajzlap egy pontjának (mm) terepi helye – a rajz kattintásos szerkesztéséhez. */
+  toGround: (mmX: number, mmY: number) => Pt;
+  /** Egy terepi pont helye a rajzlapon (mm). */
+  toPaper: (p: Pt) => { x: number; y: number };
+}
+
+export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta, opts: PlanOptions = {}): PlanRender {
   const tpl = opts.template ?? DEFAULT_TEMPLATES[kind];
   const W = 210;
   const H = 297;
@@ -410,7 +451,8 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const pad = 0.15;
-  const scale = chooseScale((maxY - minY) * (1 + 2 * pad) || 1, (maxX - minX) * (1 + 2 * pad) || 1, frame.w, frame.h);
+  const autoScale = chooseScale((maxY - minY) * (1 + 2 * pad) || 1, (maxX - minX) * (1 + 2 * pad) || 1, frame.w, frame.h);
+  const scale = opts.scale ?? autoScale;
   t(W / 2, 51.5, `M= 1:${scale}`, 3.8, `${it} text-anchor="middle"`);
   const k = 1000 / scale; // mm / m
   const cy = (minY + maxY) / 2;
@@ -421,6 +463,15 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
     out.push(`<line x1="${sx(a.y).toFixed(2)}" y1="${sy(a.x).toFixed(2)}" x2="${sx(b.y).toFixed(2)}" y2="${sy(b.x).toFixed(2)}" stroke="${color}" stroke-width="${w}" ${extra}/>`);
   const poly = (ring: Pt[], closed: boolean, attrs: string) =>
     out.push(`<${closed ? 'polygon' : 'polyline'} points="${ring.map((q) => `${sx(q.y).toFixed(2)},${sy(q.x).toFixed(2)}`).join(' ')}" fill="none" ${attrs}/>`);
+
+  /** A méretszám helye és forgatása: az él közepén, az éllel párhuzamosan, alulról vagy jobbról olvasva. */
+  const along = (a: Pt, b: Pt) => {
+    const ang = (Math.atan2(sy(b.x) - sy(a.x), sx(b.y) - sx(a.y)) * 180) / Math.PI;
+    const rot = ang >= 90 ? ang - 180 : ang < -90 ? ang + 180 : ang;
+    const mx = (sx(a.y) + sx(b.y)) / 2;
+    const my = (sy(a.x) + sy(b.x)) / 2;
+    return { mx, my, tr: `transform="rotate(${rot.toFixed(1)} ${mx.toFixed(2)} ${my.toFixed(2)})"` };
+  };
 
   out.push(`<g clip-path="url(#frame)">`);
   // Környezet
@@ -492,22 +543,39 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
         const w = Math.max(landUseLabel(d.use).length * 1.4, 3);
         out.push(`<line x1="${(lx - w / 2).toFixed(2)}" y1="${(ly - 1.2).toFixed(2)}" x2="${(lx + w / 2).toFixed(2)}" y2="${(ly + 2.6).toFixed(2)}" stroke="#000" stroke-width="0.35"/>`);
       }
+    } else if (d.kind === 'dim') {
+      const { mx, my, tr } = along(d.a, d.b);
+      t(mx, my - 0.8, d.text || fix(distance(d.a, d.b), 2), 2.4, `data-line="${d.line}" text-anchor="middle"${d.text && tpl.colored ? ` fill="${BLUE}"` : ''} ${tr}`);
     } else if (d.kind === 'polyline') poly(d.pts, false, `stroke="#000" stroke-width="0.2"${d.layer === 'fence' ? ' stroke-dasharray="2 1"' : d.layer === 'servitude' ? ' stroke-dasharray="3 1"' : ''}`);
-    else {
+    else if (d.kind === 'symbol') {
       const x = sx(d.at.y);
       const y = sy(d.at.x);
-      t(x, y, d.text, d.layer === 'houseNo' ? 2.6 : 3, `text-anchor="middle" ${it}${d.rotation ? ` transform="rotate(${(-d.rotation).toFixed(1)} ${x.toFixed(2)} ${y.toFixed(2)})"` : ''}`);
+      const paths = symbolPaths(d.def, symbolRotation(d, input));
+      const color = d.def.color ?? '#000';
+      const sw = d.def.width ?? 0.18;
+      const ds = paths
+        .map((p) => {
+          const pts = p.pts.map(([u, v]) => `${(x + u).toFixed(3)} ${(y - v).toFixed(3)}`).join(' L ');
+          const style = p.fill ? `fill="${color}" stroke="none"` : `fill="none" stroke="${color}" stroke-width="${sw}"`;
+          return `<path d="M ${pts}${p.closed ? ' Z' : ''}" ${style}/>`;
+        })
+        .join('');
+      // a megírás a jeltől jobbra 0,70 mm-re (DAT1-M2)
+      const right = Math.max(0, ...paths.flatMap((p) => p.pts.map(([u]) => u)));
+      const lab = d.label ? `<text x="${(x + right + 0.7).toFixed(2)}" y="${(y + 0.6).toFixed(2)}" font-size="1.8" ${it}>${esc(d.label)}</text>` : '';
+      // átlátszó fogantyú, hogy a kis jel is megfogható legyen
+      out.push(`<g data-line="${d.line}" data-px="${x.toFixed(2)}" data-py="${y.toFixed(2)}"><circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="1.6" fill="transparent"/>${ds}${lab}</g>`);
+    } else {
+      const x = sx(d.at.y);
+      const y = sy(d.at.x);
+      t(x, y, d.text, d.layer === 'houseNo' ? 2.6 : 3, `data-line="${d.line}" text-anchor="middle" ${it}${d.rotation ? ` transform="rotate(${(-d.rotation).toFixed(1)} ${x.toFixed(2)} ${y.toFixed(2)})"` : ''}`);
     }
   }
 
   // Méretek: a vázlaton és a kitűzési vázrajzon (11. melléklet: kitűzési méret aláhúzva, mért zölden)
   if (tpl.dimensions)
     for (const [a, b] of dimensionEdges(input, opts.job)) {
-      const ang = (Math.atan2(sy(b.x) - sy(a.x), sx(b.y) - sx(a.y)) * 180) / Math.PI;
-      const rot = ang >= 90 ? ang - 180 : ang < -90 ? ang + 180 : ang;
-      const mx = (sx(a.y) + sx(b.y)) / 2;
-      const my = (sy(a.x) + sy(b.x)) / 2;
-      const tr = `transform="rotate(${rot.toFixed(1)} ${mx.toFixed(2)} ${my.toFixed(2)})"`;
+      const { mx, my, tr } = along(a, b);
       const setout = opts.job === 'setout';
       const color = setout && tpl.colored ? ` fill="${RED}"` : '';
       t(mx, my - 0.8, fix(distance(a, b), 2), 2.4, `text-anchor="middle"${setout ? ' text-decoration="underline"' : ''}${color} ${tr}`);
@@ -611,7 +679,13 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">` +
     `<defs><clipPath id="frame"><rect x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${frame.h}"/></clipPath></defs>` +
     `<rect width="${W}" height="${H}" fill="#fff"/>${out.join('')}</svg>`;
-  return { svg, scale };
+  return {
+    svg,
+    scale,
+    autoScale,
+    toGround: (mx, my) => ({ y: cy + (mx - frame.x - frame.w / 2) / k, x: cx - (my - frame.y - frame.h / 2) / k }),
+    toPaper: (p) => ({ x: sx(p.y), y: sy(p.x) }),
+  };
 }
 
 export interface SubLike {
@@ -830,7 +904,14 @@ export function planEntities(kind: 'change' | 'sketch', input: PlanInput, scale:
       e.push({ type: 'text', layer: d.isNew ? 'newSubLetter' : 'subLetter', at, text: d.letter, height: 2, align: 'center' });
       e.push({ type: 'text', layer: d.isNew ? 'newSubUse' : 'subUse', at: { y: at.y, x: at.x - 2.5 * mm }, text: landUseLabel(d.use), height: 1.8, align: 'center' });
     } else if (d.kind === 'polyline') e.push({ type: 'polyline', layer: d.layer, pts: d.pts, closed: false });
-    else e.push({ type: 'text', layer: d.layer, at: d.at, text: d.text, height: d.layer === 'houseNo' ? 2 : 2.5, rotation: d.rotation, align: 'center' });
+    else if (d.kind === 'dim')
+      e.push({ type: 'text', layer: 'distComputed', at: { y: (d.a.y + d.b.y) / 2, x: (d.a.x + d.b.x) / 2 }, text: d.text || fix(distance(d.a, d.b), 2), height: 1.8, align: 'center' });
+    else if (d.kind === 'symbol') {
+      // a jel vonalai terepi koordinátákban (1 rajzlap-mm = scale/1000 m)
+      for (const p of symbolPaths(d.def, symbolRotation(d, input)))
+        e.push({ type: 'polyline', layer: 'symbol', pts: p.pts.map(([u, v]) => ({ y: d.at.y + u * mm, x: d.at.x + v * mm })), closed: p.closed });
+      if (d.label) e.push({ type: 'text', layer: 'symbol', at: { y: d.at.y + 2 * mm, x: d.at.x }, text: d.label, height: 1.8 });
+    } else e.push({ type: 'text', layer: d.layer, at: d.at, text: d.text, height: d.layer === 'houseNo' ? 2 : 2.5, rotation: d.rotation, align: 'center' });
   }
   const seen = new Set<string>();
   const drawingPts = (input.drawing ?? []).flatMap((d) => (d.kind === 'building' || d.kind === 'sub' ? d.ring : d.kind === 'polyline' ? d.pts : []));

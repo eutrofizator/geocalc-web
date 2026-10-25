@@ -72,6 +72,7 @@ export const LAYERS = {
   distMeasured: L('Távolság (mért)', 92, '0.18 - szaggatott (1.5-0.5)'),
   distComputed: L('Távolság (számított)', 8, '0.18 - szaggatott (1.5-0.5)'),
   objectType: L('Objektum féleség felirat', 1),
+  symbol: L('Jelkulcsi jel', 7, '0.18 - folyamatos'),
   frame: L('Fekete keret', 7, '0.18 - folyamatos'),
   other: L('Egyéb', 1),
 } satisfies Record<string, Layer>;

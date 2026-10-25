@@ -44,8 +44,17 @@ describe('rajzelemek', () => {
       'Rajzelemek 1. sor: ismeretlen épülettípus „torony” (új, lakó, gazdasági, üdülő, megszűnő, falsík).',
       'Rajzelemek 2. sor: ismeretlen pont(ok): 9.',
       'Rajzelemek 3. sor: a felirat helye „@pontszám” vagy „Y X” legyen.',
-      'Rajzelemek 4. sor: ismeretlen elem „kör” (épület, alrészlet, új alrészlet, vonal, felirat).',
+      'Rajzelemek 4. sor: ismeretlen elem „kör” (épület, alrészlet, új alrészlet, vonal, felirat, méret, jel).',
     ]);
+  });
+
+  it('a kézi méretmegírás két pont között (a szöveg a számított távolság helyett)', () => {
+    const d = parseDrawing(['méret ; 1 2', 'méret ; 2 3 ; (25.00)', 'méret ; 1 2 3'].join('\n'), pts);
+    expect(d.elements).toMatchObject([
+      { kind: 'dim', a: { id: '1' }, b: { id: '2' }, text: '', line: 1 },
+      { kind: 'dim', a: { id: '2' }, b: { id: '3' }, text: '(25.00)', line: 2 },
+    ]);
+    expect(d.issues[0]!.message).toContain('két pont között');
   });
 
   it('a művelési ág rövidítése (18. § (2)) és az épület rétege a DAT kód szerint', () => {

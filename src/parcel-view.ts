@@ -24,11 +24,11 @@ import { createPage } from './shell';
 import { csvButton, download, el, readText, renderSection, storage } from './ui';
 import {
   addressSection,
-  chooseScale,
   coordinateList,
   generateAddressPoints,
   parsePointAttrs,
   planEntities,
+  PLAN_SCALES,
   renderPlan,
   type AddressPoint,
   type PlanInput,
@@ -37,6 +37,7 @@ import {
 import { getMeta } from './report-view';
 import { JOBS, JOB_LIST, landUseCode, landUseName, type JobKind } from './core/jobs';
 import { subStatement } from './core/subparcels';
+import { SYMBOLS } from './core/symbols';
 import { buildPackage, printAll, type PackageParts } from './core/package';
 import { writeZip } from './core/zip-writer';
 import type { WorkData } from './core/documents';
@@ -76,7 +77,7 @@ interface Saved {
   measured: string;
   check: Omit<CheckOptions, 'scale'>;
   fees: { on: boolean; kind: ChangeKind; buildings: number; units: number; subparcels: number; reissue: boolean; withData: boolean };
-  plan: { szekhely: string; iktatoszam: string; megnevezes: string; igazolvany: string; minosites: string; hely: string; address: boolean; prefix: string; drawing?: string };
+  plan: { szekhely: string; iktatoszam: string; megnevezes: string; igazolvany: string; minosites: string; hely: string; address: boolean; prefix: string; drawing?: string; scale?: string };
   job?: JobKind;
   work?: Partial<Record<WorkKey, string>>;
 }
@@ -343,6 +344,7 @@ export function initParcelView(): void {
   plAddr.type = 'checkbox';
   plAddr.id = 'pc-plan-addr';
   const plPrefix = input('pc-plan-prefix', 'pl. C');
+  const plScale = select('pc-plan-scale', [['', 'Automatikus (ami a keretbe fér)'], ...PLAN_SCALES.map((s): [string, string] => [String(s), `1:${s}`])]);
   const g7 = el('div', 'grid3');
   g7.append(labelled('Székhely', plSzekhely), labelled('Adatszolgáltatás iktatószáma', plIkt), labelled('A vázrajz megnevezése', plMegnev));
   const g8 = el('div', 'grid3');
@@ -350,7 +352,7 @@ export function initParcelView(): void {
   const addrLabel = el('label', 'check');
   addrLabel.append(plAddr, el('span', undefined, 'Címkoordináták generálása a változás utáni földrészletekhez (5411)'));
   const g9 = el('div', 'grid3');
-  g9.append(labelled('Címkoordináta pontszám-előtagja', plPrefix));
+  g9.append(labelled('A vázrajz méretaránya', plScale), labelled('Címkoordináta pontszám-előtagja', plPrefix));
   const drawing = area('pc-drawing', 5);
   drawing.placeholder = [
     'épület ; új ; E1 E2 E3 E4',
@@ -461,6 +463,7 @@ export function initParcelView(): void {
   plHely.value = saved.plan.hely;
   plAddr.checked = saved.plan.address;
   plPrefix.value = saved.plan.prefix;
+  plScale.value = saved.plan.scale ?? '';
   drawing.value = saved.plan.drawing ?? '';
   jobSel.value = saved.job ?? 'subdivision';
   for (const [key] of WORK_FIELDS) workInputs.get(key)!.value = saved.work?.[key] ?? '';
@@ -516,6 +519,7 @@ export function initParcelView(): void {
         address: plAddr.checked,
         prefix: plPrefix.value.trim() || 'C',
         drawing: drawing.value,
+        scale: plScale.value,
       },
       job: jobSel.value as JobKind,
       work: Object.fromEntries(WORK_FIELDS.map(([k]) => [k, workInputs.get(k)!.value])),
@@ -766,6 +770,8 @@ export function initParcelView(): void {
   }
 
   const currentJob = () => JOBS[jobSel.value as JobKind];
+  /** A választott méretarány (üres: automatikus). */
+  const planScale = () => (plScale.value ? Number(plScale.value) : undefined);
 
   /** A vázrajz bemenete a munkalap mezőiből. */
   function planInput(): PlanInput {
@@ -796,21 +802,228 @@ export function initParcelView(): void {
     };
   }
 
-  function showPlan(kind: 'change' | 'sketch'): void {
+  /* ---------- a rajz szerkesztése az előnézeten ---------- */
+  type EditTool = 'none' | 'label' | 'dim' | 'symbol' | 'move' | 'delete';
+  let editTool: EditTool = 'none';
+  let dimStart: string | null = null;
+  const undoStack: string[] = [];
+  const editBar = el('div', 'plan-edit');
+  editBar.id = 'pc-edit';
+  const toolBtns: [EditTool, HTMLButtonElement][] = [
+    ['label', button('pc-edit-label', 'Felirat', 'Felirat elhelyezése: kattints a rajzra, a Szöveg mező tartalma oda kerül')],
+    ['dim', button('pc-edit-dim', 'Méret', 'Méretmegírás: kattints egymás után a két pontra')],
+    ['symbol', button('pc-edit-symbol', 'Jel', 'Jelkulcsi jel elhelyezése (DAT1-M2): válaszd ki a jelet, és kattints a helyére')],
+    ['move', button('pc-edit-move', 'Mozgatás', 'Kézzel felvett felirat vagy jel áthelyezése: fogd meg és húzd')],
+    ['delete', button('pc-edit-delete', 'Törlés', 'Kézzel felvett felirat, méret vagy jel törlése: kattints rá')],
+  ];
+  const symSel = el('select');
+  symSel.id = 'pc-edit-symbol-kind';
+  const SYMBOL_GROUPS: [string, string][] = [
+    ['A', 'Geodéziai pontok, határjelek'],
+    ['B', 'Határok'],
+    ['C', 'Épületek, tereptárgyak'],
+    ['E', 'Vezetékek'],
+    ['F', 'Vizek, kutak, aknák'],
+    ['G', 'Domborzat'],
+  ];
+  for (const [g, title] of SYMBOL_GROUPS) {
+    const og = el('optgroup');
+    og.label = title;
+    for (const s of SYMBOLS.filter((x) => x.code[5] === g)) og.append(new Option(`${s.key} – ${s.name} (${s.code})`, s.key));
+    symSel.append(og);
+  }
+  symSel.value = 'villanyoszlop';
+  const editText = input('pc-edit-text', 'Felirat szövege');
+  const editKind = select('pc-edit-kind', [
+    ['egyéb', 'egyéb'],
+    ['utcanév', 'utcanév'],
+    ['dűlőnév', 'dűlőnév'],
+    ['házszám', 'házszám'],
+    ['objektum', 'objektum'],
+  ]);
+  const editRot = input('pc-edit-rot', '0');
+  editRot.type = 'number';
+  editRot.step = '5';
+  const undoBtn = button('pc-edit-undo', 'Visszavonás', 'Az utolsó rajzszerkesztés visszavonása');
+  const editHint = el('span', 'hint');
+  editHint.id = 'pc-edit-hint';
+  const toolRow = el('div', 'pane-actions');
+  const zoomSel = select('pc-edit-zoom', [
+    ['1', '100%'],
+    ['1.5', '150%'],
+    ['2', '200%'],
+    ['3', '300%'],
+  ]);
+  zoomSel.title = 'Az előnézet nagyítása a pontosabb elhelyezéshez';
+  toolRow.append(el('span', 'label-text', 'Szerkesztés:'), ...toolBtns.map(([, b]) => b), undoBtn, zoomSel);
+  /** Az előnézet nagyítása: a lap szélessége a szokásos 560 px többszöröse, görgethető dobozban. */
+  const applyZoom = () => {
+    const holder = planBox.querySelector<HTMLElement>('.plan-page');
+    if (!holder) return;
+    const z = Number(zoomSel.value);
+    holder.style.maxWidth = z > 1 ? 'none' : '';
+    holder.style.width = z > 1 ? `${560 * z}px` : '';
+  };
+  zoomSel.addEventListener('change', applyZoom);
+  const fieldRow = el('div', 'grid3');
+  fieldRow.append(labelled('Szöveg', editText), labelled('Fajta', editKind), labelled('Forgatás (°)', editRot));
+  editBar.append(toolRow, fieldRow, labelled('Jelkulcsi jel', symSel), editHint);
+  const EDIT_HINTS: Record<EditTool, string> = {
+    none: 'Válassz eszközt. Minden szerkesztés sorként a „Rajzelemek” mezőbe kerül, ott is javítható.',
+    label: 'Írd be a szöveget, majd kattints oda a rajzon, ahová a feliratot szánod.',
+    dim: 'Kattints az első pontra, aztán a másodikra; a két pont közé a távolság kerül.',
+    symbol: 'Válaszd ki a jelet, és kattints a helyére. 0° forgatásnál a jel a jelkulcs szerint áll: É-i irányban, a kapcsolójel, a fényakna, a négyzetes jelek a legközelebbi vonalhoz igazodva.',
+    move: 'Fogd meg a kézzel felvett feliratot vagy jelet, és húzd a helyére.',
+    delete: 'Kattints a törlendő kézi feliratra, méretre vagy jelre.',
+  };
+  const setTool = (t: EditTool) => {
+    editTool = editTool === t ? 'none' : t;
+    dimStart = null;
+    for (const [k, b] of toolBtns) b.setAttribute('aria-pressed', String(k === editTool));
+    editHint.textContent = EDIT_HINTS[editTool];
+    planBox.dataset.tool = editTool;
+  };
+  for (const [k, b] of toolBtns) b.addEventListener('click', () => setTool(k));
+  setTool('none');
+  let planKind: 'change' | 'sketch' = 'change';
+  let planView: ReturnType<typeof renderPlan> | null = null;
+  /** A Rajzelemek mező módosítása soronként, visszavonhatóan, majd a rajz frissítése. */
+  const editDrawing = (fn: (lines: string[]) => string[]) => {
+    undoStack.push(drawing.value);
+    drawing.value = fn(drawing.value.split(/\r?\n/))
+      .join('\n')
+      .replace(/^\n+/, '');
+    drawing.dispatchEvent(new Event('input'));
+    showPlan(planKind, false);
+  };
+  undoBtn.addEventListener('click', () => {
+    const prev = undoStack.pop();
+    if (prev === undefined) return;
+    drawing.value = prev;
+    drawing.dispatchEvent(new Event('input'));
+    showPlan(planKind, false);
+  });
+  const field = (s: string) => s.replace(/[;\r\n]/g, ',').trim();
+  /** A kattintás helye a rajzlapon (mm). */
+  const paperAt = (svgEl: SVGSVGElement, e: { clientX: number; clientY: number }) => {
+    const p = svgEl.createSVGPoint();
+    p.x = e.clientX;
+    p.y = e.clientY;
+    return p.matrixTransform(svgEl.getScreenCTM()!.inverse());
+  };
+  /** A kattintáshoz legközelebbi pont (4 mm-en belül a rajzlapon). */
+  const snap = (mx: number, my: number): string | null => {
+    if (!planView) return null;
+    let best: { id: string; d: number } | null = null;
+    for (const p of parsePoints(coords.value).points.values()) {
+      const q = planView.toPaper(p);
+      const d = Math.hypot(q.x - mx, q.y - my);
+      if (d < 4 && (!best || d < best.d)) best = { id: p.id, d };
+    }
+    return best?.id ?? null;
+  };
+  const lineOf = (target: EventTarget | null) => {
+    const n = Number((target as Element | null)?.closest?.('[data-line]')?.getAttribute('data-line'));
+    return Number.isInteger(n) && n > 0 ? n : null;
+  };
+  function wireEditor(holder: HTMLElement): void {
+    const svgEl = holder.querySelector('svg');
+    if (!svgEl || !planView) return;
+    const view = planView;
+    svgEl.addEventListener('click', (e) => {
+      const at = paperAt(svgEl, e);
+      if (editTool === 'label') {
+        const text = field(editText.value);
+        if (!text) {
+          editHint.textContent = 'Előbb írd be a felirat szövegét a Szöveg mezőbe.';
+          editText.focus();
+          return;
+        }
+        const g = view.toGround(at.x, at.y);
+        const rot = Number(editRot.value) || 0;
+        editDrawing((ls) => [...ls, `felirat ; ${editKind.value} ; ${text} ; ${g.y.toFixed(2)} ${g.x.toFixed(2)}${rot ? ` ; ${rot}` : ''}`]);
+      } else if (editTool === 'dim') {
+        const id = snap(at.x, at.y);
+        if (!id) {
+          editHint.textContent = 'Nincs pont a kattintás közelében – kattints közvetlenül egy pontra.';
+          return;
+        }
+        if (!dimStart || dimStart === id) {
+          dimStart = id;
+          editHint.textContent = `Első pont: ${id}. Kattints a második pontra.`;
+          return;
+        }
+        const a = dimStart;
+        dimStart = null;
+        editDrawing((ls) => [...ls, `méret ; ${a} ${id}`]);
+        editHint.textContent = EDIT_HINTS.dim;
+      } else if (editTool === 'symbol') {
+        const g = view.toGround(at.x, at.y);
+        const rot = Number(editRot.value) || 0;
+        editDrawing((ls) => [...ls, `jel ; ${symSel.value} ; ${g.y.toFixed(2)} ${g.x.toFixed(2)}${rot ? ` ; ${rot}` : ''}`]);
+      } else if (editTool === 'delete') {
+        const n = lineOf(e.target);
+        if (n) editDrawing((ls) => ls.filter((_, i) => i !== n - 1));
+      }
+    });
+    let drag: { n: number; node: Element; x0: number; y0: number; tx: number; ty: number; base: string } | null = null;
+    svgEl.addEventListener('pointerdown', (e) => {
+      if (editTool !== 'move') return;
+      const n = lineOf(e.target);
+      const node = (e.target as Element).closest('[data-line]');
+      if (!n || !node || !/^\s*(felirat|jel)\s*;/i.test(drawing.value.split(/\r?\n/)[n - 1] ?? '')) return;
+      const at = paperAt(svgEl, e);
+      const px = node.getAttribute('data-px') ?? node.getAttribute('x');
+      const py = node.getAttribute('data-py') ?? node.getAttribute('y');
+      drag = { n, node, x0: at.x, y0: at.y, tx: Number(px), ty: Number(py), base: node.getAttribute('transform') ?? '' };
+      svgEl.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    svgEl.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const at = paperAt(svgEl, e);
+      drag.node.setAttribute('transform', `translate(${(at.x - drag.x0).toFixed(2)} ${(at.y - drag.y0).toFixed(2)}) ${drag.base}`);
+    });
+    svgEl.addEventListener('pointerup', (e) => {
+      if (!drag) return;
+      const d = drag;
+      drag = null;
+      const at = paperAt(svgEl, e);
+      if (Math.hypot(at.x - d.x0, at.y - d.y0) < 0.3) return;
+      const g = view.toGround(d.tx + at.x - d.x0, d.ty + at.y - d.y0);
+      editDrawing((ls) =>
+        ls.map((l, i) => {
+          if (i !== d.n - 1) return l;
+          const f = l.split(';').map((s) => s.trim());
+          // a hely mezője: felirat ; fajta ; szöveg ; HELY …, jel ; név ; HELY …
+          f[/^jel$/i.test(f[0] ?? '') ? 2 : 3] = `${g.y.toFixed(2)} ${g.x.toFixed(2)}`;
+          return f.join(' ; ');
+        }),
+      );
+    });
+  }
+
+  function showPlan(kind: 'change' | 'sketch', scroll = true): void {
+    planKind = kind;
     const input = planInput();
     if (input.before.length + input.after.length === 0) return;
-    const r = renderPlan(kind, input, planMeta(), { template: kind === 'change' ? currentJob().plan : currentJob().sketch, job: currentJob().id });
+    const r = renderPlan(kind, input, planMeta(), { template: kind === 'change' ? currentJob().plan : currentJob().sketch, job: currentJob().id, scale: planScale() });
     planSvg = r.svg;
+    planView = r;
     planBox.replaceChildren();
     const bar = el('div', 'pane-actions');
     const printBtn = button('pc-plan-print', 'Nyomtatás / PDF', 'A vázrajz nyomtatása vagy mentése PDF-be (A4 álló)');
     const svgBtn = button('pc-plan-svg', 'SVG mentése', 'A vázrajz mentése SVG rajzként');
     const closeBtn = button('pc-plan-close', 'Bezár', 'Az előnézet bezárása');
-    bar.append(el('span', 'hint', `${kind === 'change' ? 'Változási vázrajz' : 'Mérési vázlat'} – 1:${r.scale}`), printBtn, svgBtn, closeBtn);
+    bar.append(el('span', 'hint', `${kind === 'change' ? 'Változási vázrajz' : 'Mérési vázlat'} – 1:${r.scale}${r.scale < r.autoScale ? ` (a rajz nem fér a keretbe, legalább 1:${r.autoScale} kell)` : ''}`), printBtn, svgBtn, closeBtn);
     const holder = el('div', 'plan-page');
     holder.innerHTML = r.svg;
-    planBox.append(bar, holder);
+    const scroller = el('div', 'plan-scroll');
+    scroller.append(holder);
+    planBox.append(bar, editBar, scroller);
     planBox.hidden = false;
+    applyZoom();
+    wireEditor(holder);
     printBtn.addEventListener('click', () => {
       const w = window.open('', '_blank');
       if (!w) return;
@@ -828,16 +1041,13 @@ export function initParcelView(): void {
     closeBtn.addEventListener('click', () => {
       planBox.hidden = true;
     });
-    planBox.scrollIntoView({ block: 'start' });
+    if (scroll) planBox.scrollIntoView({ block: 'start' });
   }
 
   function saveDxf(): void {
     const input = planInput();
-    const all = [...input.before, ...input.after].flatMap((p) => p.ring);
-    if (all.length === 0) return;
-    const ys = all.map((p) => p.y);
-    const xs = all.map((p) => p.x);
-    const scale = chooseScale((Math.max(...ys) - Math.min(...ys)) * 1.3 || 1, (Math.max(...xs) - Math.min(...xs)) * 1.3 || 1, 190, 150);
+    if (input.before.length + input.after.length === 0) return;
+    const scale = renderPlan('change', input, planMeta(), { template: currentJob().plan, job: currentJob().id, scale: planScale() }).scale;
     const text = writeDxf(planEntities('change', input, scale, { template: currentJob().plan, job: currentJob().id }), scale);
     download('valtozasi_vazrajz.dxf', encodeWindows1250(text), 'application/octet-stream');
   }
@@ -956,8 +1166,8 @@ export function initParcelView(): void {
     if (input.before.length + input.after.length === 0) return null;
     const j = currentJob();
     const meta = planMeta();
-    const plan = renderPlan('change', input, meta, { template: j.plan, job: j.id });
-    const sketch = renderPlan('sketch', input, meta, { template: j.sketch, job: j.id });
+    const plan = renderPlan('change', input, meta, { template: j.plan, job: j.id, scale: planScale() });
+    const sketch = renderPlan('sketch', input, meta, { template: j.sketch, job: j.id, scale: planScale() });
     const pts = parsePoints(coords.value).points;
     const attrs = parsePointAttrs(coords.value);
     const list = [...pts.values()].map((p) => ({ ...p, m: attrs.get(p.id)?.m ?? null, code: attrs.get(p.id)?.code ?? '' }));
@@ -1164,6 +1374,7 @@ export function initParcelView(): void {
     t.addEventListener('input', run);
   drawing.addEventListener('input', run);
   plAddr.addEventListener('change', run);
+  plScale.addEventListener('change', run);
   methodSel.addEventListener('change', () => {
     bLabel.hidden = methodSel.value !== 'parallel';
   });

@@ -25,6 +25,7 @@ import { initAkgView } from './akg-view';
 import { initAboutView } from './about-view';
 import { initGeneralSettingsView, rememberSheet, startSheet } from './general-settings-view';
 import { initGeoConvertView } from './geo-convert-view';
+import { initDxfView } from './dxf-view';
 import { initParcelView } from './parcel-view';
 import { $, csvButton, download, el, readText, renderReportTree, renderSection, storage } from './ui';
 
@@ -459,6 +460,7 @@ setCodeProvider(() => MODULES.map((m) => ({ id: m.code, name: m.name })));
 // A JS-ben épülő munkalapok a burok előtt jönnek létre, hogy a navigátor már megtalálja őket.
 initAboutView();
 initGeoConvertView();
+initDxfView();
 initParcelView();
 const generalSettings = initGeneralSettingsView({ sessionSave: () => sessionSave(), sessionLoad: () => sessionLoad() });
 
