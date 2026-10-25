@@ -165,11 +165,12 @@ változási vázrajz területszámításához:
   címkoordinátákat és a dokumentumokat. `tests/package.test.ts`, `tests/jobs.test.ts`
 - **Alrészletek és művelési ágak** – az `alrészlet` / `új alrészlet` rajzelemek a területkimutatásban
   (12. §) a földrészlet területére ráosztva (22. § (6)), a DAT-ban T_OBJ_ATTRBE rekordként (a művelési
-  ág a T_MUVEL_AG kód szerint); az új épület T_OBJ_ATTRCA rekordként (az obj_fels kód a rajzelem 4.
+  ág a T_MUVEL_AG kód szerint); a rajzelem 5. mezője a minőségi osztály (1–8, a kivett területen
+  üres), ez kerül a területkimutatás 4. és 10. oszlopába (a DAT nem hordozza); az új épület T_OBJ_ATTRCA rekordként (az obj_fels kód a rajzelem 4.
   mezője, alapértelmezésben CA01). A DAT beolvasásakor a meglévő alrészletek és épületek
   rajzelemként kerülnek a munkalapra. `tests/subparcels.test.ts`
 - **Rajzelemek és DXF a földhivatali rétegrenddel** – a „Rajzelemek” mezőben soronként: `épület ; új |
-  lakó | gazdasági | üdülő | megszűnő | falsík ; pontok`, `alrészlet ; betűjel ; művelési ág ; pontok`,
+  lakó | gazdasági | üdülő | megszűnő | falsík ; pontok`, `alrészlet ; betűjel ; művelési ág ; pontok [; minőségi osztály]`,
   `új alrészlet ; …`, `vonal ; kerítés | fal | szolgalmi ; pontok`, `felirat ; házszám | utcanév |
   dűlőnév | objektum | egyéb ; szöveg ; @pontszám vagy Y X [; forgatás]`. A rajzelemek a vázrajzon
   megjelennek (az új épület vastagon, a felirat a helyén, a művelési ág a 18. § (2) rövidítésével), a

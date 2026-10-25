@@ -164,7 +164,7 @@ export interface PlanInput {
   /** A környezet (a szomszédos földrészletek és épületek) az adatszolgáltatásból. */
   background?: { parcels: PlanParcel[]; buildings: { layer: LayerKey; ring: NamedPt[] }[] };
   /** Az alrészletek a területkimutatáshoz (változás előtt és után). */
-  subs?: { before: { hrsz: string; letter: string; use: string; area: number }[]; after: { hrsz: string; letter: string; use: string; area: number }[] };
+  subs?: { before: SubLike[]; after: SubLike[] };
   /** A mért pontok koordinátái (a vázlaton a mért távolságokhoz). */
   measuredPts?: Map<string, Pt>;
 }
@@ -614,20 +614,21 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   return { svg, scale };
 }
 
-interface SubLike {
+export interface SubLike {
   hrsz: string;
   letter: string;
   use: string;
+  quality?: string;
   area: number;
 }
 
 /** A táblázat sorai egy oldalon: földrészletenként az alrészletek (ha vannak), különben egy sor. */
-function rowsFor(parcels: PlanParcel[], subs: SubLike[]): { hrsz: string; jel: string; use: string; area: number | undefined }[] {
-  const rows: { hrsz: string; jel: string; use: string; area: number | undefined }[] = [];
+function rowsFor(parcels: PlanParcel[], subs: SubLike[]): { hrsz: string; jel: string; use: string; quality: string; area: number | undefined }[] {
+  const rows: { hrsz: string; jel: string; use: string; quality: string; area: number | undefined }[] = [];
   for (const p of [...parcels].sort((a, b) => byNumber(a.hrsz, b.hrsz))) {
     const list = subs.filter((s) => s.hrsz === p.hrsz);
-    if (list.length === 0) rows.push({ hrsz: p.hrsz, jel: '', use: '', area: p.area });
-    else list.forEach((s, i) => rows.push({ hrsz: i === 0 ? p.hrsz : '', jel: s.letter, use: s.use, area: s.area }));
+    if (list.length === 0) rows.push({ hrsz: p.hrsz, jel: '', use: '', quality: '', area: p.area });
+    else list.forEach((s, i) => rows.push({ hrsz: i === 0 ? p.hrsz : '', jel: s.letter, use: s.use, quality: s.quality ?? '', area: s.area }));
   }
   return rows;
 }
@@ -680,6 +681,7 @@ function areaTableSvg(out: string[], t: TextFn, x0: number, y0: number, w: numbe
       cell(0, r, b.hrsz, 'font-weight="bold" font-style="italic"');
       cell(1, r, b.jel, 'font-style="italic"');
       cell(2, r, b.use, 'font-style="italic"');
+      cell(3, r, b.quality, 'font-style="italic"');
       cell(4, r, haM2(b.area), 'font-weight="bold" font-style="italic"');
       cell(5, r, '-', '');
     }
@@ -687,6 +689,7 @@ function areaTableSvg(out: string[], t: TextFn, x0: number, y0: number, w: numbe
       cell(6, r, a.hrsz, 'font-weight="bold" font-style="italic"');
       cell(7, r, a.jel, 'font-style="italic"');
       cell(8, r, a.use, 'font-style="italic"');
+      cell(9, r, a.quality, 'font-style="italic"');
       cell(10, r, haM2(a.area), 'font-weight="bold" font-style="italic"');
       cell(11, r, '-', '');
     }

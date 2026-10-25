@@ -18,7 +18,7 @@ import type { Issue } from './types';
 
 export type DrawingElement =
   | { kind: 'building'; type: BuildingType; layer: LayerKey; ring: NamedPt[]; code: string; line: number }
-  | { kind: 'sub'; letter: string; use: string; isNew: boolean; ring: NamedPt[]; line: number }
+  | { kind: 'sub'; letter: string; use: string; quality: string; isNew: boolean; ring: NamedPt[]; line: number }
   | { kind: 'polyline'; layer: LayerKey; pts: NamedPt[]; line: number }
   | { kind: 'label'; layer: LayerKey; text: string; at: Pt; rotation: number; line: number };
 
@@ -122,8 +122,11 @@ export function parseDrawing(text: string, points: Map<string, NamedPt>): { elem
       case 'uj alreszlet': {
         const letter = f[1] ?? '';
         if (!/^[a-zA-Z]{1,3}$/.test(letter)) return err('az alrészlet betűjele kisbetű (pl. a, b).');
+        // A minőségi osztály (1–8) a termőföld alrészletein; a kivett területnek nincs.
+        const quality = f[4] ?? '';
+        if (quality && !/^[1-8]$/.test(quality)) return err(`a minőségi osztály 1 és 8 közötti szám („${quality}”).`);
         const ring = resolve(f[3] ?? '', 3);
-        if (ring) elements.push({ kind: 'sub', letter: letter.toLowerCase(), use: f[2] ?? '', isNew: cmd.startsWith('új') || cmd.startsWith('uj'), ring, line: no });
+        if (ring) elements.push({ kind: 'sub', letter: letter.toLowerCase(), use: f[2] ?? '', quality, isNew: cmd.startsWith('új') || cmd.startsWith('uj'), ring, line: no });
         return;
       }
       case 'vonal': {

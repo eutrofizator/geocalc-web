@@ -17,7 +17,7 @@ const parcel = { hrsz: '100', ring: ['1', '2', '3', '4'].map((i) => pts.get(i)!)
 
 describe('alrészletek', () => {
   const dr = parseDrawing(
-    ['alrészlet ; a ; szántó ; 1 2 3 4', 'új alrészlet ; a ; kivett, lakóház, udvar ; 1 5 6 4', 'új alrészlet ; b ; szántó ; 5 2 3 6', 'épület ; új ; E1 E2 E3 E4 ; CA01'].join('\n'),
+    ['alrészlet ; a ; szántó ; 1 2 3 4 ; 4', 'új alrészlet ; a ; kivett, lakóház, udvar ; 1 5 6 4', 'új alrészlet ; b ; szántó ; 5 2 3 6 ; 4', 'épület ; új ; E1 E2 E3 E4 ; CA01'].join('\n'),
     pts,
   ).elements;
   const st = subStatement(dr, [parcel], [parcel]);
@@ -30,7 +30,19 @@ describe('alrészletek', () => {
       ['b', 627],
     ]);
     expect(st.after.reduce((s, r) => s + r.area, 0)).toBe(1003);
-    expect(st.section!.columns).toHaveLength(8);
+    expect(st.section!.columns).toHaveLength(10);
+  });
+
+  it('a minőségi osztály a termőföld alrészletein (a kivett területen üres)', () => {
+    expect(st.before.map((r) => r.quality)).toEqual(['4']);
+    expect(st.after.map((r) => [r.letter, r.quality])).toEqual([
+      ['a', ''],
+      ['b', '4'],
+    ]);
+    expect(st.section!.rows[1]!.cells).toEqual(['', '', '', '', '', '100', 'b', 'szántó', '4', '627']);
+    const bad = parseDrawing('alrészlet ; a ; szántó ; 1 2 3 4 ; 9', pts);
+    expect(bad.elements).toEqual([]);
+    expect(bad.issues[0]!.message).toContain('1 és 8 közötti');
   });
 
   it('a művelési ág DAT-kódja (T_MUVEL_AG)', () => {

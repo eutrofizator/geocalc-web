@@ -355,7 +355,7 @@ export function initParcelView(): void {
   drawing.placeholder = [
     'épület ; új ; E1 E2 E3 E4',
     'alrészlet ; a ; kivett ; 101 102 103 104',
-    'új alrészlet ; b ; szántó ; …',
+    'új alrészlet ; b ; szántó ; … ; 4',
     'vonal ; kerítés ; 101 E5',
     'felirat ; házszám ; 35 ; @104',
   ].join('\n');

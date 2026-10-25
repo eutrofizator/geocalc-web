@@ -19,6 +19,8 @@ export interface SubRow {
   hrsz: string;
   letter: string;
   use: string;
+  /** Minőségi osztály (üres, ha nincs megadva). */
+  quality: string;
   technical: number;
   area: number;
   ring: NamedPt[];
@@ -50,7 +52,7 @@ function assign(subs: Sub[], parcels: { hrsz: string; ring: NamedPt[]; area: num
       issues.push({ level: 'error', line: s.line, message: `Rajzelemek ${s.line}. sor: a(z) „${s.letter}” alrészlet egyik földrészletbe sem esik.` });
       continue;
     }
-    rows.push({ hrsz: parcel.hrsz, letter: s.letter, use: s.use, technical: polygonArea(s.ring), area: 0, ring: s.ring });
+    rows.push({ hrsz: parcel.hrsz, letter: s.letter, use: s.use, quality: s.quality, technical: polygonArea(s.ring), area: 0, ring: s.ring });
   }
   // Földrészletenként a ráosztás a földrészlet területére (22. § (6)).
   for (const p of parcels) {
@@ -90,7 +92,7 @@ export function subStatement(
     const x = b[i];
     const y = a[i];
     rows.push({
-      cells: [x?.hrsz ?? '', x?.letter ?? '', x?.use ?? '', x ? Math.round(x.area).toLocaleString('hu-HU') : '', y?.hrsz ?? '', y?.letter ?? '', y?.use ?? '', y ? Math.round(y.area).toLocaleString('hu-HU') : ''],
+      cells: [x?.hrsz ?? '', x?.letter ?? '', x?.use ?? '', x?.quality ?? '', x ? Math.round(x.area).toLocaleString('hu-HU') : '', y?.hrsz ?? '', y?.letter ?? '', y?.use ?? '', y?.quality ?? '', y ? Math.round(y.area).toLocaleString('hu-HU') : ''],
       role: 'result',
     });
   }
@@ -101,7 +103,7 @@ export function subStatement(
     section: {
       kind: 'sub-statement',
       title: 'Alrészletek és művelési ágak',
-      columns: ['Előtte: hrsz', 'Jel', 'Művelési ág', 'Terület [m²]', 'Utána: hrsz', 'Jel', 'Művelési ág', 'Terület [m²]'],
+      columns: ['Előtte: hrsz', 'Jel', 'Művelési ág', 'Min. o.', 'Terület [m²]', 'Utána: hrsz', 'Jel', 'Művelési ág', 'Min. o.', 'Terület [m²]'],
       rows,
       footer: ['12. § (2)–(3); az alrészletek területösszege a földrészlet területe (22. § (6)), területarányos ráosztással.'],
     },

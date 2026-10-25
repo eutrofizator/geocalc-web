@@ -131,6 +131,19 @@ describe('vázrajz', () => {
     expect(svg).toMatch(/font-style="italic">100<\/text><line /);
   });
 
+  it('a területkimutatás minőségi osztály oszlopa (4. és 10.) az alrészletekből', () => {
+    const subs = {
+      before: [{ hrsz: '100', letter: 'a', use: 'szántó', quality: '5', area: 1000 }],
+      after: [
+        { hrsz: '100/1', letter: 'a', use: 'szántó', quality: '5', area: 300 },
+        { hrsz: '100/2', letter: 'a', use: 'kivett', quality: '', area: 700 },
+      ],
+    };
+    const { svg } = renderPlan('change', { ...input, subs }, meta, { template: JOBS.subdivision.plan, job: 'subdivision' });
+    expect(svg.match(/font-style="italic">5<\/text>/g)).toHaveLength(2);
+    expect(svg).toContain('>szántó<');
+  });
+
   it('ha.m² alak és tárgymondat egyesítésnél', () => {
     expect(haM2(1102)).toBe('0.1102');
     expect(haM2(12345.4)).toBe('1.2345');
