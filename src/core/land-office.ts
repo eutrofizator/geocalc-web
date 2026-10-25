@@ -102,6 +102,8 @@ export interface OfficeParcel {
 export interface CadastralMap {
   points: NamedPt[];
   parcels: OfficeParcel[];
+  /** Épületek a DXF épületfóliáiról (LAKOEPULET, GAZD_EPULET, UDULOEPULET). */
+  buildings: { layer: 'residential' | 'farm' | 'holiday'; ring: Pt[] }[];
   warnings: string[];
 }
 
@@ -180,9 +182,17 @@ export function readCadastralDxf(text: string): CadastralMap {
   for (const p of parcels) seen.set(p.hrsz, (seen.get(p.hrsz) ?? 0) + 1);
   const dup = [...seen].filter(([, n]) => n > 1).map(([h]) => h);
   if (dup.length > 0) warnings.push(`Több sokszögben is szereplő helyrajzi szám: ${dup.slice(0, 10).join(', ')}${dup.length > 10 ? '…' : ''}.`);
+  const BUILDING_LAYERS: Record<string, 'residential' | 'farm' | 'holiday'> = { LAKOEPULET: 'residential', GAZD_EPULET: 'farm', UDULOEPULET: 'holiday' };
+  const buildings: CadastralMap['buildings'] = [];
+  for (const e of ents.filter((x) => x.type === 'LWPOLYLINE' && BUILDING_LAYERS[x.layer])) {
+    const vs = vertices(e);
+    if (vs.length > 1 && key(vs[0]!) === key(vs.at(-1)!)) vs.pop();
+    if (vs.length >= 3) buildings.push({ layer: BUILDING_LAYERS[e.layer]!, ring: vs });
+  }
   return {
     points: [...points.values()],
     parcels: parcels.sort((a, b) => a.hrsz.localeCompare(b.hrsz, 'hu', { numeric: true })),
+    buildings,
     warnings,
   };
 }

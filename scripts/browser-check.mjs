@@ -1256,6 +1256,41 @@ async function main() {
   checkNode('a koordinátajegyzék menthető (címkoordinátákkal)', readdirSync(DL).includes('koordinatajegyzek.txt') && readFileSync(join(DL, 'koordinatajegyzek.txt'), 'latin1').includes('5411'), true);
   await evalJs(`(() => { const a = document.getElementById('pc-plan-addr'); a.checked = false; a.dispatchEvent(new Event('change')); document.getElementById('pc-plan-close').click(); return true; })()`);
 
+  // Rajzelemek: új épület, házszám, alrészlet; a vázrajzon és a DXF-ben a földhivatali rétegeken.
+  await evalJs(`document.getElementById('pc-sample').click()`);
+  await evalJs(`(() => {
+    const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('input')); };
+    const NL = String.fromCharCode(10);
+    set('pc-coords', document.getElementById('pc-coords').value + NL + 'E1 650125.00 241240.00' + NL + 'E2 650140.00 241242.50' + NL + 'E3 650138.00 241254.00' + NL + 'E4 650123.00 241251.50');
+    set('pc-drawing', ['épület ; új ; E1 E2 E3 E4', 'felirat ; házszám ; 35 ; @E4', 'alrészlet ; a ; kivett ; 101 102 103 104', 'épület ; torony ; E1 E2 E3'].join(NL));
+    return true;
+  })()`);
+  await sleep(200);
+  await check('a hibás rajzelem sorszámmal jelez', `/Rajzelemek 4\. sor: ismeretlen épülettípus/.test(document.getElementById('pc-issues').textContent)`, true);
+  await evalJs(`document.getElementById('pc-plan-change').click()`);
+  await sleep(200);
+  await check('az új épület a vázrajzon (vastag vonal) és a házszám', `(() => { const s = document.querySelector('#pc-plan svg'); return !!s.querySelector('polygon[stroke-width="0.5"]') && s.textContent.includes('35'); })()`, true);
+  await evalJs(`document.getElementById('pc-plan-dxf').click()`);
+  await sleep(900);
+  checkNode('a vázrajz DXF-ben a földhivatali rétegekkel', (() => {
+    const f = readdirSync(DL).find((n) => n === 'valtozasi_vazrajz.dxf');
+    if (!f) return false;
+    const t = new TextDecoder('windows-1250').decode(readFileSync(join(DL, f)));
+    return t.includes('AC1009') && t.includes('Új épület (bármilyen)') && t.includes('Házszám') && t.includes('Alrészlet határ');
+  })(), true);
+  await evalJs(`(() => { const d = document.getElementById('pc-drawing'); d.value = ''; d.dispatchEvent(new Event('input')); document.getElementById('pc-plan-close').click(); return true; })()`);
+
+  // A munka fajtája: kitűzés → KITŰZÉSI VÁZRAJZ; a leadandó csomag a munka mappáival.
+  await evalJs(`document.getElementById('pc-sample').click()`);
+  await evalJs(`(() => { const j = document.getElementById('pc-job'); j.value = 'setout'; j.dispatchEvent(new Event('change')); document.getElementById('pc-plan-change').click(); return true; })()`);
+  await sleep(200);
+  await check('kitűzésnél a rajz KITŰZÉSI VÁZRAJZ a 43. § (3) feliratával', `(() => { const t = document.querySelector('#pc-plan svg').textContent; return t.includes('KITŰZÉSI VÁZRAJZ') && t.includes('43. § (3)'); })()`, true);
+  await evalJs(`(() => { const j = document.getElementById('pc-job'); j.value = 'subdivision'; j.dispatchEvent(new Event('change')); document.getElementById('pc-package').click(); return true; })()`);
+  await sleep(900);
+  await check('a leadandó csomag elkészül (telekalakítás: 8 mappa)', `(() => { const t = document.getElementById('pc-issues').textContent; return t.includes('_subdivision.zip') && t.includes('(8 mappa)'); })()`, true);
+  checkNode('a csomag ZIP-je letöltődik', readdirSync(DL).some((n) => /_subdivision\.zip$/.test(n)), true);
+  await evalJs(`document.getElementById('pc-plan-close').click()`);
+
   // Igazgatási szolgáltatási díjak (1/2024. KTM): a minta 2 → 2 földrészlete telekfelosztásként.
   await evalJs(`document.getElementById('pc-sample').click()`);
   await evalJs(`(() => {

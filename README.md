@@ -49,7 +49,7 @@ arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jel
 |---|---|
 | Geodéziai számítások/Munkaterület | **működik** (kódolt bemenet, a valódi szerkesztő ikonsora és állapotsora, „Előkép” riportnézegető fejezetfával és nagyítással) |
 | Geodéziai számítások/Adatleíró | **működik** (űrlapos adatbevitel, kódgenerálás, automatikus kódolás) |
-| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás, DAT be- és kiolvasás, földhivatali ZIP/DXF beolvasás, ITR .lst lista, határpont-azonosítás, díjszámítás, kitűzési jegyzőkönyv, vázrajz és mérési vázlat, koordinátajegyzék, címkoordináták) |
+| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás, DAT be- és kiolvasás, földhivatali ZIP/DXF beolvasás, ITR .lst lista, határpont-azonosítás, díjszámítás, kitűzési jegyzőkönyv, vázrajz és mérési vázlat, koordinátajegyzék, címkoordináták, rajzelemek, DXF, munkák és leadandó csomag) |
 | Geodéziai számítások/Beállítások | **működik** (a jegyzőkönyv előlapja, `borito.ini` be/ki) |
 | Adatrögzítő/Beállítások | **működik** (rögzítőtípus, távolságredukció, TVET.TXT, átlagok) |
 | Hálózatkiegyenlítés/Munkaterület | **működik** (munkaállomány, koordináták betöltése és hozzáfűzése, GMJ, középelés) |
@@ -138,6 +138,38 @@ változási vázrajz területszámításához:
   levételére nem alkalmas.”, záradék és aláírás helye, földmérő igazolvány száma). A mérési vázlat az új
   földrészletek oldalainak természetbeni méreteit, a mért pontokat és a 10. melléklet záradékát mutatja.
   A töréspont beszúrásával kettévált, de nem változott határvonalat nem jelöli változásként.
+- **Munkák és leadandó munkarészek** – a „Munka” csoportban a munka fajtája: **kitűzés**,
+  **telekalakítás**, **épületfeltüntetés**, **művelési ág változás**. Ez szabja meg a rajzok feliratát
+  és lábrészét a 8/2018. AM rendelet szerint (kitűzés: KITŰZÉSI VÁZLAT / VÁZRAJZ, 27–28. melléklet, a
+  43. § (3) felirata, a kitűzött földrészlet kitűzési méretei; telekalakítás: 15. melléklet, „A változás
+  akaratunknak megfelelően történt:”; épületfeltüntetés: 17. melléklet, 51. § (2) záradék, a vázlaton az
+  új épület méretei; művelési ág: 19. melléklet, mezőgazdász-záradék, a megszűnő alrészlet áthúzva, az
+  új vastagon). A „Munka adatai” (megbízó, kormányhivatal, ügyfélkód, műszer, megjelölés, időpont…)
+  kitöltik a szöveges munkarészeket: **adatigénylő lap** (1. melléklet), **térképmásolat-megrendelő**
+  (3.), **műszaki leírás** (29.), **vizsgálat és záradékolás iránti kérelem** (30.), **helyszíni
+  jegyzőkönyv** a kitűzésről (25.), **értesítés a munkavégzésről**, **tartalomjegyzék**. A
+  „Munkarészek nyomtatása” mindet egy nyomtatásban adja (PDF-be menthető), a „Leadandó csomag (.zip)” a
+  leadott munkák mappaszerkezetében (pl. `02_Változási vázrajz`, `05_Területszámítás`, `06_DAT állomány`)
+  menti a rajzokat (HTML, SVG, DXF), a DAT-ot, a ve/vu.lst-t, a koordinátajegyzéket, a
+  címkoordinátákat és a dokumentumokat. `tests/package.test.ts`, `tests/jobs.test.ts`
+- **Alrészletek és művelési ágak** – az `alrészlet` / `új alrészlet` rajzelemek a területkimutatásban
+  (12. §) a földrészlet területére ráosztva (22. § (6)), a DAT-ban T_OBJ_ATTRBE rekordként (a művelési
+  ág a T_MUVEL_AG kód szerint); az új épület T_OBJ_ATTRCA rekordként (az obj_fels kód a rajzelem 4.
+  mezője, alapértelmezésben CA01). A DAT beolvasásakor a meglévő alrészletek és épületek
+  rajzelemként kerülnek a munkalapra. `tests/subparcels.test.ts`
+- **Rajzelemek és DXF a földhivatali rétegrenddel** – a „Rajzelemek” mezőben soronként: `épület ; új |
+  lakó | gazdasági | üdülő | megszűnő | falsík ; pontok`, `alrészlet ; betűjel ; művelési ág ; pontok`,
+  `új alrészlet ; …`, `vonal ; kerítés | fal | szolgalmi ; pontok`, `felirat ; házszám | utcanév |
+  dűlőnév | objektum | egyéb ; szöveg ; @pontszám vagy Y X [; forgatás]`. A rajzelemek a vázrajzon
+  megjelennek (az új épület vastagon, a felirat a helyén, a művelési ág a 18. § (2) rövidítésével), a
+  „DXF (földhivatali rétegek)” pedig R12 DXF-et ír (ANSI_1250, DXF X = EOV Y, DXF Y = EOV X) a leadott
+  rajzok rétegeivel, színeivel és vonaltípusaival (pl. `Földrészlet határ`, `Előzetes földrészlet vonal`,
+  `Megszűnő földrészlet vonal`, `Helyrajziszám`, `Új épület (bármilyen)`, `Lakóépület`,
+  `Gazdasági és melléképület`, `Alrészlet határ`, `Alrészlet betűjel`, `Alrészlet művelési ág`,
+  `Házszám`, `Utcanév`, `Címkoordináta`, `Pontszám (mért)`). A DAT és a földhivatali DXF beolvasásakor a
+  szomszédos földrészletek és épületek (T_OBJ_ATTRCA, illetve az épületfóliák) a vázrajz környezete
+  lesznek. A helyrajzi szám és az alrészlet felirata a földrészleten belül az épületektől legtávolabbi
+  pontra kerül. Ellenőrizve: a kimenetet az `ezdxf` hiba nélkül olvassa. `tests/drawing.test.ts`
 - **Koordinátajegyzék (46. § (1) i))** – csoportonként (alappontok, részletpontok, címkoordináták)
   számsorrendben, az EOV koordináták cm, a címkoordináták m élességgel; a pontkód (4. melléklet) a
   koordinátasor 5. oszlopából, Windows-1250 kódolású szövegként.
@@ -451,13 +483,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 560 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 581 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **352 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **358 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -563,7 +595,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 47 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 51 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

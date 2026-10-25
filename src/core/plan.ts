@@ -1,4 +1,8 @@
 import { interiorPoint } from './dat';
+import { landUseLabel, type DrawingElement } from './drawing';
+import type { DxfEntity } from './dxf-writer';
+import type { LayerKey } from './layers';
+import type { JobKind, PlanTemplate } from './jobs';
 import { fix } from './format';
 import { distance, polygonArea, type Pt } from './geometry';
 import type { NamedPt } from './parcel';
@@ -155,9 +159,34 @@ export interface PlanInput {
   address: AddressPoint[];
   /** Mérési vázlathoz: a mért pontok azonosítói. */
   measured?: Set<string>;
+  /** Rajzelemek: épületek, alrészletek, vonalak, feliratok. */
+  drawing?: DrawingElement[];
+  /** A környezet (a szomszédos földrészletek és épületek) az adatszolgáltatásból. */
+  background?: { parcels: PlanParcel[]; buildings: { layer: LayerKey; ring: NamedPt[] }[] };
 }
 
-export const PLAN_SCALES = [100, 200, 250, 500, 1000, 1500, 2000, 2500, 4000, 5000, 10000];
+/** A határvonalak és a helyrajzi számok besorolása: változatlan, megszűnő, új. */
+export function classifyPlan(input: PlanInput) {
+  const be = edges(input.before);
+  const af = edges(input.after);
+  const kept: [NamedPt, NamedPt][] = [];
+  const removed: [NamedPt, NamedPt][] = [];
+  const added: [NamedPt, NamedPt][] = [];
+  for (const [key, e] of be) (af.has(key) || covered(e[0], e[1], af) ? kept : removed).push(e);
+  for (const [key, e] of af) if (!be.has(key) && !liesOn(e[0], e[1], be)) added.push(e);
+  const afterH = new Set(input.after.map((p) => p.hrsz));
+  const beforeH = new Set(input.before.map((p) => p.hrsz));
+  return {
+    kept,
+    removed,
+    added,
+    oldHrsz: input.before.filter((p) => !afterH.has(p.hrsz)),
+    newHrsz: input.after.filter((p) => !beforeH.has(p.hrsz)),
+    sameHrsz: input.after.filter((p) => beforeH.has(p.hrsz)),
+  };
+}
+
+export const PLAN_SCALES = [100, 200, 250, 500, 1000, 2000, 4000, 5000, 10000];
 
 /** A legnagyobb szabványos méretarány, amelyben a kivágat (m) a keretbe (mm) fér. */
 export function chooseScale(widthM: number, heightM: number, frameWmm: number, frameHmm: number): number {
@@ -177,6 +206,61 @@ const edges = (ps: PlanParcel[]) => {
 };
 const centroid = (ring: Pt[]) => interiorPoint(ring);
 
+/**
+ * Feliratpont: a sokszögön belüli rácspontok közül az, amelyik a legtávolabb van a határától és az
+ * akadályoktól (pl. a rajzolt épületek éleitől). Ha nincs belső rácspont, a belső pont.
+ */
+export function labelPoint(ring: Pt[], obstacles: Pt[][] = []): Pt {
+  const ys = ring.map((p) => p.y);
+  const xs = ring.map((p) => p.x);
+  const [y0, y1, x0, x1] = [Math.min(...ys), Math.max(...ys), Math.min(...xs), Math.max(...xs)];
+  const inside = (p: Pt) => {
+    let c = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[i]!;
+      const b = ring[j]!;
+      if (a.x > p.x !== b.x > p.x && p.y < ((b.y - a.y) * (p.x - a.x)) / (b.x - a.x) + a.y) c = !c;
+    }
+    return c;
+  };
+  const segs: [Pt, Pt][] = [];
+  for (const r of [ring, ...obstacles]) r.forEach((a, i) => segs.push([a, r[(i + 1) % r.length]!]));
+  const dist = (p: Pt) =>
+    Math.min(
+      ...segs.map(([a, b]) => {
+        const dy = b.y - a.y;
+        const dx = b.x - a.x;
+        const l2 = dy * dy + dx * dx || 1;
+        const u = Math.max(0, Math.min(1, ((p.y - a.y) * dy + (p.x - a.x) * dx) / l2));
+        return Math.hypot(a.y + u * dy - p.y, a.x + u * dx - p.x);
+      }),
+    );
+  // Az épületen belüli pont nem jó feliratpont.
+  const inObstacle = (p: Pt) => obstacles.some((o) => {
+    let c = false;
+    for (let i = 0, j = o.length - 1; i < o.length; j = i++) {
+      const a = o[i]!;
+      const b = o[j]!;
+      if (a.x > p.x !== b.x > p.x && p.y < ((b.y - a.y) * (p.x - a.x)) / (b.x - a.x) + a.y) c = !c;
+    }
+    return c;
+  });
+  let best: Pt | null = null;
+  let bestD = -1;
+  const n = 24;
+  for (let i = 1; i < n; i++)
+    for (let j = 1; j < n; j++) {
+      const p = { y: y0 + ((y1 - y0) * i) / n, x: x0 + ((x1 - x0) * j) / n };
+      if (!inside(p) || inObstacle(p)) continue;
+      const d = dist(p);
+      if (d > bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+  return best ?? interiorPoint(ring);
+}
+
 /** A p pont az ab szakaszon van (1 cm-en belül). */
 function onSegment(p: Pt, a: Pt, b: Pt): boolean {
   const dy = b.y - a.y;
@@ -195,7 +279,51 @@ const covered = (a: Pt, b: Pt, set: Map<string, [NamedPt, NamedPt]>) => [...set.
 const m2 = (a: number | undefined) => (a === undefined ? '' : Math.round(a).toLocaleString('hu-HU'));
 
 /** A4 álló oldal (210 × 297 mm) a változási vázrajzzal vagy a mérési vázlattal. */
-export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta): { svg: string; scale: number } {
+/** Az alapértelmezett sablon (telekalakítás), ha a hívó nem ad meg munkafajtát. */
+const DEFAULT_TEMPLATES: Record<'change' | 'sketch', PlanTemplate> = {
+  change: {
+    title: 'VÁLTOZÁSI VÁZRAJZ',
+    footer: ['A változás akaratunknak megfelelően történt:', '§sign', 'A vázrajz méretek levételére nem alkalmas.'],
+    stampBox: 'Záradék (51. § (1)):',
+    areaTable: true,
+    dimensions: false,
+  },
+  sketch: {
+    title: 'MÉRÉSI VÁZLAT',
+    footer: ['A változással érintett földrészlet új határpontjait', '.......................................... -val jelöltem meg.'],
+    stampBox: '',
+    areaTable: false,
+    dimensions: true,
+  },
+};
+
+export interface PlanOptions {
+  template?: PlanTemplate;
+  /** A munka fajtája: ettől függ, minek a méreteit írja a rajz (kitűzött földrészlet, új épület, új alrészlet). */
+  job?: JobKind;
+}
+
+/** A méretmegírással ellátott élek a munka fajtája szerint. */
+function dimensionEdges(input: PlanInput, job: JobKind | undefined): [NamedPt, NamedPt][] {
+  const beforeHrsz = new Set(input.before.map((p) => p.hrsz));
+  if (job === 'setout') return [...edges(input.after).values()];
+  if (job === 'building') {
+    const out = new Map<string, [NamedPt, NamedPt]>();
+    for (const d of input.drawing ?? [])
+      if (d.kind === 'building' && d.type === 'new') d.ring.forEach((a, i) => out.set(edgeKey(a, d.ring[(i + 1) % d.ring.length]!), [a, d.ring[(i + 1) % d.ring.length]!]));
+    return [...out.values()];
+  }
+  if (job === 'landuse') {
+    const out = new Map<string, [NamedPt, NamedPt]>();
+    for (const d of input.drawing ?? [])
+      if (d.kind === 'sub' && d.isNew) d.ring.forEach((a, i) => out.set(edgeKey(a, d.ring[(i + 1) % d.ring.length]!), [a, d.ring[(i + 1) % d.ring.length]!]));
+    return [...out.values()];
+  }
+  return [...edges(input.after.filter((p) => !beforeHrsz.has(p.hrsz))).values()];
+}
+
+export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta, opts: PlanOptions = {}): { svg: string; scale: number } {
+  const tpl = opts.template ?? DEFAULT_TEMPLATES[kind];
   const W = 210;
   const H = 297;
   const M = 10;
@@ -229,7 +357,7 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   t(header.x + 2, header.y + 10, meta.szekhely, 2.6);
   t(header.x + 2, header.y + 16, `Munkaszám: ${meta.munkaszam}`, 2.6);
   const mid = header.x + header.w / 2;
-  t(mid, header.y + 9, kind === 'change' ? 'VÁLTOZÁSI VÁZRAJZ' : 'MÉRÉSI VÁZLAT', 5, 'font-weight="bold" text-anchor="middle"');
+  t(mid, header.y + 9, tpl.title, 5, 'font-weight="bold" text-anchor="middle"');
   t(mid, header.y + 16, meta.megnevezes, 3, 'text-anchor="middle"');
   const hrszList = [...new Set([...input.before, ...input.after].map((p) => p.hrsz))].sort(byNumber).join(', ');
   t(mid, header.y + 22, `Hrsz: ${hrszList}`, 2.8, 'text-anchor="middle"');
@@ -242,6 +370,19 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   // Térképi kivágat
   out.push(`<rect x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${frame.h}" fill="none" stroke="#000" stroke-width="0.3"/>`);
   out.push(`<g clip-path="url(#frame)">`);
+  // Környezet: a szomszédos földrészletek és épületek vékony szürke vonallal.
+  const poly = (ring: Pt[], closed: boolean, attrs: string) =>
+    out.push(
+      `<${closed ? 'polygon' : 'polyline'} points="${ring.map((q) => `${sx(q.y).toFixed(2)},${sy(q.x).toFixed(2)}`).join(' ')}" fill="none" ${attrs}/>`,
+    );
+  const own = new Set([...input.before, ...input.after].map((p) => p.hrsz));
+  for (const p of input.background?.parcels ?? [])
+    if (!own.has(p.hrsz)) {
+      poly(p.ring, true, 'stroke="#777" stroke-width="0.15"');
+      const c = centroid(p.ring);
+      t(sx(c.y), sy(c.x), p.hrsz, 2.4, 'text-anchor="middle" fill="#777"');
+    }
+  for (const b of input.background?.buildings ?? []) poly(b.ring, true, 'stroke="#777" stroke-width="0.15"');
   const be = edges(input.before);
   const af = edges(input.after);
   for (const [key, [a, b]] of be)
@@ -257,11 +398,10 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
       line(a, b, 0.7); // új határ vastag vonallal
       lengths.push([a, b]);
     }
-  // Mérési vázlat: az újonnan kialakuló földrészletek oldalainak természetbeni méretei (10. melléklet 2. b)).
-  const beforeHrsz = new Set(input.before.map((p) => p.hrsz));
-  const dims = edges(input.after.filter((p) => !beforeHrsz.has(p.hrsz)));
-  if (kind === 'sketch')
-    for (const [a, b] of dims.values()) {
+  // Méretek: a mérési vázlaton az új földrészletek / épület / alrészletek oldalai (10. melléklet 2. b)),
+  // a kitűzési vázrajzon és vázlaton a kitűzött földrészlet kitűzési méretei (27–28. melléklet).
+  if (tpl.dimensions)
+    for (const [a, b] of dimensionEdges(input, opts.job)) {
       const ang = (Math.atan2(sy(b.x) - sy(a.x), sx(b.y) - sx(a.y)) * 180) / Math.PI;
       const rot = ang > 90 || ang < -90 ? ang + 180 : ang;
       const mx = (sx(a.y) + sx(b.y)) / 2;
@@ -290,14 +430,43 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
       const w = p.hrsz.length * 1.8;
       out.push(`<line x1="${(x - w / 2).toFixed(2)}" y1="${(y - 1).toFixed(2)}" x2="${(x + w / 2).toFixed(2)}" y2="${(y - 1).toFixed(2)}" stroke="#000" stroke-width="0.6"/>`);
     }
+  const obstacles = (input.drawing ?? []).flatMap((d) => (d.kind === 'building' ? [d.ring] : []));
   for (const p of input.after) {
-    const c = centroid(p.ring);
+    const c = labelPoint(p.ring, obstacles);
     // A címkoordináta jele a földrészlet belső pontján áll, a helyrajzi szám fölötte.
     t(sx(c.y), sy(c.x) - 2.5, p.hrsz, 3.4, `text-anchor="middle"${beforeH.has(p.hrsz) ? '' : ' font-weight="bold"'}`);
   }
+  // Rajzelemek: épületek, alrészletek, vonalak, feliratok
+  const hasNewSubs = (input.drawing ?? []).some((d) => d.kind === 'sub' && d.isNew);
+  for (const d of input.drawing ?? []) {
+    if (d.kind === 'building')
+      poly(d.ring, true, d.type === 'new' ? 'stroke="#000" stroke-width="0.5"' : d.type === 'old' ? 'stroke="#000" stroke-width="0.2" stroke-dasharray="1 0.8"' : d.type === 'wall' ? 'stroke="#000" stroke-width="0.18" stroke-dasharray="1.5 0.5"' : 'stroke="#000" stroke-width="0.25"');
+    else if (d.kind === 'sub') {
+      // Ha van kialakuló alrészlet, a meglévők megszűnnek: betűjelük és művelési águk áthúzva (19. melléklet 2. b)).
+      const ending = !d.isNew && hasNewSubs;
+      poly(d.ring, true, `stroke="#000" stroke-width="${d.isNew ? 0.35 : 0.18}" stroke-dasharray="${d.isNew ? '1 0.6' : '0.5 0.5'}"`);
+      const c = labelPoint(d.ring, obstacles);
+      const lx = sx(c.y);
+      const ly = sy(c.x) + (ending ? 11 : 4);
+      t(lx, ly, d.letter, 3, `text-anchor="middle" font-style="italic"${d.isNew ? ' font-weight="bold"' : ending ? ' fill="#555"' : ''}`);
+      t(lx, ly + 3.5, landUseLabel(d.use), 2.4, `text-anchor="middle"${d.isNew ? ' font-weight="bold"' : ending ? ' fill="#555"' : ''}`);
+      if (ending) {
+        const w = Math.max(landUseLabel(d.use).length * 1.4, 3);
+        out.push(`<line x1="${(lx - w / 2).toFixed(2)}" y1="${(ly - 1).toFixed(2)}" x2="${(lx + w / 2).toFixed(2)}" y2="${(ly + 2.6).toFixed(2)}" stroke="#000" stroke-width="0.4"/>`);
+      }
+    } else if (d.kind === 'polyline') poly(d.pts, false, `stroke="#000" stroke-width="0.18"${d.layer === 'fence' ? ' stroke-dasharray="2 1"' : d.layer === 'servitude' ? ' stroke-dasharray="3 1"' : ''}`);
+    else {
+      const size = d.layer === 'houseNo' ? 2.4 : 2.8;
+      const x = sx(d.at.y);
+      const y = sy(d.at.x);
+      t(x, y, d.text, size, `text-anchor="middle"${d.layer === 'street' || d.layer === 'place' ? ' font-style="italic"' : ''}${d.rotation ? ` transform="rotate(${(-d.rotation).toFixed(1)} ${x.toFixed(2)} ${y.toFixed(2)})"` : ''}`);
+    }
+  }
   // Pontok és pontszámok
   const seen = new Set<string>();
-  for (const p of all) {
+  // A földrészletek és a rajzelemek (épület, alrészlet, vonal) töréspontjai.
+  const drawingPts = (input.drawing ?? []).flatMap((d) => (d.kind === 'building' || d.kind === 'sub' ? d.ring : d.kind === 'polyline' ? d.pts : []));
+  for (const p of [...all, ...drawingPts]) {
     if (seen.has(p.id)) continue;
     seen.add(p.id);
     const measured = input.measured?.has(p.id);
@@ -325,7 +494,7 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
 
   // Területkimutatás és címkoordináták
   let y = frame.y + frame.h + 6;
-  if (kind === 'change') {
+  if (tpl.areaTable) {
     t(M, y, 'Területkimutatás', 3.2, 'font-weight="bold"');
     y += 4.5;
     t(M, y, 'Változás előtt', 2.6, 'font-weight="bold"');
@@ -366,17 +535,18 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   const fy = H - M - 38;
   out.push(`<rect x="${M}" y="${fy}" width="${W - 2 * M}" height="38" fill="none" stroke="#000" stroke-width="0.3"/>`);
   out.push(`<line x1="${M + 95}" y1="${fy}" x2="${M + 95}" y2="${fy + 38}" stroke="#000" stroke-width="0.2"/>`);
-  if (kind === 'change') {
-    t(M + 2, fy + 5, 'A változás akaratunknak megfelelően történt:', 2.6);
-    t(M + 2, fy + 16, '..................................', 2.4);
-    t(M + 50, fy + 16, '..................................', 2.4);
-    t(M + 2, fy + 22, 'A vázrajz méretek levételére nem alkalmas.', 2.6, 'font-style="italic"');
-    t(M + 97, fy + 5, 'Záradék (51. § (1)):', 2.6, 'font-weight="bold"');
-  } else {
-    t(M + 2, fy + 5, 'A változással érintett földrészlet új határpontjait', 2.6);
-    t(M + 2, fy + 9, '.......................................... -val jelöltem meg.', 2.6);
-    t(M + 2, fy + 15, '■ mért pont   ○ számított / átvett pont', 2.4);
+  let fl = fy + 5;
+  for (const line of tpl.footer) {
+    if (line === '§sign') {
+      // A tulajdonosok aláírásának helye
+      fl += 6;
+      t(M + 2, fl, '..................................', 2.4);
+      t(M + 50, fl, '..................................', 2.4);
+    } else if (line) t(M + 2, fl, line, 2.5, /nem alkalmas/.test(line) ? 'font-style="italic"' : '');
+    fl += 4.5;
   }
+  if (kind === 'sketch') t(M + 2, Math.max(fl, fy + 20), '■ mért pont   ○ számított / átvett pont', 2.4);
+  if (tpl.stampBox) t(M + 97, fy + 5, tpl.stampBox, 2.6, 'font-weight="bold"');
   t(M + 2, fy + 30, `Készült: ${meta.hely} ${meta.datum}`, 2.6);
   t(M + 2, fy + 35, `${meta.keszito}  ·  földmérő ig. sz.: ${meta.igazolvany}${meta.minosites ? `  ·  IRF minősítés: ${meta.minosites}` : ''}`, 2.4);
   t(M + 97, fy + 35, 'aláírás, bélyegző', 2.2, 'fill="#555"');
@@ -390,3 +560,50 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
 
 /** A sokszög területe (m²) a vázrajz táblázatához, ha nincs megadva. */
 export const ringArea = (ring: Pt[]) => polygonArea(ring);
+
+/** A vázrajz tartalma DXF elemekként, a földhivatali rajzok rétegeire osztva (szöveg/jel: papír-mm). */
+export function planEntities(kind: 'change' | 'sketch', input: PlanInput, scale: number, opts: PlanOptions = {}): DxfEntity[] {
+  const e: DxfEntity[] = [];
+  const mm = scale / 1000; // 1 papír-mm a terepen [m]
+  const c = classifyPlan(input);
+  const own = new Set([...input.before, ...input.after].map((p) => p.hrsz));
+  for (const p of input.background?.parcels ?? [])
+    if (!own.has(p.hrsz)) {
+      e.push({ type: 'polyline', layer: 'parcel', pts: p.ring, closed: true });
+      e.push({ type: 'text', layer: 'hrsz', at: centroid(p.ring), text: p.hrsz, height: 2, align: 'center' });
+    }
+  for (const b of input.background?.buildings ?? []) e.push({ type: 'polyline', layer: b.layer, pts: b.ring, closed: true });
+  for (const [a, b] of c.kept) e.push({ type: 'polyline', layer: 'parcel', pts: [a, b], closed: false });
+  for (const [a, b] of c.removed) e.push({ type: 'polyline', layer: 'oldParcel', pts: [a, b], closed: false });
+  for (const [a, b] of c.added) e.push({ type: 'polyline', layer: 'newParcel', pts: [a, b], closed: false });
+  const obstacles = (input.drawing ?? []).flatMap((d) => (d.kind === 'building' ? [d.ring] : []));
+  for (const p of c.sameHrsz) e.push({ type: 'text', layer: 'hrsz', at: labelPoint(p.ring, obstacles), text: p.hrsz, height: 2, align: 'center' });
+  for (const p of c.oldHrsz) e.push({ type: 'text', layer: 'oldHrsz', at: centroid(p.ring), text: p.hrsz, height: 2, align: 'center' });
+  for (const p of c.newHrsz) e.push({ type: 'text', layer: 'newHrsz', at: labelPoint(p.ring, obstacles), text: p.hrsz, height: 2, align: 'center' });
+  for (const d of input.drawing ?? []) {
+    if (d.kind === 'building') e.push({ type: 'polyline', layer: d.layer, pts: d.ring, closed: true });
+    else if (d.kind === 'sub') {
+      const at = labelPoint(d.ring, obstacles);
+      e.push({ type: 'polyline', layer: d.isNew ? 'newSub' : 'sub', pts: d.ring, closed: true });
+      e.push({ type: 'text', layer: d.isNew ? 'newSubLetter' : 'subLetter', at, text: d.letter, height: 2, align: 'center' });
+      e.push({ type: 'text', layer: d.isNew ? 'newSubUse' : 'subUse', at: { y: at.y, x: at.x - 2.5 * mm }, text: landUseLabel(d.use), height: 1.8, align: 'center' });
+    } else if (d.kind === 'polyline') e.push({ type: 'polyline', layer: d.layer, pts: d.pts, closed: false });
+    else e.push({ type: 'text', layer: d.layer, at: d.at, text: d.text, height: d.layer === 'houseNo' ? 2 : 2.5, rotation: d.rotation, align: 'center' });
+  }
+  const seen = new Set<string>();
+  const drawingPts = (input.drawing ?? []).flatMap((d) => (d.kind === 'building' || d.kind === 'sub' ? d.ring : d.kind === 'polyline' ? d.pts : []));
+  for (const p of [...input.before, ...input.after].flatMap((q) => q.ring).concat(drawingPts)) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    e.push({ type: 'insert', layer: 'pointNo', block: 'Pont', at: p, scale: 1 });
+    e.push({ type: 'text', layer: 'pointNo', at: { y: p.y + mm, x: p.x + mm }, text: p.id, height: 1.5 });
+  }
+  for (const a of input.address) {
+    e.push({ type: 'insert', layer: 'address', block: 'Címkoordináta', at: a, scale: 1 });
+    e.push({ type: 'text', layer: 'address', at: { y: a.y + 1.5 * mm, x: a.x - 2.5 * mm }, text: a.id, height: 1.5 });
+  }
+  if ((opts.template ?? DEFAULT_TEMPLATES[kind]).dimensions)
+    for (const [a, b] of dimensionEdges(input, opts.job))
+      e.push({ type: 'text', layer: 'distComputed', at: { y: (a.y + b.y) / 2, x: (a.x + b.x) / 2 }, text: fix(distance(a, b), 2), height: 1.8, align: 'center' });
+  return e;
+}

@@ -103,6 +103,10 @@ export interface DatImport {
   tableCounts: [string, number][];
   /** A pontok eredeti rekordjai (T_PONT és T_OBJ_ATTRAC) a pontszám szerint, a visszaíráshoz. */
   pointRecords: Map<string, PointRecords>;
+  /** Épületek (T_OBJ_ATTRCA): objektumféleség-kód és a külső határ pontjai. */
+  buildings: { code: string; ring: string[] }[];
+  /** Alrészletek (T_OBJ_ATTRBE): helyrajzi szám, betűjel, művelési ág kódja (T_MUVEL_AG), terület, határ. */
+  subs: { hrsz: string; letter: string; useCode: number | null; area: number | null; ring: string[] }[];
 }
 
 export interface PointRecords {
@@ -241,6 +245,26 @@ export function readDat(text: string): DatImport {
       });
     }
   }
+  // Épületek (T_OBJ_ATTRCA: ep_id, obj_fels, felulet_id, …; a megsz_datum a 17. mező, 16-os index)
+  const buildings: { code: string; ring: string[] }[] = [];
+  for (const r of get('T_OBJ_ATTRCA')) {
+    if (r[16] && r[16] !== '0') continue;
+    const outer = (surfaces.get(r[2] ?? '') ?? []).find((x) => !x.inner);
+    const ring = outer ? borderRing(outer.border) : null;
+    if (ring && ring.length >= 3 && ring.every((pid) => points.has(pid))) buildings.push({ code: r[1] ?? '', ring: ring.map((pid) => points.get(pid)!.id) });
+  }
+  // Alrészletek (T_OBJ_ATTRBE: alreszlet_id, obj_fels, felulet_id, alator, helyr_szam, terulet, foldert,
+  // muvel_ag, …, a megsz_datum a 16. mező, 15-ös index)
+  const subs: DatImport['subs'] = [];
+  for (const r of get('T_OBJ_ATTRBE')) {
+    if (r[15] && r[15] !== '0') continue;
+    const outer = (surfaces.get(r[2] ?? '') ?? []).find((x) => !x.inner);
+    const ring = outer ? borderRing(outer.border) : null;
+    if (!ring || ring.length < 3 || !ring.every((pid) => points.has(pid))) continue;
+    const use = num(r[7]);
+    const area = num(r[5]);
+    subs.push({ hrsz: r[4] ?? '', letter: r[3] ?? '', useCode: Number.isFinite(use) ? use : null, area: Number.isFinite(area) ? area : null, ring: ring.map((pid) => points.get(pid)!.id) });
+  }
   if (arcs > 0) warnings.push(`${arcs} íves határszakasz egyenesként szerepel (az ív a területet módosítja).`);
   if (points.size === 0) warnings.push('Az állományban nincs T_PONT táblázat – nem DAT adatcsere-állomány?');
 
@@ -251,6 +275,8 @@ export function readDat(text: string): DatImport {
     warnings,
     tableCounts: [...tables.entries()].map(([n, r]) => [n, r.length]),
     pointRecords,
+    buildings,
+    subs,
   };
 }
 
@@ -270,6 +296,10 @@ export interface DatExportOptions {
   date: Date;
   /** A beolvasott pontok rekordjai (pontossági osztály, állandósítás, pontkód). */
   pointRecords?: Map<string, PointRecords>;
+  /** Alrészletek (T_OBJ_ATTRBE): betűjel, művelési ág, terület és a befoglaló földrészlet. */
+  subs?: { hrsz: string; letter: string; useCode: number | null; area: number; ring: NamedPt[] }[];
+  /** Épületek (T_OBJ_ATTRCA): DAT-kód és a befoglaló földrészlet. */
+  buildings?: { hrsz: string; code: string; ring: NamedPt[] }[];
 }
 
 const f3 = (n: number) => String(Math.round(n * 1000) / 1000);
@@ -297,7 +327,10 @@ export function writeDat(parcels: DatExportParcel[], opts: DatExportOptions): st
     // Y kelet, X észak: az óramutató járásával egyező körüljárásnál az előjeles összeg negatív.
     return signed > 0 ? [...ring].reverse() : ring;
   };
-  const rings = parcels.map((p) => clockwise(p.ring));
+  const subs = opts.subs ?? [];
+  const buildings = opts.buildings ?? [];
+  // A felületek sorrendje: földrészletek, alrészletek, épületek (a felület azonosítója a sorszám).
+  const rings = [...parcels.map((p) => p.ring), ...subs.map((x) => x.ring), ...buildings.map((x) => x.ring)].map(clockwise);
   for (const ring of rings)
     for (const q of ring)
       if (!ptIds.has(q.id)) {
@@ -343,7 +376,7 @@ export function writeDat(parcels: DatExportParcel[], opts: DatExportOptions): st
   out.push('T_HATAR*');
   for (const b of borders) out.push(rec(b));
   out.push('T_FELULET*');
-  parcels.forEach((_, i) => out.push(rec([i + 1, 1, i + 1, '+'])));
+  rings.forEach((_, i) => out.push(rec([i + 1, 1, i + 1, '+'])));
 
   // Részletpontok: a pontszám a T_OBJ_ATTRAC táblázatban (a beolvasott rekord, vagy új pontnál új rekord).
   const acs = pts.map((p) => recs.get(p.id)?.ac).filter((r): r is string[] => r !== undefined);
@@ -389,6 +422,30 @@ export function writeDat(parcels: DatExportParcel[], opts: DatExportOptions): st
       rows.push(rec(r));
     });
     if (rows.length > 0) out.push(`${table}*`, ...rows);
+  }
+  const parcelIndex = (hrsz: string) => parcels.findIndex((q) => q.hrsz === hrsz) + 1;
+  // Alrészletek (DAT-M1 T_OBJ_ATTRBE): alreszlet_id, obj_fels, felulet_id, alator, helyr_szam, terulet,
+  // foldert, muvel_ag, elhat_jell, elhat_mod, elozo_alreszlet_id, l_datum, hatarozat, valt_jell, tar_cim,
+  // megsz_datum, jelkulcs, munkater_id, pont_id
+  if (subs.length > 0) {
+    out.push('T_OBJ_ATTRBE*');
+    subs.forEach((x, i) => {
+      const f = parcels.length + i;
+      out.push(rec([i + 1, 'BE01', f + 1, x.letter, x.hrsz, Math.round(x.area), '', x.useCode ?? '', 2, 1, i + 1, '', '', '', '', '0', '', '', geocodes[f]]));
+    });
+  }
+  // Épületek (T_OBJ_ATTRCA): ep_id, obj_fels, felulet_id, cim_id, parcel_id1, parcel_id2, ep_sorsz, szintek,
+  // fugg_kiter, anyag, epulet_tip, epulet_alt, szemely_id, ceg_id, elozo_ep_id, blokk_id, megsz_datum,
+  // jelkulcs, munkater_id, pont_id
+  if (buildings.length > 0) {
+    out.push('T_OBJ_ATTRCA*');
+    const seq = new Map<string, number>();
+    buildings.forEach((x, i) => {
+      const f = parcels.length + subs.length + i;
+      const n = (seq.get(x.hrsz) ?? 0) + 1;
+      seq.set(x.hrsz, n);
+      out.push(rec([i + 1, x.code, f + 1, '', '', parcelIndex(x.hrsz) || '', n, 1, '', '', '', '', '', '', i + 1, '', '0', 114, '', geocodes[f]]));
+    });
   }
   return `${out.join('\r\n')}\r\n`;
 }

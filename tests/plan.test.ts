@@ -94,7 +94,7 @@ describe('vázrajz', () => {
 
   it('a szabványos méretarány a keretbe fér', () => {
     expect(chooseScale(46, 29, 190, 150)).toBe(250);
-    expect(chooseScale(400, 300, 190, 150)).toBe(2500);
+    expect(chooseScale(400, 300, 190, 150)).toBe(4000);
   });
 
   it('a változási vázrajz fejléce, a megszűnő és az új helyrajzi szám, az új határ', () => {

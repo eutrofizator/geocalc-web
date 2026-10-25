@@ -22,8 +22,27 @@ import {
 import type { Issue, Section } from './core/types';
 import { createPage } from './shell';
 import { csvButton, download, el, readText, renderSection, storage } from './ui';
-import { addressSection, coordinateList, generateAddressPoints, parsePointAttrs, renderPlan, type AddressPoint, type PlanMeta } from './core/plan';
+import {
+  addressSection,
+  chooseScale,
+  coordinateList,
+  generateAddressPoints,
+  parsePointAttrs,
+  planEntities,
+  renderPlan,
+  type AddressPoint,
+  type PlanInput,
+  type PlanMeta,
+} from './core/plan';
 import { getMeta } from './report-view';
+import { JOBS, JOB_LIST, landUseCode, landUseName, type JobKind } from './core/jobs';
+import { subStatement } from './core/subparcels';
+import { buildPackage, printAll, type PackageParts } from './core/package';
+import { writeZip } from './core/zip-writer';
+import type { WorkData } from './core/documents';
+import { parseDrawing } from './core/drawing';
+import { writeDxf } from './core/dxf-writer';
+import { buildingLayer } from './core/layers';
 
 /**
  * Geodéziai számítások/Változási vázrajz: területszámítás a koordinátákból, terület-összevetés a
@@ -57,8 +76,29 @@ interface Saved {
   measured: string;
   check: Omit<CheckOptions, 'scale'>;
   fees: { on: boolean; kind: ChangeKind; buildings: number; units: number; subparcels: number; reissue: boolean; withData: boolean };
-  plan: { szekhely: string; iktatoszam: string; megnevezes: string; igazolvany: string; minosites: string; hely: string; address: boolean; prefix: string };
+  plan: { szekhely: string; iktatoszam: string; megnevezes: string; igazolvany: string; minosites: string; hely: string; address: boolean; prefix: string; drawing?: string };
+  job?: JobKind;
+  work?: Partial<Record<WorkKey, string>>;
 }
+
+/** A „Munka adatai” mezői: kulcs, felirat, súgószöveg. */
+const WORK_FIELDS = [
+  ['megbizo', 'Megbízó neve', ''],
+  ['megbizoCim', 'Megbízó címe', ''],
+  ['hivatal', 'Kormányhivatal (adatszolgáltató, záradékoló)', 'pl. Pest Vármegyei Kormányhivatal'],
+  ['ugyfelkod', 'Ügyfélkód', ''],
+  ['okmany', 'Személyazonosító okmány és száma', ''],
+  ['statisztikai', 'Statisztikai számjel', ''],
+  ['email', 'E-mail-cím', ''],
+  ['muszer', 'Mérőműszer típusa', 'pl. FOIF RTS102'],
+  ['gyariszam', 'Gyári szám', ''],
+  ['minosegtanusito', 'Minőségtanúsító neve', ''],
+  ['megjeloles', 'A határpontok megjelölése', 'pl. fakaróval'],
+  ['idopont', 'A munkavégzés (kitűzés) időpontja', 'pl. 2026.11.05. 9:00'],
+  ['szomszedok', 'Szomszédos hrsz-ek (kitűzés)', 'pl. 122, 124, 125'],
+  ['feljegyzes', 'Egyéb feljegyzés (műszaki leírás)', ''],
+] as const;
+type WorkKey = (typeof WORK_FIELDS)[number][0];
 
 const DEFAULTS: Saved = {
   ...SAMPLE,
@@ -260,6 +300,37 @@ export function initParcelView(): void {
   form.append(fee);
 
   // Vázrajz és jegyzékek (8/2018. AM rendelet 10., 15. melléklet, 46. §)
+  // A munka fajtája és adatai (a leadandó munkarészekhez)
+  const job = el('fieldset', 'dims column');
+  job.append(el('legend', undefined, 'Munka'));
+  const jobSel = select('pc-job', JOB_LIST.map((j) => [j.id, j.label] as [string, string]));
+  const gJob = el('div', 'grid3');
+  gJob.append(labelled('A munka fajtája', jobSel));
+  const workInputs = new Map<WorkKey, HTMLInputElement>();
+  const gWork = el('div', 'grid3');
+  for (const [key, label, ph] of WORK_FIELDS) {
+    const i = input(`pc-work-${key}`, ph);
+    workInputs.set(key, i);
+    gWork.append(labelled(label, i));
+  }
+  const workDetails = el('details', 'settings');
+  workDetails.append(el('summary', undefined, 'Munka adatai (adatigénylés, műszaki leírás, kérelem, jegyzőkönyv)'), gWork);
+  const jobAct = el('div', 'pane-actions');
+  const printAllBtn = button('pc-print-all', 'Munkarészek nyomtatása', 'A munka összes szöveges munkarésze és rajza egy nyomtatásban (PDF-be menthető)');
+  const zipBtn = button('pc-package', 'Leadandó csomag (.zip)', 'A munkarészek a leadott munkák mappaszerkezetében: vázrajz, vázlat, DAT, területszámítás, koordinátajegyzék, dokumentumok');
+  jobAct.append(printAllBtn, zipBtn);
+  job.append(
+    gJob,
+    workDetails,
+    jobAct,
+    el(
+      'p',
+      'hint',
+      'A munka fajtája szabja meg a vázrajz és a vázlat feliratát, záradékait (8/2018. AM rendelet 15., 17., 19., 27–28. melléklet), a méretmegírást és a csomag mappáit.',
+    ),
+  );
+  form.append(job);
+
   const pl = el('fieldset', 'dims column');
   pl.append(el('legend', undefined, 'Vázrajz és jegyzékek'));
   const plSzekhely = input('pc-plan-szekhely', 'pl. 1111 Budapest, Minta u. 1.');
@@ -280,16 +351,27 @@ export function initParcelView(): void {
   addrLabel.append(plAddr, el('span', undefined, 'Címkoordináták generálása a változás utáni földrészletekhez (5411)'));
   const g9 = el('div', 'grid3');
   g9.append(labelled('Címkoordináta pontszám-előtagja', plPrefix));
+  const drawing = area('pc-drawing', 5);
+  drawing.placeholder = [
+    'épület ; új ; E1 E2 E3 E4',
+    'alrészlet ; a ; kivett ; 101 102 103 104',
+    'új alrészlet ; b ; szántó ; …',
+    'vonal ; kerítés ; 101 E5',
+    'felirat ; házszám ; 35 ; @104',
+  ].join('\n');
+  const drawingLabel = labelled('Rajzelemek (épület, alrészlet, vonal, felirat)', drawing);
   const plAct = el('div', 'pane-actions');
   const planChangeBtn = button('pc-plan-change', 'Változási vázrajz', 'A változási vázrajz nyomtatható oldala (15. melléklet)');
   const planSketchBtn = button('pc-plan-sketch', 'Mérési vázlat', 'A mérési vázlat nyomtatható oldala (10. melléklet)');
   const coordListBtn = button('pc-coordlist', 'Koordinátajegyzék (.txt)', 'A koordinátajegyzék csoportonként, számsorrendben (46. § (1) i))');
-  plAct.append(planChangeBtn, planSketchBtn, coordListBtn);
+  const dxfBtn = button('pc-plan-dxf', 'DXF (földhivatali rétegek)', 'A változási vázrajz rajza DXF-ben, a földhivatali rajzok rétegrendjével');
+  plAct.append(planChangeBtn, planSketchBtn, dxfBtn, coordListBtn);
   pl.append(
     g7,
     g8,
     addrLabel,
     g9,
+    drawingLabel,
     plAct,
     el(
       'p',
@@ -379,12 +461,17 @@ export function initParcelView(): void {
   plHely.value = saved.plan.hely;
   plAddr.checked = saved.plan.address;
   plPrefix.value = saved.plan.prefix;
+  drawing.value = saved.plan.drawing ?? '';
+  jobSel.value = saved.job ?? 'subdivision';
+  for (const [key] of WORK_FIELDS) workInputs.get(key)!.value = saved.work?.[key] ?? '';
   fillScales(saved.scale);
 
   let division: { result: DivisionResult; sections: Section[] } | null = null;
   /** A beolvasott DAT (a földrészletek attribútumai a visszaíráshoz). */
   let dat: { name: string; data: DatImport } | null = null;
   let datNotes: Issue[] = [];
+  /** A környezet (a szomszédos földrészletek és épületek) a beolvasott DAT-ból vagy földhivatali DXF-ből. */
+  let background: PlanInput['background'] = undefined;
 
   function fillScales(keep?: string): void {
     const annex = Number(annexSel.value) as ToleranceAnnex;
@@ -428,7 +515,10 @@ export function initParcelView(): void {
         hely: plHely.value,
         address: plAddr.checked,
         prefix: plPrefix.value.trim() || 'C',
+        drawing: drawing.value,
       },
+      job: jobSel.value as JobKind,
+      work: Object.fromEntries(WORK_FIELDS.map(([k]) => [k, workInputs.get(k)!.value])),
     };
     storage.set(KEY, JSON.stringify(state));
     fillParcels();
@@ -452,14 +542,18 @@ export function initParcelView(): void {
         })
       : null;
     const addr = state.plan.address ? addressPoints() : [];
+    const parsedDrawing = parseDrawing(drawing.value, parsePoints(state.coords).points);
+    const drawingIssues = parsedDrawing.issues;
+    const subs = subsFor(parsedDrawing.elements, st);
     sections = [
       ...st.sections,
+      ...(subs.section ? [subs.section] : []),
       ...(addr.length > 0 ? [addressSection(addr)] : []),
       ...(bc?.sections ?? []),
       ...(division?.sections ?? []),
       ...(fees ? [fees] : []),
     ];
-    showIssues([...datNotes, ...st.issues, ...(bc?.issues ?? []), ...(division?.result.issues ?? [])]);
+    showIssues([...datNotes, ...st.issues, ...drawingIssues, ...subs.issues, ...(bc?.issues ?? []), ...(division?.result.issues ?? [])]);
     results.replaceChildren(...sections.map(renderSection));
     if (sections.length === 0) results.append(el('p', 'empty', 'Add meg a koordinátákat és a földrészleteket, vagy töltsd be a mintát.'));
     const errors = st.issues.filter((i) => i.level === 'error').length;
@@ -491,6 +585,23 @@ export function initParcelView(): void {
       return;
     }
     dat = { name: f.name, data: d };
+    // A meglévő alrészletek és épületek rajzelemként (a munka a jelenlegi állapotból indul).
+    {
+      const typeOf = (code: string) => (code === 'CA01' ? 'lakó' : code === 'CA02' ? 'üdülő' : 'gazdasági');
+      const lines = [
+        ...d.subs.map((x) => `alrészlet ; ${x.letter} ; ${landUseName(x.useCode) || 'kivett'} ; ${x.ring.join(' ')}`),
+        ...d.buildings.map((b) => `épület ; ${typeOf(b.code)} ; ${b.ring.join(' ')} ; ${b.code}`),
+      ];
+      if (lines.length > 0) drawing.value = ['# a DAT meglévő alrészletei és épületei', ...lines].join('\n');
+    }
+    {
+      const byId = new Map(d.points.map((q) => [q.id, q]));
+      background = {
+        parcels: d.parcels.map((q) => ({ hrsz: q.hrsz, ring: q.ring.map((id) => byId.get(id)!) })),
+        // A DAT épületei rajzelemként kerülnek a munkalapra, a környezetben nem kell őket megismételni.
+        buildings: [],
+      };
+    }
     const holes = d.parcels.filter((p) => p.holes.length > 0).map((p) => p.hrsz);
     if (holes.length > 0)
       datNotes.push({
@@ -501,7 +612,7 @@ export function initParcelView(): void {
       level: 'info',
       message: `DAT: ${f.name} – ${d.points.length} pont, ${d.parcels.length} földrészlet` + (d.title[1] ? ` (${d.title[1]})` : '') + '.',
     });
-    const used = new Set(d.parcels.flatMap((p) => p.ring));
+    const used = new Set([...d.parcels.flatMap((p) => p.ring), ...d.subs.flatMap((x) => x.ring), ...d.buildings.flatMap((b) => b.ring)]);
     coords.value = ['# pontszám  Y  X  (DAT)', ...d.points.filter((p) => used.has(p.id)).map((p) => `${p.id}  ${p.y.toFixed(2)}  ${p.x.toFixed(2)}`)].join(
       '\n',
     );
@@ -539,6 +650,13 @@ export function initParcelView(): void {
     }
     const dxfFile = texts.find((t) => /\.dxf$/i.test(t.name));
     const map: CadastralMap | null = dxfFile ? readCadastralDxf(dxfFile.text) : null;
+    if (map) {
+      const byId = new Map(map.points.map((q) => [q.id, q]));
+      background = {
+        parcels: map.parcels.map((q) => ({ hrsz: q.hrsz, ring: q.ring.map((id) => byId.get(id)!) })),
+        buildings: map.buildings.map((b) => ({ layer: b.layer, ring: b.ring.map((q) => ({ id: '', ...q })) })),
+      };
+    }
     const regs: RegisteredParcel[] = mergeRegistered(texts.filter((t) => /\.txt$/i.test(t.name)).map((t) => readRegisteredAreas(t.text)));
     // A teljes térképkivágatra vonatkozó megjegyzések; a kiválasztott földrészletekre külön figyelmeztet.
     datNotes = (map?.warnings ?? []).map((message) => ({
@@ -637,7 +755,20 @@ export function initParcelView(): void {
   }
 
   let planSvg = '';
-  function showPlan(kind: 'change' | 'sketch'): void {
+  /** Az alrészletek a változás előtti és utáni földrészletek területére ráosztva. */
+  function subsFor(elements: ReturnType<typeof parseDrawing>['elements'], st: ReturnType<typeof areaStatement>) {
+    const pts = parsePoints(coords.value).points;
+    const ring = (ids: string[]) => ids.map((id) => pts.get(id)!);
+    const bDefs = parseParcels(before.value, true, '').parcels.filter((p) => p.points.every((id) => pts.has(id)));
+    const beforeP = bDefs.map((p) => ({ hrsz: p.hrsz, ring: ring(p.points), area: p.registered ?? Math.round(st.before.find((b) => b.hrsz === p.hrsz)?.technical ?? 0) }));
+    const afterP = afterRings().map((p) => ({ ...p, area: st.after.find((a) => a.hrsz === p.hrsz)?.final ?? 0 }));
+    return subStatement(elements, beforeP, afterP);
+  }
+
+  const currentJob = () => JOBS[jobSel.value as JobKind];
+
+  /** A vázrajz bemenete a munkalap mezőiből. */
+  function planInput(): PlanInput {
     const pts = parsePoints(coords.value).points;
     const st = areaStatement({
       coordinates: coords.value,
@@ -650,14 +781,20 @@ export function initParcelView(): void {
     const ring = (ids: string[]) => ids.map((id) => pts.get(id)!);
     const bDefs = parseParcels(before.value, true, '').parcels.filter((p) => p.points.every((id) => pts.has(id)));
     const finals = new Map(st.after.map((a) => [a.hrsz, a.final]));
-    const input = {
+    return {
       before: bDefs.map((p) => ({ hrsz: p.hrsz, ring: ring(p.points), area: p.registered ?? st.before.find((b) => b.hrsz === p.hrsz)?.technical })),
       after: afterRings().map((p) => ({ ...p, area: finals.get(p.hrsz) })),
       address: plAddr.checked ? addressPoints() : [],
       measured: new Set(parseMeasured(measured.value).points.keys()),
+      drawing: parseDrawing(drawing.value, pts).elements,
+      background,
     };
+  }
+
+  function showPlan(kind: 'change' | 'sketch'): void {
+    const input = planInput();
     if (input.before.length + input.after.length === 0) return;
-    const r = renderPlan(kind, input, planMeta());
+    const r = renderPlan(kind, input, planMeta(), { template: kind === 'change' ? currentJob().plan : currentJob().sketch, job: currentJob().id });
     planSvg = r.svg;
     planBox.replaceChildren();
     const bar = el('div', 'pane-actions');
@@ -689,6 +826,17 @@ export function initParcelView(): void {
     planBox.scrollIntoView({ block: 'start' });
   }
 
+  function saveDxf(): void {
+    const input = planInput();
+    const all = [...input.before, ...input.after].flatMap((p) => p.ring);
+    if (all.length === 0) return;
+    const ys = all.map((p) => p.y);
+    const xs = all.map((p) => p.x);
+    const scale = chooseScale((Math.max(...ys) - Math.min(...ys)) * 1.3 || 1, (Math.max(...xs) - Math.min(...xs)) * 1.3 || 1, 190, 150);
+    const text = writeDxf(planEntities('change', input, scale, { template: currentJob().plan, job: currentJob().id }), scale);
+    download('valtozasi_vazrajz.dxf', encodeWindows1250(text), 'application/octet-stream');
+  }
+
   function saveCoordList(): void {
     const pts = parsePoints(coords.value).points;
     const attrs = parsePointAttrs(coords.value);
@@ -701,14 +849,12 @@ export function initParcelView(): void {
     results.replaceChildren(...sections.map(renderSection));
   }
 
-  function saveDat(): void {
-    const state = {
+  /** A változás utáni állapot DAT-ja: földrészletek, alrészletek (BE), épületek (CA). */
+  function buildDat(): { name: string; text: string } | null {
+    const st = areaStatement({
       coordinates: coords.value,
       before: before.value,
       after: after.value,
-    };
-    const st = areaStatement({
-      ...state,
       annex: Number(annexSel.value) as ToleranceAnnex,
       scale: scaleSel.value,
       kind: kindSel.value as ToleranceKind,
@@ -727,11 +873,125 @@ export function initParcelView(): void {
           template: src ? { table: src.table, record: src.record } : undefined,
         };
       });
-    if (parcels.length === 0) return;
+    if (parcels.length === 0) return null;
+    const elements = parseDrawing(drawing.value, pts).elements;
+    const subs = subsFor(elements, st).after;
+    const inside = (p: { y: number; x: number }, ring: { y: number; x: number }[]) => {
+      let c = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const a = ring[i]!;
+        const b = ring[j]!;
+        if (a.x > p.x !== b.x > p.x && p.y < ((b.y - a.y) * (p.x - a.x)) / (b.x - a.x) + a.y) c = !c;
+      }
+      return c;
+    };
+    const buildings = elements
+      .filter((d): d is Extract<typeof d, { kind: 'building' }> => d.kind === 'building' && d.type !== 'old' && d.type !== 'wall')
+      .map((d) => {
+        const c = { y: d.ring.reduce((s, q) => s + q.y, 0) / d.ring.length, x: d.ring.reduce((s, q) => s + q.x, 0) / d.ring.length };
+        return { hrsz: parcels.find((p) => inside(c, p.ring))?.hrsz ?? parcels[0]!.hrsz, code: d.code, ring: d.ring };
+      });
     const base = (dat?.name ?? 'valtozas').replace(/\.[^.]*$/, '');
-    const text = writeDat(parcels, { name: `${base}_valtozas`, date: new Date(), pointRecords: dat?.data.pointRecords });
+    const text = writeDat(parcels, {
+      name: `${base}_valtozas`,
+      date: new Date(),
+      pointRecords: dat?.data.pointRecords,
+      subs: subs.map((r) => ({ hrsz: r.hrsz, letter: r.letter, useCode: landUseCode(r.use), area: r.area, ring: r.ring })),
+      buildings,
+    });
+    return { name: `${base}_valtozas`, text };
+  }
+
+  function saveDat(): void {
+    const d = buildDat();
     // A DAT állomány az ITR-hez hasonlóan Windows-1250 kódolású.
-    download(`${base}_valtozas.dat`, encodeWindows1250(text), 'application/octet-stream');
+    if (d) download(`${d.name}.dat`, encodeWindows1250(d.text), 'application/octet-stream');
+  }
+
+  /** A munka adatai a dokumentumokhoz. */
+  function workData(): WorkData {
+    const m = planMeta();
+    const w = (k: WorkKey) => workInputs.get(k)!.value.trim();
+    const hrsz = [...new Set([...parseParcels(before.value, true, '').parcels, ...parseParcels(after.value, false, '').parcels].map((p) => p.hrsz))];
+    return {
+      job: currentJob().id,
+      keszito: m.keszito,
+      szekhely: m.szekhely,
+      munkaszam: m.munkaszam,
+      telepules: m.telepules,
+      fekves: m.fekves,
+      iktatoszam: m.iktatoszam,
+      hrsz,
+      szomszedok: w('szomszedok'),
+      megbizo: w('megbizo'),
+      megbizoCim: w('megbizoCim'),
+      hivatal: w('hivatal'),
+      ugyfelkod: w('ugyfelkod'),
+      okmany: w('okmany'),
+      statisztikai: w('statisztikai'),
+      email: w('email'),
+      igazolvany: m.igazolvany,
+      minosites: m.minosites,
+      minosegtanusito: w('minosegtanusito'),
+      muszer: w('muszer'),
+      gyariszam: w('gyariszam'),
+      leiras: '',
+      feljegyzes: w('feljegyzes'),
+      megjeloles: w('megjeloles'),
+      idopont: w('idopont'),
+      hely: m.hely,
+      datum: m.datum,
+      adatallomany: buildDat()?.name ?? '',
+    };
+  }
+
+  /** A csomag tartalma: rajzok, DAT, területszámítás, jegyzékek, dokumentumok. */
+  function packageParts(): PackageParts | null {
+    const input = planInput();
+    if (input.before.length + input.after.length === 0) return null;
+    const j = currentJob();
+    const meta = planMeta();
+    const plan = renderPlan('change', input, meta, { template: j.plan, job: j.id });
+    const sketch = renderPlan('sketch', input, meta, { template: j.sketch, job: j.id });
+    const pts = parsePoints(coords.value).points;
+    const attrs = parsePointAttrs(coords.value);
+    const list = [...pts.values()].map((p) => ({ ...p, m: attrs.get(p.id)?.m ?? null, code: attrs.get(p.id)?.code ?? '' }));
+    const addr = plAddr.checked ? addressPoints() : [];
+    for (const a of addr) list.push({ id: a.id, y: a.y, x: a.x, m: null, code: a.code });
+    const ringList = (text: string, withArea: boolean) =>
+      parseParcels(text, withArea, '')
+        .parcels.filter((p) => p.points.every((id) => pts.has(id)))
+        .map((p) => ({ hrsz: p.hrsz, ring: p.points.map((id) => pts.get(id)!) }));
+    const st = areaStatement({
+      coordinates: coords.value,
+      before: before.value,
+      after: after.value,
+      annex: Number(annexSel.value) as ToleranceAnnex,
+      scale: scaleSel.value,
+      kind: kindSel.value as ToleranceKind,
+    });
+    const subs = subsFor(input.drawing ?? [], st);
+    const bc = measured.value.trim()
+      ? checkBoundary(pts, parseParcels(before.value, true, '').parcels, measured.value, {
+          kind: mapKindSel.value as MapKind,
+          area: areaSel.value as Area,
+          order: orderSel.value as PointOrder,
+          marked: markedChk.checked,
+          scale: scaleSel.value,
+        })
+      : null;
+    return {
+      work: workData(),
+      plan: { svg: plan.svg, dxf: writeDxf(planEntities('change', input, plan.scale, { template: j.plan, job: j.id }), plan.scale) },
+      sketch: { svg: sketch.svg, dxf: writeDxf(planEntities('sketch', input, sketch.scale, { template: j.sketch, job: j.id }), sketch.scale) },
+      dat: j.id === 'setout' ? undefined : buildDat()?.text,
+      lstBefore: writeLst(ringList(before.value, true)),
+      lstAfter: writeLst(ringList(after.value, false)),
+      coordList: coordinateList(list).text,
+      addressList: addr.length > 0 ? addr.map((a) => `${a.hrsz}\t${a.id}\t${a.y}\t${a.x}\t${a.code}`).join('\r\n') : undefined,
+      measured: measured.value.trim() ? `${measured.value.trim()}\r\n\r\n${bc ? sectionsToText(bc.sections) : ''}` : undefined,
+      subList: subs.after.length > 0 ? subs.after.map((r) => `${r.hrsz}\t${r.letter}\t${r.use}\t${r.area}`).join('\r\n') : undefined,
+    };
   }
 
   function showIssues(list: Issue[]): void {
@@ -897,6 +1157,7 @@ export function initParcelView(): void {
   for (const c of [scaleSel, kindSel, mapKindSel, areaSel, orderSel, markedChk, feeOn, feeKind, feeReissue, feeData]) c.addEventListener('change', run);
   for (const t of [coords, before, after, measured, feeBuildings, feeUnits, feeSub, plSzekhely, plIkt, plMegnev, plIg, plMin, plHely, plPrefix])
     t.addEventListener('input', run);
+  drawing.addEventListener('input', run);
   plAddr.addEventListener('change', run);
   methodSel.addEventListener('change', () => {
     bLabel.hidden = methodSel.value !== 'parallel';
@@ -910,6 +1171,7 @@ export function initParcelView(): void {
     division = null;
     dat = null;
     datNotes = [];
+    background = undefined;
     takeBtn.disabled = true;
     run();
   });
@@ -931,6 +1193,34 @@ export function initParcelView(): void {
   planChangeBtn.addEventListener('click', () => showPlan('change'));
   planSketchBtn.addEventListener('click', () => showPlan('sketch'));
   coordListBtn.addEventListener('click', saveCoordList);
+  jobSel.addEventListener('change', () => {
+    // A vázrajz megnevezése a munka fajtája szerint (ha nem írták át).
+    const names = JOB_LIST.map((j) => j.name);
+    if (!plMegnev.value.trim() || names.includes(plMegnev.value.trim()) || plMegnev.value === DEFAULTS.plan.megnevezes) plMegnev.value = currentJob().name;
+    feeKind.value = currentJob().fee;
+    run();
+  });
+  for (const i of workInputs.values()) i.addEventListener('input', run);
+  printAllBtn.addEventListener('click', () => {
+    const parts = packageParts();
+    if (!parts) return;
+    const w = window.open('', '_blank');
+    if (!w) return;
+    w.document.write(printAll(parts));
+    w.document.close();
+    w.focus();
+    w.print();
+  });
+  zipBtn.addEventListener('click', () => {
+    const parts = packageParts();
+    if (!parts) return;
+    const files = buildPackage(parts);
+    const name = `${(parts.work.munkaszam || 'munka').replace(/[^0-9A-Za-z]+/g, '_')}_${currentJob().id}.zip`;
+    download(name, writeZip(files), 'application/zip');
+    datNotes = [{ level: 'info', message: `Leadandó csomag: ${name} – ${files.length} állomány (${currentJob().folders.length} mappa).` }];
+    run();
+  });
+  dxfBtn.addEventListener('click', saveDxf);
   stakeBtn.addEventListener('click', () => stakeFile.click());
   stakeFile.addEventListener('change', async () => {
     const f = stakeFile.files?.[0];
