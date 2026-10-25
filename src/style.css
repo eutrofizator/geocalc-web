@@ -3262,3 +3262,29 @@ button.fb-calc {
 :root[data-theme='dark'] .parcel-sketch .pt {
   fill: #e0e0e0;
 }
+
+/* ---------------- vázrajz előnézet ---------------- */
+
+.plan-preview {
+  margin: 6px 0;
+  border: 1px solid var(--face-sh);
+  padding: 6px;
+}
+
+.plan-preview .pane-actions {
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.plan-page {
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.plan-page svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

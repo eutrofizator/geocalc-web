@@ -22,6 +22,8 @@ import {
 import type { Issue, Section } from './core/types';
 import { createPage } from './shell';
 import { csvButton, download, el, readText, renderSection, storage } from './ui';
+import { addressSection, coordinateList, generateAddressPoints, parsePointAttrs, renderPlan, type AddressPoint, type PlanMeta } from './core/plan';
+import { getMeta } from './report-view';
 
 /**
  * Geodéziai számítások/Változási vázrajz: területszámítás a koordinátákból, terület-összevetés a
@@ -55,6 +57,7 @@ interface Saved {
   measured: string;
   check: Omit<CheckOptions, 'scale'>;
   fees: { on: boolean; kind: ChangeKind; buildings: number; units: number; subparcels: number; reissue: boolean; withData: boolean };
+  plan: { szekhely: string; iktatoszam: string; megnevezes: string; igazolvany: string; minosites: string; hely: string; address: boolean; prefix: string };
 }
 
 const DEFAULTS: Saved = {
@@ -65,6 +68,7 @@ const DEFAULTS: Saved = {
   measured: '',
   check: { kind: 'digital', area: 'inner', order: 'R2', marked: true },
   fees: { on: false, kind: 'subdivision', buildings: 1, units: 1, subparcels: 1, reissue: false, withData: true },
+  plan: { szekhely: '', iktatoszam: '', megnevezes: 'telekalakítással összefüggő változási vázrajz', igazolvany: '', minosites: '', hely: '', address: false, prefix: 'C' },
 };
 
 export function initParcelView(): void {
@@ -254,6 +258,47 @@ export function initParcelView(): void {
     el('p', 'hint', 'A földrészletek számát és a nyilvántartott területeket a változás előtti és utáni földrészletekből veszi. A számítás tájékoztató jellegű.'),
   );
   form.append(fee);
+
+  // Vázrajz és jegyzékek (8/2018. AM rendelet 10., 15. melléklet, 46. §)
+  const pl = el('fieldset', 'dims column');
+  pl.append(el('legend', undefined, 'Vázrajz és jegyzékek'));
+  const plSzekhely = input('pc-plan-szekhely', 'pl. 1111 Budapest, Minta u. 1.');
+  const plIkt = input('pc-plan-iktato', 'pl. 700/1/2026');
+  const plMegnev = input('pc-plan-megnev', 'pl. telekfelosztás');
+  const plIg = input('pc-plan-ig', 'pl. 1234');
+  const plMin = input('pc-plan-min', 'ha van');
+  const plHely = input('pc-plan-hely', 'pl. Budapest,');
+  const plAddr = el('input');
+  plAddr.type = 'checkbox';
+  plAddr.id = 'pc-plan-addr';
+  const plPrefix = input('pc-plan-prefix', 'pl. C');
+  const g7 = el('div', 'grid3');
+  g7.append(labelled('Székhely', plSzekhely), labelled('Adatszolgáltatás iktatószáma', plIkt), labelled('A vázrajz megnevezése', plMegnev));
+  const g8 = el('div', 'grid3');
+  g8.append(labelled('Földmérő igazolvány száma', plIg), labelled('IRF minősítés száma', plMin), labelled('A készítés helye', plHely));
+  const addrLabel = el('label', 'check');
+  addrLabel.append(plAddr, el('span', undefined, 'Címkoordináták generálása a változás utáni földrészletekhez (5411)'));
+  const g9 = el('div', 'grid3');
+  g9.append(labelled('Címkoordináta pontszám-előtagja', plPrefix));
+  const plAct = el('div', 'pane-actions');
+  const planChangeBtn = button('pc-plan-change', 'Változási vázrajz', 'A változási vázrajz nyomtatható oldala (15. melléklet)');
+  const planSketchBtn = button('pc-plan-sketch', 'Mérési vázlat', 'A mérési vázlat nyomtatható oldala (10. melléklet)');
+  const coordListBtn = button('pc-coordlist', 'Koordinátajegyzék (.txt)', 'A koordinátajegyzék csoportonként, számsorrendben (46. § (1) i))');
+  plAct.append(planChangeBtn, planSketchBtn, coordListBtn);
+  pl.append(
+    g7,
+    g8,
+    addrLabel,
+    g9,
+    plAct,
+    el(
+      'p',
+      'hint',
+      'A készítő, a munkaszám, a település, a fekvés és a dátum a Geodéziai számítások/Beállítások előlapjáról jön. ' +
+        'A koordinátajegyzék a koordináták 4. (Z) és 5. (pontkód) oszlopát is átveszi.',
+    ),
+  );
+  form.append(pl);
   left.append(lhead, form);
 
   /* ---------- jobb oldal: eredmény ---------- */
@@ -275,7 +320,10 @@ export function initParcelView(): void {
   sketch.id = 'pc-sketch';
   const results = el('div', 'results');
   results.id = 'pc-results';
-  right.append(rhead, status, issuesBox, sketch, results);
+  const planBox = el('div', 'plan-preview');
+  planBox.id = 'pc-plan';
+  planBox.hidden = true;
+  right.append(rhead, status, issuesBox, sketch, planBox, results);
 
   panes.append(left, right);
   body.append(panes);
@@ -323,6 +371,14 @@ export function initParcelView(): void {
   feeSub.value = String(saved.fees.subparcels);
   feeReissue.checked = saved.fees.reissue;
   feeData.checked = saved.fees.withData;
+  plSzekhely.value = saved.plan.szekhely;
+  plIkt.value = saved.plan.iktatoszam;
+  plMegnev.value = saved.plan.megnevezes;
+  plIg.value = saved.plan.igazolvany;
+  plMin.value = saved.plan.minosites;
+  plHely.value = saved.plan.hely;
+  plAddr.checked = saved.plan.address;
+  plPrefix.value = saved.plan.prefix;
   fillScales(saved.scale);
 
   let division: { result: DivisionResult; sections: Section[] } | null = null;
@@ -363,6 +419,16 @@ export function initParcelView(): void {
         reissue: feeReissue.checked,
         withData: feeData.checked,
       },
+      plan: {
+        szekhely: plSzekhely.value,
+        iktatoszam: plIkt.value,
+        megnevezes: plMegnev.value,
+        igazolvany: plIg.value,
+        minosites: plMin.value,
+        hely: plHely.value,
+        address: plAddr.checked,
+        prefix: plPrefix.value.trim() || 'C',
+      },
     };
     storage.set(KEY, JSON.stringify(state));
     fillParcels();
@@ -385,7 +451,14 @@ export function initParcelView(): void {
           areas: st.before.map((b) => b.registered ?? b.technical),
         })
       : null;
-    sections = [...st.sections, ...(bc?.sections ?? []), ...(division?.sections ?? []), ...(fees ? [fees] : [])];
+    const addr = state.plan.address ? addressPoints() : [];
+    sections = [
+      ...st.sections,
+      ...(addr.length > 0 ? [addressSection(addr)] : []),
+      ...(bc?.sections ?? []),
+      ...(division?.sections ?? []),
+      ...(fees ? [fees] : []),
+    ];
     showIssues([...datNotes, ...st.issues, ...(bc?.issues ?? []), ...(division?.result.issues ?? [])]);
     results.replaceChildren(...sections.map(renderSection));
     if (sections.length === 0) results.append(el('p', 'empty', 'Add meg a koordinátákat és a földrészleteket, vagy töltsd be a mintát.'));
@@ -532,6 +605,100 @@ export function initParcelView(): void {
     division = null;
     takeBtn.disabled = true;
     run();
+  }
+
+  /** A változás utáni földrészletek gyűrűi (a hiányos földrészlet kimarad). */
+  function afterRings(): { hrsz: string; ring: NamedPt[] }[] {
+    const pts = parsePoints(coords.value).points;
+    return parseParcels(after.value, false, '')
+      .parcels.filter((p) => p.points.every((id) => pts.has(id)))
+      .map((p) => ({ hrsz: p.hrsz, ring: p.points.map((id) => pts.get(id)!) }));
+  }
+
+  function addressPoints(): AddressPoint[] {
+    return generateAddressPoints(afterRings(), plPrefix.value.trim() || 'C');
+  }
+
+  function planMeta(): PlanMeta {
+    const m = getMeta();
+    return {
+      keszito: m.keszitette,
+      szekhely: plSzekhely.value,
+      munkaszam: m.msz,
+      telepules: m.telepules,
+      fekves: m.fekves,
+      iktatoszam: plIkt.value,
+      megnevezes: plMegnev.value,
+      igazolvany: plIg.value,
+      minosites: plMin.value,
+      hely: plHely.value,
+      datum: m.datum,
+    };
+  }
+
+  let planSvg = '';
+  function showPlan(kind: 'change' | 'sketch'): void {
+    const pts = parsePoints(coords.value).points;
+    const st = areaStatement({
+      coordinates: coords.value,
+      before: before.value,
+      after: after.value,
+      annex: Number(annexSel.value) as ToleranceAnnex,
+      scale: scaleSel.value,
+      kind: kindSel.value as ToleranceKind,
+    });
+    const ring = (ids: string[]) => ids.map((id) => pts.get(id)!);
+    const bDefs = parseParcels(before.value, true, '').parcels.filter((p) => p.points.every((id) => pts.has(id)));
+    const finals = new Map(st.after.map((a) => [a.hrsz, a.final]));
+    const input = {
+      before: bDefs.map((p) => ({ hrsz: p.hrsz, ring: ring(p.points), area: p.registered ?? st.before.find((b) => b.hrsz === p.hrsz)?.technical })),
+      after: afterRings().map((p) => ({ ...p, area: finals.get(p.hrsz) })),
+      address: plAddr.checked ? addressPoints() : [],
+      measured: new Set(parseMeasured(measured.value).points.keys()),
+    };
+    if (input.before.length + input.after.length === 0) return;
+    const r = renderPlan(kind, input, planMeta());
+    planSvg = r.svg;
+    planBox.replaceChildren();
+    const bar = el('div', 'pane-actions');
+    const printBtn = button('pc-plan-print', 'Nyomtatás / PDF', 'A vázrajz nyomtatása vagy mentése PDF-be (A4 álló)');
+    const svgBtn = button('pc-plan-svg', 'SVG mentése', 'A vázrajz mentése SVG rajzként');
+    const closeBtn = button('pc-plan-close', 'Bezár', 'Az előnézet bezárása');
+    bar.append(el('span', 'hint', `${kind === 'change' ? 'Változási vázrajz' : 'Mérési vázlat'} – 1:${r.scale}`), printBtn, svgBtn, closeBtn);
+    const holder = el('div', 'plan-page');
+    holder.innerHTML = r.svg;
+    planBox.append(bar, holder);
+    planBox.hidden = false;
+    printBtn.addEventListener('click', () => {
+      const w = window.open('', '_blank');
+      if (!w) return;
+      w.document.write(
+        `<!doctype html><html><head><meta charset="utf-8"><title>${kind === 'change' ? 'Változási vázrajz' : 'Mérési vázlat'}</title>` +
+          '<style>@page{size:A4 portrait;margin:0}html,body{margin:0}svg{display:block;width:210mm;height:297mm}</style></head><body>' +
+          planSvg +
+          '</body></html>',
+      );
+      w.document.close();
+      w.focus();
+      w.print();
+    });
+    svgBtn.addEventListener('click', () => download(kind === 'change' ? 'valtozasi_vazrajz.svg' : 'meresi_vazlat.svg', planSvg, 'image/svg+xml'));
+    closeBtn.addEventListener('click', () => {
+      planBox.hidden = true;
+    });
+    planBox.scrollIntoView({ block: 'start' });
+  }
+
+  function saveCoordList(): void {
+    const pts = parsePoints(coords.value).points;
+    const attrs = parsePointAttrs(coords.value);
+    const list = [...pts.values()].map((p) => ({ ...p, m: attrs.get(p.id)?.m ?? null, code: attrs.get(p.id)?.code ?? '' }));
+    if (plAddr.checked) for (const a of addressPoints()) list.push({ id: a.id, y: a.y, x: a.x, m: null, code: a.code });
+    if (list.length === 0) return;
+    const r = coordinateList(list);
+    download('koordinatajegyzek.txt', encodeWindows1250(r.text), 'application/octet-stream');
+    sections = [...sections.filter((x) => !x.kind.startsWith('coord-list-')), ...r.sections];
+    results.replaceChildren(...sections.map(renderSection));
   }
 
   function saveDat(): void {
@@ -728,7 +895,9 @@ export function initParcelView(): void {
     run();
   });
   for (const c of [scaleSel, kindSel, mapKindSel, areaSel, orderSel, markedChk, feeOn, feeKind, feeReissue, feeData]) c.addEventListener('change', run);
-  for (const t of [coords, before, after, measured, feeBuildings, feeUnits, feeSub]) t.addEventListener('input', run);
+  for (const t of [coords, before, after, measured, feeBuildings, feeUnits, feeSub, plSzekhely, plIkt, plMegnev, plIg, plMin, plHely, plPrefix])
+    t.addEventListener('input', run);
+  plAddr.addEventListener('change', run);
   methodSel.addEventListener('change', () => {
     bLabel.hidden = methodSel.value !== 'parallel';
   });
@@ -759,6 +928,9 @@ export function initParcelView(): void {
     if (f) await openDat(f);
   });
   datSaveBtn.addEventListener('click', saveDat);
+  planChangeBtn.addEventListener('click', () => showPlan('change'));
+  planSketchBtn.addEventListener('click', () => showPlan('sketch'));
+  coordListBtn.addEventListener('click', saveCoordList);
   stakeBtn.addEventListener('click', () => stakeFile.click());
   stakeFile.addEventListener('change', async () => {
     const f = stakeFile.files?.[0];

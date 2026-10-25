@@ -49,7 +49,7 @@ arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jel
 |---|---|
 | Geodéziai számítások/Munkaterület | **működik** (kódolt bemenet, a valódi szerkesztő ikonsora és állapotsora, „Előkép” riportnézegető fejezetfával és nagyítással) |
 | Geodéziai számítások/Adatleíró | **működik** (űrlapos adatbevitel, kódgenerálás, automatikus kódolás) |
-| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás, DAT be- és kiolvasás, földhivatali ZIP/DXF beolvasás, ITR .lst lista, határpont-azonosítás, díjszámítás, kitűzési jegyzőkönyv) |
+| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás, DAT be- és kiolvasás, földhivatali ZIP/DXF beolvasás, ITR .lst lista, határpont-azonosítás, díjszámítás, kitűzési jegyzőkönyv, vázrajz és mérési vázlat, koordinátajegyzék, címkoordináták) |
 | Geodéziai számítások/Beállítások | **működik** (a jegyzőkönyv előlapja, `borito.ini` be/ki) |
 | Adatrögzítő/Beállítások | **működik** (rögzítőtípus, távolságredukció, TVET.TXT, átlagok) |
 | Hálózatkiegyenlítés/Munkaterület | **működik** (munkaállomány, koordináták betöltése és hozzáfűzése, GMJ, középelés) |
@@ -129,6 +129,20 @@ változási vázrajz területszámításához:
   határpont-azonosítás azonnal kiértékeli a kitűzés eltéréseit a 7. melléklet szerint. A koordinátamezők
   az ITR koordinátajegyzékét (pontszám, Y, X, Z, pontkód, középhiba) és a címkoordináta CSV-t is
   olvassák, a fejlécsorokat kihagyják.
+- **Változási vázrajz és mérési vázlat (8/2018. AM rendelet 15. és 10. melléklet)** – nyomtatható A4 oldal
+  (Nyomtatás / PDF, SVG): fejléc (készítő, székhely, munkaszám, település, fekvés, az adatszolgáltatás
+  iktatószáma, a vázrajz megnevezése a helyrajzi számokkal, méretarány), térképi kivágat szabványos
+  méretarányban (a megszűnő határ szaggatottan áthúzva, a megszűnő helyrajzi szám áthúzva, az új határ és
+  az új helyrajzi szám vastagon, a pontszámok, a címkoordináták jele, északjel), a területkimutatás és a
+  címkoordináták, valamint a lábrész („A változás akaratunknak megfelelően történt:”, „A vázrajz méretek
+  levételére nem alkalmas.”, záradék és aláírás helye, földmérő igazolvány száma). A mérési vázlat az új
+  földrészletek oldalainak természetbeni méreteit, a mért pontokat és a 10. melléklet záradékát mutatja.
+  A töréspont beszúrásával kettévált, de nem változott határvonalat nem jelöli változásként.
+- **Koordinátajegyzék (46. § (1) i))** – csoportonként (alappontok, részletpontok, címkoordináták)
+  számsorrendben, az EOV koordináták cm, a címkoordináták m élességgel; a pontkód (4. melléklet) a
+  koordinátasor 5. oszlopából, Windows-1250 kódolású szövegként.
+- **Címkoordináták (11. § (17), 4. melléklet)** – generált címkoordináta (pontkód 5411) a változás utáni
+  földrészleteken belül, méterre kerekítve, helyrajzi szám szerinti táblázatban. `tests/plan.test.ts`
 - **Igazgatási szolgáltatási díjak (1/2024. (I. 30.) KTM rendelet)** – tájékoztató díjszámítás a
   jegyzőkönyvben: telekalakítás engedélyezése (10. §), a változási vázrajz vizsgálata (12–15. §:
   földrészlethatár a változás utáni földrészletek száma szerint, építmény, társasház, művelési ág, jog és
@@ -437,13 +451,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 553 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 560 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **348 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **352 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -549,7 +563,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 46 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 47 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

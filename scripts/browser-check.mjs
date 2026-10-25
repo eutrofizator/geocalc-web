@@ -1240,6 +1240,22 @@ async function main() {
   await check('a kitűzési eltérést a 7. melléklet szerint értékeli', `/Határpont-azonosítás: 104 eltérése/.test(document.getElementById('pc-issues').textContent)`, true);
   await evalJs(`(() => { const m = document.getElementById('pc-measured'); m.value = ''; m.dispatchEvent(new Event('input')); return true; })()`);
 
+  // Vázrajz és jegyzékek: címkoordináták, változási vázrajz, mérési vázlat, koordinátajegyzék.
+  await evalJs(`document.getElementById('pc-sample').click()`);
+  await evalJs(`(() => { const a = document.getElementById('pc-plan-addr'); a.checked = true; a.dispatchEvent(new Event('change')); return true; })()`);
+  await sleep(150);
+  await check('a címkoordináták táblázata a változás utáni földrészletekhez', `[...document.querySelectorAll('#pc-results .card')].find((c) => c.querySelector('h3').textContent === 'Címkoordináták').querySelectorAll('tbody tr').length`, 2);
+  await evalJs(`document.getElementById('pc-plan-change').click()`);
+  await sleep(200);
+  await check('a változási vázrajz előnézete (15. melléklet)', `(() => { const t = document.querySelector('#pc-plan svg').textContent; return ['VÁLTOZÁSI VÁZRAJZ', 'Területkimutatás', 'A változás akaratunknak megfelelően történt:', 'Méretarány: 1:'].every((s) => t.includes(s)); })()`, true);
+  await evalJs(`document.getElementById('pc-plan-sketch').click()`);
+  await sleep(200);
+  await check('a mérési vázlat előnézete (10. melléklet)', `document.querySelector('#pc-plan svg').textContent.includes('MÉRÉSI VÁZLAT')`, true);
+  await evalJs(`document.getElementById('pc-coordlist').click()`);
+  await sleep(900);
+  checkNode('a koordinátajegyzék menthető (címkoordinátákkal)', readdirSync(DL).includes('koordinatajegyzek.txt') && readFileSync(join(DL, 'koordinatajegyzek.txt'), 'latin1').includes('5411'), true);
+  await evalJs(`(() => { const a = document.getElementById('pc-plan-addr'); a.checked = false; a.dispatchEvent(new Event('change')); document.getElementById('pc-plan-close').click(); return true; })()`);
+
   // Igazgatási szolgáltatási díjak (1/2024. KTM): a minta 2 → 2 földrészlete telekfelosztásként.
   await evalJs(`document.getElementById('pc-sample').click()`);
   await evalJs(`(() => {
