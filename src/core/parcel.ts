@@ -164,6 +164,8 @@ export function parsePoints(text: string): { points: Map<string, NamedPt>; issue
     const f = line.split(/[\s,;]+/);
     const y = num(f[1] ?? '');
     const x = num(f[2] ?? '');
+    // Fejlécsor (pl. „Psz. Y X Z”, „Pontszám;Y;X;…”): egyetlen szám sincs benne.
+    if (!f.some((v) => /^-?\d+([.,]\d+)?$/.test(v))) return;
     if (f.length < 3 || !Number.isFinite(y) || !Number.isFinite(x)) {
       issues.push({ level: 'error', line: i + 1, message: `Koordináták ${i + 1}. sor: „pontszám Y X” kell.` });
       return;

@@ -87,8 +87,10 @@ export function initGeoConvertView(): void {
   const note = el(
     'p',
     'hint',
-    'Az átszámítás a WGS 84 ellipszoidon pontos (dátum-átszámítás nélkül). EOV-be vagy EOV-ből a ' +
-      'Térbeli transzformáció modul számol közös pontok alapján. A # utáni rész megjegyzés.',
+    'Az átszámítás a WGS 84 ellipszoidon pontos (dátum-átszámítás nélkül). Az EOV formátum az országos ' +
+      '7 paraméteres transzformációval (MSZ 7222, EPSG 1449) kb. ± 1 m pontos, a magasság (M) változatlanul megy át; ' +
+      'centiméteres átszámításhoz a Térbeli transzformáció modul (közös pontok, interpoláció) vagy az EHT² kell. ' +
+      'A # utáni rész megjegyzés.',
   );
   form.append(row, inLabel, note);
   left.append(lhead, form);

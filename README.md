@@ -49,7 +49,7 @@ arányokat és a feliratokat ezekről mértük; a rajzolt elemek – ikonok, jel
 |---|---|
 | Geodéziai számítások/Munkaterület | **működik** (kódolt bemenet, a valódi szerkesztő ikonsora és állapotsora, „Előkép” riportnézegető fejezetfával és nagyítással) |
 | Geodéziai számítások/Adatleíró | **működik** (űrlapos adatbevitel, kódgenerálás, automatikus kódolás) |
-| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás, DAT be- és kiolvasás, földhivatali ZIP/DXF beolvasás, ITR .lst lista) |
+| Geodéziai számítások/Változási vázrajz | **új, a valódi programban nincs** (terület-összevetés a 8/2018. AM rendelet hibahatáraival, területarányos ráosztás, területkimutatás, területosztás, DAT be- és kiolvasás, földhivatali ZIP/DXF beolvasás, ITR .lst lista, határpont-azonosítás, díjszámítás, kitűzési jegyzőkönyv) |
 | Geodéziai számítások/Beállítások | **működik** (a jegyzőkönyv előlapja, `borito.ini` be/ki) |
 | Adatrögzítő/Beállítások | **működik** (rögzítőtípus, távolságredukció, TVET.TXT, átlagok) |
 | Hálózatkiegyenlítés/Munkaterület | **működik** (munkaállomány, koordináták betöltése és hozzáfűzése, GMJ, középelés) |
@@ -116,6 +116,30 @@ változási vázrajz területszámításához:
   pontszámot kapnak (előtag + sorszám), az „Átvétel” a koordinátákhoz és a változás utáni
   földrészletek közé teszi őket (centiméterre kerekítve). Vázlat mutatja a földrészleteket és az új
   pontokat. `tests/parcel.test.ts`
+- **Határpont-azonosítás (16–17. §, 7. melléklet)** – a mért pontokat (pontszám, Y, X, opcionálisan a
+  rendűség) a koordináták azonos pontszámú pontjaival, a mindkét végén mért határvonalak hosszát a
+  térképi hosszal veti össze. A megengedett eltérés az alaptérkép készítése szerint: digitális
+  újfelmérés / felújítás – F) táblázat (R1–R4 rendűség, T11 belterület / T21 külterület); EOV vagy régi
+  vetületi térkép digitális átalakítása – A) / B) táblázat (határvonal helyzete) és C) / D) táblázat
+  (mérési vonal); szabatosan felmért terület – 16. § (1) a) (± 0,10 m megjelölt, ± 0,20 m meg nem
+  jelölt határ); a hosszakra az E) táblázat (fekvés szerint). A mérési vonal hossza szerint 50–300 m
+  között lineárisan interpolál. `tests/boundary-check.test.ts`
+- **Kitűzési jegyzőkönyv (.MES)** – a terepi adatgyűjtő kitűzési naplója (A: álláspont, B/C/D/K: tájékozás,
+  szabad álláspont; H: kitűzendő pont, F: kitűzött pont, J: eltérés). A „Kitűzési jegyzőkönyv (.MES)…”
+  a kitűzött pontokat a mért pontok közé, a tervezett pontokat (ha még nincsenek) a koordinátákhoz tölti,
+  így a határpont-azonosítás azonnal kiértékeli a kitűzés eltéréseit a 7. melléklet szerint; az ismételt
+  kitűzésből az utolsó számít, a J rekord és a koordináták ellentmondását jelzi. Egy valódi kitűzésen
+  ellenőrizve (19 kitűzött pont, a kitűzött koordináta-jegyzékkel 0,5 mm-en belül). A koordinátamezők az
+  ITR koordinátajegyzékét (pontszám, Y, X, Z, pontkód, középhiba) és a címkoordináta CSV-t is olvassák, a
+  fejlécsorokat kihagyják. `tests/stakeout-mes.test.ts`
+- **Igazgatási szolgáltatási díjak (1/2024. (I. 30.) KTM rendelet)** – tájékoztató díjszámítás a
+  jegyzőkönyvben: telekalakítás engedélyezése (10. §), a változási vázrajz vizsgálata (12–15. §:
+  földrészlethatár a változás utáni földrészletek száma szerint, építmény, társasház, művelési ág, jog és
+  tény, közigazgatási/fekvéshatár, használati megosztás és kitűzés), újrazáradékolás 50% (16. §), és az
+  adatszolgáltatás (4. melléklet 41–42. tétel: terület szerint, a legnagyobb földrészletre 100%, a többire
+  50% / 20%, 100 ha fölött arányosan). A földrészletek számát és területét a munkalapról veszi. A
+  „…-tól földrészletenként további” díj a sáv első földrészletétől számít – így illeszkednek a sávok
+  (pl. 15 földrészlet: 96 000 + 10 · 16 000 = 256 000 Ft, a következő sáv alapja). `tests/fees.test.ts`
 - **DAT adatcsere** (DAT Szabályzat, DAT-M1 melléklet, G Függelék; MSZ 7772-1) – a „DAT beolvasása…” a
   `.dat` állományból a pontokat (T_PONT, a pontszám a T_OBJ_ATTRAA/AB/AC táblázatból) és a
   földrészleteket (T_OBJ_ATTRBC/BD: helyrajzi szám, nyilvántartott terület) tölti a munkalapra; a
@@ -313,8 +337,12 @@ böngészős végpróba is rögzíti.
 A kézi, navigációs célú GPS-vevők és más programok koordinátáinak átírása. Bemenet és kimenet:
 **áldecimális** (`19.182231643` = `19° 18′ 22.31643″`, a súgó példája), **tizedes fok**,
 **fok-perc-másodperc** (jelekkel – `47°30′12.3″` – vagy három számmal, égtájbetűvel is), **WGS 84
-geocentrikus X, Y, Z** és **UTM 33/34**. Az átszámítás a WGS 84 ellipszoidon pontos; EOV-be a Térbeli
-transzformáció modul számol közös pontokból. A hibás sor kimarad, a többi feldolgozható; a „Bemenet ⇄
+geocentrikus X, Y, Z**, **UTM 33/34** és **EOV**. Az átszámítás a WGS 84 ellipszoidon pontos. Az **EOV ↔
+WGS 84 / ETRS89** átszámítás az EOV vetülettel (EPSG:23700) és az országos 7 paraméteres
+transzformációval (MSZ 7222, EPSG 1449: HD72 → ETRS89) kb. ± 1 m pontosságú; a PROJ 9.8.1 ugyanezen
+paraméterekkel számolt értékeivel milliméterre egyezik (`tests/eov-wgs84.test.ts`). A magasság (M)
+geoidmodell nélkül változatlanul megy át; centiméteres átszámításhoz a Térbeli transzformáció modul (közös
+pontok, interpoláció) vagy a GNSS Szolgáltató Központ EHT² szolgáltatása kell. A hibás sor kimarad, a többi feldolgozható; a „Bemenet ⇄
 kimenet” gomb az eredményt teszi vissza bemenetnek (oda-vissza ellenőrzés). A `tests/geo-convert.test.ts`
 rögzíti a súgó példáját és az UTM-egyezést a transzformáció moduljával.
 
@@ -407,13 +435,13 @@ küszöbeit, továbbá a **számítás élessége** (cm / mm / tized mm) a jegyz
 ```
 npm install
 npm run dev      # fejlesztői szerver
-npm test         # 526 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
+npm test         # 555 automatikus teszt (a súgó mintapéldái, valódi GeoCalc-kimenetek, a felület regisztere)
 npm run build    # éles változat a dist/ mappába (önálló HTML)
 ```
 
 ### Böngészős végpróba
 
-A kész, önálló fájl valódi böngészőben is végigmegy **340 ellenőrzésen** (menük, navigátor,
+A kész, önálló fájl valódi böngészőben is végigmegy **346 ellenőrzésen** (menük, navigátor,
 munkalapok, állapotsor, jegyzőkönyv, a letöltött `.gcd` / `.gcs` / `.csv` fájlok tartalma,
 hibakezelés, gyorsbillentyűk). Ehhez egy futó, fejlesztői porttal indított Chrome (vagy Edge) kell:
 
@@ -519,7 +547,7 @@ kiterjesztést a megadott névből veszi (az `A>` esetén mindig `.dxf`):
 | `src/core/` | értelmező, motor, geodéziai modulok (`modules/`), térbeli transzformáció (`geo/`), export, jegyzőkönyv-előlap (`report.ts`), Adatleíró (`descriptor.ts`), adatcsere (`exchange.ts`), **adatrögzítő (`recorder.ts`)**, **koordináta-állomány (`coords-file.ts`)**, **AKG (`akg.ts`)**, hálózat (`network/`, benne `limits.ts`) |
 | `src/` | felület (`main.ts`, `shell.ts`, `about-view.ts`, `general-settings-view.ts`, `geo-convert-view.ts`, `report-view.ts`, `network-view.ts`, `net-settings-view.ts`, `transform-view.ts`, `transform-apply-view.ts`, `transform-store.ts`, `descriptor-view.ts`, `exchange-view.ts`, `exchange-file-view.ts`, `recorder-view.ts`, `akg-view.ts`, `ui.ts`, `style.css`) |
 | `src/shell.ts` | a GeoCalc 3.5-hű burok: menüsor, ikonsáv, modulpanel (navigátor), munkalapváltás, állapotsor, munkalap-regiszter |
-| `tests/` | 43 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
+| `tests/` | 47 tesztfájl: a súgó mintapéldái, valódi kimenetek, a felület regisztere |
 | `scripts/` | a build beágyazója (`inline.mjs`) és a böngészős végpróba (`browser-check.mjs`) |
 | `.github/workflows/` | a GitHub Pages közzététel (`pages.yml`): típusellenőrzés, tesztek, build, deploy |
 | `docs/sugo_geocalc35.txt` | a régi program súgójának kinyert szövege (4791 sor, ez a hiteles specifikáció) |

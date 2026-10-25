@@ -147,3 +147,15 @@ describe('területosztás', () => {
     expect(() => divideThroughVertex(RECT, '9', 100, ['a', 'b'], 'U')).toThrow(/nem töréspontja/);
   });
 });
+
+describe('az ITR koordinátajegyzék és a címkoordináta CSV fejléce', () => {
+  it('a fejlécsorokat kihagyja, a pontkód és a középhiba oszlopai nem zavarnak', async () => {
+    const { parsePoints } = await import('../src/core/parcel');
+    const itr = parsePoints(['Psz.\tY\t\tX\t\tZ\t', '500\t602679.120\t204987.750\t0.000', '134792\t602626.380\t204959.510\t0.000\t3115\t6\t33'].join('\n'));
+    expect(itr.issues).toEqual([]);
+    expect([...itr.points.keys()]).toEqual(['500', '134792']);
+    const csv = parsePoints([';;;;;Pontlista táblázata;;', 'Pontszám;Y;X;;Z_M;Pontkód;;', '1;615547.000;;210365.000;0.000;5412;0;0'].join('\n'));
+    expect(csv.issues).toEqual([]);
+    expect(csv.points.get('1')).toEqual({ id: '1', y: 615547, x: 210365 });
+  });
+});

@@ -337,6 +337,19 @@ async function main() {
     })()
   `);
   await check('az áldecimális szög a súgó szerinti fok-perc-másodperc', `document.querySelector('#gc-results tbody tr td:nth-child(3)').textContent`, '19° 18′ 22.31643″');
+  // EOV → WGS 84 (országos 7 paraméteres transzformáció, MSZ 7222 / EPSG 1449; a PROJ értéke).
+  await evalJs(`
+    (() => {
+      const set = (id, v) => { const e = document.getElementById(id); e.value = v; e.dispatchEvent(new Event('change')); };
+      set('gc-from', 'EOV');
+      set('gc-to', 'DECIMAL');
+      const t = document.getElementById('gc-input');
+      t.value = 'A 650120.45 241230.18 151.25';
+      t.dispatchEvent(new Event('input'));
+      return true;
+    })()
+  `);
+  await check('EOV → WGS 84 földrajzi (± 1 m-es országos átszámítás)', `[...document.querySelectorAll('#gc-results tbody tr td')].slice(1).map((td) => td.textContent).join(' ')`, '47.514997762 19.049044990 151.250');
 
   /* ---------- számítás és előnézet ---------- */
   await evalJs(`
@@ -1174,6 +1187,7 @@ async function main() {
   await sleep(500);
   await check('a Ctrl+N új (üres) munkaterületet ad', `document.getElementById('editor').value.trim()`, '');
 
+  const MESTEXT = " PROBA1,87,87,9,10,23,15,40,30,0,0,5,-34,9971,240,128,13,1,1,0,0,\r\nA,1,241230.0000,650120.0000,0.0000,1.5600,3,9,10,23,15,57,27,\r\nH,101,------,241230.1800,650120.4500,0.0000,0,2,9,10,23,16,9,31,\r\nF,101,1140869,1944932,11.18,11.18,0.0461,1.5500,241230.1700,650120.4600,0.0000,0,2,9,10,23,16,9,31,------,\r\nJ,101,0.0100,-0.0100,0.0000,9,10,23,16,9,32,\r\nH,104,------,241268.5200,650113.8800,0.0000,0,2,9,10,23,16,11,35,\r\nF,104,1107461,1947607,18.03,18.03,0.0863,1.5500,241268.8200,650113.8800,0.0000,0,2,9,10,23,16,11,35,------,\r\nJ,104,-0.3000,0.0000,0.0000,9,10,23,16,12,35,";
   const OFFICE_DXF = "  0\r\nSECTION\r\n  2\r\nENTITIES\r\n  0\r\nINSERT\r\n  8\r\nBHP\r\n 10\r\n650000\r\n 20\r\n240000\r\n  0\r\nINSERT\r\n  8\r\nBHP\r\n 10\r\n650020\r\n 20\r\n240000\r\n  0\r\nINSERT\r\n  8\r\nBHP\r\n 10\r\n650020\r\n 20\r\n240025\r\n  0\r\nINSERT\r\n  8\r\nBHP\r\n 10\r\n650000\r\n 20\r\n240025\r\n  0\r\nMTEXT\r\n  8\r\nBHP_SZ\r\n 10\r\n650000\r\n 20\r\n240000\r\n  1\r\n1-10_1\r\n  0\r\nMTEXT\r\n  8\r\nBHP_SZ\r\n 10\r\n650020\r\n 20\r\n240000\r\n  1\r\n1-10_2\r\n  0\r\nMTEXT\r\n  8\r\nBHP_SZ\r\n 10\r\n650020\r\n 20\r\n240025\r\n  1\r\n1-10_3\r\n  0\r\nMTEXT\r\n  8\r\nBHP_SZ\r\n 10\r\n650000\r\n 20\r\n240025\r\n  1\r\n1-10_4\r\n  0\r\nMTEXT\r\n  8\r\nHRSZ\r\n 10\r\n650010\r\n 20\r\n240012\r\n  1\r\n100\r\n  0\r\nLWPOLYLINE\r\n  8\r\nBNK_FRSZ\r\n 90\r\n4\r\n 70\r\n1\r\n 10\r\n650000\r\n 20\r\n240000\r\n 10\r\n650020\r\n 20\r\n240000\r\n 10\r\n650020\r\n 20\r\n240025\r\n 10\r\n650000\r\n 20\r\n240025\r\n  0\r\nENDSEC\r\n  0\r\nEOF\r\n";
   const OFFICE_FK = "   100/     \r\n          -   kivett                               0.0502                0.00           \r\n                                    ÖSSZESEN:      0.0502                0.00          ";
   const DATTEXT = "PROBA*Teszt adatcsere*DAT1*Járási Hivatal*Kiss Anna*Mérnök Kft.*Nagy Béla*20261024*ITR 5.0*1*\r\nT_PONT*\r\n1*240000.00*650000.00****\r\n2*240000.00*650020.00****\r\n3*240025.00*650020.00****\r\n4*240025.00*650000.00****\r\n5*240000.00*650035.00****\r\n6*240025.00*650035.00****\r\nT_HATARVONAL*\r\n1*1*2*3*0**\r\n2*1*3*4*0**\r\n2*2*4*1*0**\r\n2*3*1*2*0**\r\n3*1*2*5*0**\r\n3*2*5*6*0**\r\n3*3*6*3*0**\r\nT_HATAR*\r\n1*1*2*+*\r\n1*2*1*+*\r\n2*1*3*+*\r\n2*2*1*-*\r\nT_FELULET*\r\n1*1*1*+*\r\n2*1*2*+*\r\nT_OBJ_ATTRAC*\r\n1*AC01*101*1*1*1*20200101*0**1*1*K*\r\nT_OBJ_ATTRBD*\r\n11*BD01*1*123*0*1*502*****1*0***1*1*0*****0**1*1**\r\n12*BD01*2*124*0*1*371*****1*0***1*1*0*****0**1*1**";
@@ -1200,6 +1214,41 @@ async function main() {
   await evalJs(`(() => { const e = document.getElementById('pc-before'); e.value = '123 ; 1600 ; 101 102 103 104'; e.dispatchEvent(new Event('input')); return true; })()`);
   await sleep(150);
   await check('hibahatáron túli eltérésnél hibát jelez', `/meghaladja a hibahatárt/.test(document.getElementById('pc-issues').textContent)`, true);
+  // Határpont-azonosítás (16–17. §, 7. melléklet F): a 103 pont 0,23 m-rel tér el (R2, T11: ± 0,15 m).
+  await evalJs(`(() => { const m = document.getElementById('pc-measured'); m.value = '101 650120.50 241230.10' + String.fromCharCode(10) + '102 650158.95 241236.75 R1' + String.fromCharCode(10) + '103 650152.60 241275.04'; m.dispatchEvent(new Event('input')); return true; })()`);
+  await sleep(200);
+  await check('a határpont-azonosítás táblázata', `[...document.querySelectorAll('#pc-results .card')].filter((c) => /Határpontok azonosítása/.test(c.querySelector('h3').textContent))[0].querySelectorAll('tbody tr').length`, 3);
+  await check('a tűrésen kívüli határpontot jelzi', `/Határpont-azonosítás: 103 eltérése/.test(document.getElementById('pc-issues').textContent)`, true);
+  await evalJs(`(() => { const m = document.getElementById('pc-measured'); m.value = ''; m.dispatchEvent(new Event('input')); return true; })()`);
+
+  // Kitűzési jegyzőkönyv (.MES): a kitűzött pontok a mért pontokhoz, a 104 kitűzése 0,30 m-rel eltér.
+  await evalJs(`document.getElementById('pc-sample').click()`);
+  await evalJs(`(() => {
+    const inp = document.getElementById('pc-mes-input');
+    const dt = new DataTransfer();
+    dt.items.add(new File([${JSON.stringify(MESTEXT)}], 'proba.mes'));
+    inp.files = dt.files;
+    inp.dispatchEvent(new Event('change'));
+    return true;
+  })()`);
+  await sleep(500);
+  await check('a kitűzési jegyzőkönyv a mért pontokhoz kerül', `document.getElementById('pc-measured').value.split(String.fromCharCode(10)).length`, 2);
+  await check('a kitűzési eltérést a 7. melléklet szerint értékeli', `/Határpont-azonosítás: 104 eltérése/.test(document.getElementById('pc-issues').textContent)`, true);
+  await evalJs(`(() => { const m = document.getElementById('pc-measured'); m.value = ''; m.dispatchEvent(new Event('input')); return true; })()`);
+
+  // Igazgatási szolgáltatási díjak (1/2024. KTM): a minta 2 → 2 földrészlete telekfelosztásként.
+  await evalJs(`document.getElementById('pc-sample').click()`);
+  await evalJs(`(() => {
+    const on = document.getElementById('pc-fee-on'); on.checked = true;
+    document.getElementById('pc-fee-kind').value = 'subdivision';
+    document.getElementById('pc-fee-data').checked = true;
+    on.dispatchEvent(new Event('change'));
+    return true;
+  })()`);
+  await sleep(200);
+  await check('a díjszámítás: engedélyezés + vizsgálat + adatszolgáltatás', `[...document.querySelectorAll('#pc-results .card')].find((c) => /Igazgatási szolgáltatási díjak/.test(c.querySelector('h3').textContent)).querySelector('tbody tr:last-child td:last-child').textContent.replace(/[^0-9]/g, '')`, '57000');
+  await evalJs(`(() => { const on = document.getElementById('pc-fee-on'); on.checked = false; on.dispatchEvent(new Event('change')); return true; })()`);
+
   // DAT adatcsere-állomány (DAT-M1, G Függelék) beolvasása és visszaírása.
   await evalJs(`(() => {
     const inp = document.getElementById('pc-dat-input');

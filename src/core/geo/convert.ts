@@ -1,17 +1,21 @@
 import { CalcError } from '../errors';
-import { WGS84, geocentricToGeodetic, geodeticToGeocentric, type Xyz } from './ellipsoid';
+import { GRS67, WGS84, geocentricToGeodetic, geodeticToGeocentric, type Xyz } from './ellipsoid';
+import { EOV } from './eov';
+import { applyHelmert, applyHelmertInverse, type Helmert3dParams } from './helmert3d';
 import { UTM33, UTM34 } from './utm';
 
 /**
  * Földrajzi koordináták konvertálása (Adatcsere, súgó 9. o.): a kézi GPS-vevők és más programok
  * különböző szögírásainak átalakítása, valamint a WGS 84 földrajzi, geocentrikus és UTM koordináták
- * közötti átszámítás. Mindegyik ugyanazon az ellipszoidon (WGS 84) történik, ezért pontos – dátum-
- * átszámítás (pl. EOV) a Térbeli transzformáció modul feladata.
+ * közötti átszámítás. Ezek ugyanazon az ellipszoidon (WGS 84) történnek, ezért pontosak. Az EOV
+ * (HD72) és a WGS 84 / ETRS89 közötti átszámítás az országos 7 paraméteres transzformációval
+ * (MSZ 7222, EPSG 1449) kb. ± 1 m pontosságú; centiméteres átszámításhoz a Térbeli transzformáció
+ * modul (közös pontok, interpoláció) vagy a GNSS Szolgáltató Központ EHT² szolgáltatása kell.
  */
 
 const DEG = Math.PI / 180;
 
-export type GeoFormat = 'PSEUDO' | 'DECIMAL' | 'DMS' | 'XYZ' | 'UTM33' | 'UTM34';
+export type GeoFormat = 'PSEUDO' | 'DECIMAL' | 'DMS' | 'XYZ' | 'UTM33' | 'UTM34' | 'EOV';
 
 export const GEO_FORMATS: { id: GeoFormat; label: string; columns: string[] }[] = [
   { id: 'PSEUDO', label: 'WGS 84 földrajzi – áldecimális (FOK.PPMMSSsss)', columns: ['φ', 'λ', 'h'] },
@@ -20,7 +24,34 @@ export const GEO_FORMATS: { id: GeoFormat; label: string; columns: string[] }[] 
   { id: 'XYZ', label: 'WGS 84 geocentrikus (X, Y, Z)', columns: ['X [m]', 'Y [m]', 'Z [m]'] },
   { id: 'UTM33', label: 'UTM 33 (WGS 84)', columns: ['Y [m]', 'X [m]', 'h [m]'] },
   { id: 'UTM34', label: 'UTM 34 (WGS 84)', columns: ['Y [m]', 'X [m]', 'h [m]'] },
+  { id: 'EOV', label: 'EOV (HD72) – országos átszámítás, ± 1 m', columns: ['Y [m]', 'X [m]', 'M [m]'] },
 ];
+
+/**
+ * HD72 → ETRS89 (MSZ 7222; EPSG 1449, illetve HD72 → WGS 84 (3), EPSG 1448): tX = 52,684 m,
+ * tY = −71,194 m, tZ = −13,975 m, rX = 0,312″, rY = 0,1063″, rZ = 0,3729″, ds = 1,0191 ppm,
+ * „coordinate frame” értelmezéssel – a pozíció-vektoros Helmert-képletben a forgatások előjele fordított.
+ */
+const ARCSEC = Math.PI / 180 / 3600;
+export const HD72_TO_ETRS89: Helmert3dParams = {
+  t: [52.684, -71.194, -13.975],
+  r: [-0.312 * ARCSEC, -0.1063 * ARCSEC, -0.3729 * ARCSEC],
+  s: 1.0191e-6,
+};
+
+/** EOV → WGS 84 / ETRS89 földrajzi (a magasság – M – változatlanul, geoidmodell nélkül). */
+export function eovToWgs84(y: number, x: number, m = 0): LatLonH {
+  const hd = EOV.inverse(y, x);
+  const g = geocentricToGeodetic(WGS84, applyHelmert(HD72_TO_ETRS89, geodeticToGeocentric(GRS67, { phi: hd.phi, lam: hd.lam, h: 0 })));
+  return { lat: g.phi / DEG, lon: g.lam / DEG, h: m };
+}
+
+/** WGS 84 / ETRS89 földrajzi → EOV (a magasság változatlanul). */
+export function wgs84ToEov(geo: LatLonH): { y: number; x: number; m: number } {
+  const hd = geocentricToGeodetic(GRS67, applyHelmertInverse(HD72_TO_ETRS89, geodeticToGeocentric(WGS84, { phi: geo.lat * DEG, lam: geo.lon * DEG, h: 0 })));
+  const p = EOV.forward(hd.phi, hd.lam);
+  return { y: p.y, x: p.x, m: geo.h };
+}
 
 /** WGS 84 ellipszoidi koordináták fokban (h méterben). */
 export interface LatLonH {
@@ -167,6 +198,12 @@ export function parseGeoLine(line: string, fmt: GeoFormat): GeoRow {
       const p = (fmt === 'UTM33' ? UTM33 : UTM34).inverse(num(a, 'Y'), num(b, 'X'));
       return { id, geo: { lat: p.phi / DEG, lon: p.lam / DEG, h: c ? num(c, 'magasság') : 0 } };
     }
+    case 'EOV': {
+      const y = num(a, 'Y');
+      const x = num(b, 'X');
+      if (y < 384000 || y > 960000 || x < 32000 || x > 384000) throw new CalcError(`EOV koordináta a Magyarországot lefedő tartományon kívül: "${line.trim()}"`);
+      return { id, geo: eovToWgs84(y, x, c ? num(c, 'magasság') : 0) };
+    }
   }
 }
 
@@ -192,6 +229,10 @@ export function formatGeo(geo: LatLonH, fmt: GeoFormat, secDecimals = 5): string
     case 'UTM34': {
       const p = (fmt === 'UTM33' ? UTM33 : UTM34).forward(geo.lat * DEG, geo.lon * DEG);
       return [fixed(p.y, 3), fixed(p.x, 3), fixed(geo.h, 3)];
+    }
+    case 'EOV': {
+      const p = wgs84ToEov(geo);
+      return [fixed(p.y, 3), fixed(p.x, 3), fixed(p.m, 3)];
     }
   }
 }

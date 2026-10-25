@@ -1,5 +1,8 @@
 import { encodeWindows1250, readDat, writeDat, type DatImport } from './core/dat';
+import { checkBoundary, type Area, type CheckOptions, type MapKind, type PointOrder } from './core/boundary-check';
+import { CHANGE_KINDS, feesSection, type ChangeKind } from './core/fees';
 import { sectionsToText } from './core/format';
+import { readStakeoutMes } from './core/stakeout-mes';
 import { writeLst } from './core/lst';
 import { decodeText, mergeRegistered, readCadastralDxf, readRegisteredAreas, readZip, type CadastralMap, type RegisteredParcel } from './core/land-office';
 import { polygonArea } from './core/geometry';
@@ -49,9 +52,20 @@ interface Saved {
   annex: ToleranceAnnex;
   scale: string;
   kind: ToleranceKind;
+  measured: string;
+  check: Omit<CheckOptions, 'scale'>;
+  fees: { on: boolean; kind: ChangeKind; buildings: number; units: number; subparcels: number; reissue: boolean; withData: boolean };
 }
 
-const DEFAULTS: Saved = { ...SAMPLE, annex: 8, scale: '1000', kind: 'parcel' };
+const DEFAULTS: Saved = {
+  ...SAMPLE,
+  annex: 8,
+  scale: '1000',
+  kind: 'parcel',
+  measured: '',
+  check: { kind: 'digital', area: 'inner', order: 'R2', marked: true },
+  fees: { on: false, kind: 'subdivision', buildings: 1, units: 1, subparcels: 1, reissue: false, withData: true },
+};
 
 export function initParcelView(): void {
   const { body } = createPage('parcel', 'Geodéziai számítások/Változási vázrajz');
@@ -146,6 +160,100 @@ export function initParcelView(): void {
     ),
   );
   form.append(div);
+
+  // Határpont-azonosítás (16–17. §)
+  const chk = el('fieldset', 'dims column');
+  chk.append(el('legend', undefined, 'Határpont-azonosítás (16–17. §)'));
+  const mapKindSel = select('pc-chk-kind', [
+    ['digital', 'Digitális újfelmérés / felújítás (F)'],
+    ['converted-eov', 'EOV térkép digitális átalakítása (A, C)'],
+    ['converted-old', 'Régi vetületi térkép digitális átalakítása (B, D)'],
+    ['precise', 'Szabatosan felmért terület (16. § (1) a)'],
+  ]);
+  const areaSel = select('pc-chk-area', [
+    ['inner-precise', 'Szabatosan felmért belterület'],
+    ['inner', 'Belterület (egyéb módszerrel felmért)'],
+    ['outer', 'Külterület'],
+  ]);
+  const orderSel = select('pc-chk-order', [
+    ['R1', 'R1 – közterülettel érintkező határpont'],
+    ['R2', 'R2 – egyéb belterületi határpont'],
+    ['R3', 'R3 – külterületi határpont'],
+    ['R4', 'R4 – egyéb részletpont'],
+  ]);
+  const markedChk = el('input');
+  markedChk.type = 'checkbox';
+  markedChk.id = 'pc-chk-marked';
+  const markedLabel = el('label', 'check');
+  markedLabel.append(markedChk, el('span', undefined, 'Szabatosan megjelölt határ (± 0,10 m, különben ± 0,20 m)'));
+  const measured = area('pc-measured', 5);
+  const mesBtn = button('pc-mes-open', 'Kitűzési jegyzőkönyv (.MES)…', 'A kitűzés terepi naplója: a tervezett pontok a koordinátákhoz, a kitűzött pontok a mért pontokhoz kerülnek');
+  const mesFile = el('input');
+  mesFile.type = 'file';
+  mesFile.accept = '.mes,.MES,text/plain';
+  mesFile.hidden = true;
+  mesFile.id = 'pc-mes-input';
+  const mesAct = el('div', 'pane-actions');
+  mesAct.append(mesBtn, mesFile);
+  const g4 = el('div', 'grid3');
+  g4.append(labelled('Az alaptérkép készítése', mapKindSel), labelled('Fekvés', areaSel), labelled('Alapértelmezett rendűség', orderSel));
+  chk.append(
+    g4,
+    markedLabel,
+    labelled('Mért pontok (pontszám, Y, X [, R1–R4])', measured),
+    mesAct,
+    el(
+      'p',
+      'hint',
+      'A mért pontokat a koordináták azonos pontszámú pontjaival veti össze; a mindkét végén mért határvonalak hosszát is. ' +
+        'A méretarány a fenti „A digitalizált térkép méretaránya” mező.',
+    ),
+  );
+  form.append(chk);
+
+  // Igazgatási szolgáltatási díjak (1/2024. KTM)
+  const fee = el('fieldset', 'dims column');
+  fee.append(el('legend', undefined, 'Igazgatási szolgáltatási díjak (1/2024. KTM)'));
+  const feeOn = el('input');
+  feeOn.type = 'checkbox';
+  feeOn.id = 'pc-fee-on';
+  const feeOnLabel = el('label', 'check');
+  feeOnLabel.append(feeOn, el('span', undefined, 'Díjszámítás a jegyzőkönyvben'));
+  const feeKind = select('pc-fee-kind', CHANGE_KINDS.map((k) => [k.id, k.label] as [string, string]));
+  const numInput = (id: string) => {
+    const i = el('input');
+    i.id = id;
+    i.type = 'number';
+    i.min = '0';
+    i.step = '1';
+    return i;
+  };
+  const feeBuildings = numInput('pc-fee-buildings');
+  const feeUnits = numInput('pc-fee-units');
+  const feeSub = numInput('pc-fee-sub');
+  const feeReissue = el('input');
+  feeReissue.type = 'checkbox';
+  feeReissue.id = 'pc-fee-reissue';
+  const feeData = el('input');
+  feeData.type = 'checkbox';
+  feeData.id = 'pc-fee-data';
+  const g5 = el('div', 'grid3');
+  g5.append(labelled('A változás jellege', feeKind), labelled('Építmények száma', feeBuildings), labelled('Egyéb önálló ingatlanok', feeUnits));
+  const g6 = el('div', 'grid3');
+  g6.append(labelled('Új alrészletek', feeSub));
+  const reissueLabel = el('label', 'check');
+  reissueLabel.append(feeReissue, el('span', undefined, 'Újrazáradékolás (50%)'));
+  const dataLabel = el('label', 'check');
+  dataLabel.append(feeData, el('span', undefined, 'Adatszolgáltatás díja is (4. melléklet)'));
+  fee.append(
+    feeOnLabel,
+    g5,
+    g6,
+    reissueLabel,
+    dataLabel,
+    el('p', 'hint', 'A földrészletek számát és a nyilvántartott területeket a változás előtti és utáni földrészletekből veszi. A számítás tájékoztató jellegű.'),
+  );
+  form.append(fee);
   left.append(lhead, form);
 
   /* ---------- jobb oldal: eredmény ---------- */
@@ -203,6 +311,18 @@ export function initParcelView(): void {
   after.value = saved.after;
   annexSel.value = String(saved.annex);
   kindSel.value = saved.kind;
+  measured.value = saved.measured;
+  mapKindSel.value = saved.check.kind;
+  areaSel.value = saved.check.area;
+  orderSel.value = saved.check.order;
+  markedChk.checked = saved.check.marked;
+  feeOn.checked = saved.fees.on;
+  feeKind.value = saved.fees.kind;
+  feeBuildings.value = String(saved.fees.buildings);
+  feeUnits.value = String(saved.fees.units);
+  feeSub.value = String(saved.fees.subparcels);
+  feeReissue.checked = saved.fees.reissue;
+  feeData.checked = saved.fees.withData;
   fillScales(saved.scale);
 
   let division: { result: DivisionResult; sections: Section[] } | null = null;
@@ -232,6 +352,17 @@ export function initParcelView(): void {
       annex: Number(annexSel.value) as ToleranceAnnex,
       scale: scaleSel.value,
       kind: kindSel.value as ToleranceKind,
+      measured: measured.value,
+      check: { kind: mapKindSel.value as MapKind, area: areaSel.value as Area, order: orderSel.value as PointOrder, marked: markedChk.checked },
+      fees: {
+        on: feeOn.checked,
+        kind: feeKind.value as ChangeKind,
+        buildings: Math.max(0, Math.round(Number(feeBuildings.value) || 0)),
+        units: Math.max(0, Math.round(Number(feeUnits.value) || 0)),
+        subparcels: Math.max(0, Math.round(Number(feeSub.value) || 0)),
+        reissue: feeReissue.checked,
+        withData: feeData.checked,
+      },
     };
     storage.set(KEY, JSON.stringify(state));
     fillParcels();
@@ -243,8 +374,19 @@ export function initParcelView(): void {
       scale: state.scale,
       kind: state.kind,
     });
-    sections = [...st.sections, ...(division?.sections ?? [])];
-    showIssues([...datNotes, ...st.issues, ...(division?.result.issues ?? [])]);
+    const bc = state.measured.trim()
+      ? checkBoundary(parsePoints(state.coords).points, parseParcels(state.before, true, '').parcels, state.measured, { ...state.check, scale: state.scale })
+      : null;
+    const fees = state.fees.on
+      ? feesSection({
+          ...state.fees,
+          before: st.before.length,
+          after: st.after.length,
+          areas: st.before.map((b) => b.registered ?? b.technical),
+        })
+      : null;
+    sections = [...st.sections, ...(bc?.sections ?? []), ...(division?.sections ?? []), ...(fees ? [fees] : [])];
+    showIssues([...datNotes, ...st.issues, ...(bc?.issues ?? []), ...(division?.result.issues ?? [])]);
     results.replaceChildren(...sections.map(renderSection));
     if (sections.length === 0) results.append(el('p', 'empty', 'Add meg a koordinátákat és a földrészleteket, vagy töltsd be a mintát.'));
     const errors = st.issues.filter((i) => i.level === 'error').length;
@@ -585,8 +727,8 @@ export function initParcelView(): void {
     fillScales();
     run();
   });
-  for (const c of [scaleSel, kindSel]) c.addEventListener('change', run);
-  for (const t of [coords, before, after]) t.addEventListener('input', run);
+  for (const c of [scaleSel, kindSel, mapKindSel, areaSel, orderSel, markedChk, feeOn, feeKind, feeReissue, feeData]) c.addEventListener('change', run);
+  for (const t of [coords, before, after, measured, feeBuildings, feeUnits, feeSub]) t.addEventListener('input', run);
   methodSel.addEventListener('change', () => {
     bLabel.hidden = methodSel.value !== 'parallel';
   });
@@ -617,6 +759,32 @@ export function initParcelView(): void {
     if (f) await openDat(f);
   });
   datSaveBtn.addEventListener('click', saveDat);
+  mesBtn.addEventListener('click', () => mesFile.click());
+  mesFile.addEventListener('change', async () => {
+    const f = mesFile.files?.[0];
+    mesFile.value = '';
+    if (!f) return;
+    const log = readStakeoutMes(await readText(f));
+    datNotes = log.warnings.map((message) => ({ level: 'warning' as const, message: `MES: ${message}` }));
+    if (log.points.length === 0) {
+      datNotes.unshift({ level: 'error', message: `MES: a(z) ${f.name} állományban nincs kitűzött pont.` });
+      run();
+      return;
+    }
+    // A tervezett pontok a koordinátákhoz (a meglévő – pl. DAT-ból betöltött – térképi koordináta marad).
+    const known = parsePoints(coords.value).points;
+    const add = [...log.design.values()].filter((p) => !known.has(p.id)).map((p) => `${p.id}  ${p.y.toFixed(3)}  ${p.x.toFixed(3)}`);
+    if (add.length > 0) coords.value = `${coords.value.replace(/\s*$/, '')}\n# kitűzési jegyzőkönyv (${log.job}) tervezett pontjai\n${add.join('\n')}`;
+    measured.value = log.points.map((p) => `${p.id}  ${p.staked.y.toFixed(3)}  ${p.staked.x.toFixed(3)}`).join('\n');
+    datNotes.push({
+      level: 'info',
+      message:
+        `MES: ${f.name} (${log.job}) – ${log.stations.length} álláspont, ${log.points.length} kitűzött pont` +
+        (log.notStaked.length > 0 ? `; nem kitűzött: ${log.notStaked.join(', ')}` : '') +
+        (add.length > 0 ? `; ${add.length} tervezett pont a koordinátákhoz került.` : '.'),
+    });
+    run();
+  });
   lstBtn.addEventListener('click', () => {
     const pts = parsePoints(coords.value).points;
     const list = (text: string, withArea: boolean) =>
