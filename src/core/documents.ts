@@ -90,6 +90,10 @@ const dots = (s: string, n = 30) => (s.trim() ? esc(s) : '.'.repeat(n));
 
 export const DOC_STYLE = `
 @page { size: A4 portrait; margin: 16mm 15mm; }
+/* a rajzok saját, margó nélküli lapon: a rajz maga tartalmazza a lapszéli margót */
+@page drawing { size: A4 portrait; margin: 0; }
+.drawing { page: drawing; width: 210mm; height: 296mm; overflow: hidden; }
+.drawing svg { display: block; width: 210mm; height: 296mm; }
 body { font: 10.5pt/1.35 Arial, Helvetica, sans-serif; color: #000; margin: 0; }
 .page { page-break-after: always; }
 .page:last-child { page-break-after: auto; }

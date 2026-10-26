@@ -156,7 +156,7 @@ export function buildPackage(p: PackageParts): ZipFile[] {
 /** Az összes nyomtatandó oldal egy HTML-ben (a szöveges munkarészek és a rajzok, munkarész-sorrendben). */
 export function printAll(p: PackageParts): string {
   const w = p.work;
-  const page = (svg: string) => `<div class="page" style="margin:-16mm -15mm;width:210mm;height:297mm">${svg}</div>`;
+  const page = (svg: string) => `<div class="page drawing">${svg}</div>`;
   const coords = p.coordSections ? [sectionsPage(w, 'KOORDINÁTAJEGYZÉK', p.coordSections)] : [];
   const record = p.record ? [p.record] : [];
   const docs: Record<JobKind, string[]> = {
