@@ -12,7 +12,7 @@ describe('a burok regisztere (menüsor, ikonsáv, navigátor, munkalapok)', () =
   });
 
   it('az ikonsáv a valódi program 15 parancsikonját tartalmazza', () => {
-    expect(TOOLBAR.filter((t) => t.kind !== 'sep')).toHaveLength(15);
+    expect(TOOLBAR.filter((t) => t.kind !== 'sep')).toHaveLength(16);
     for (const t of TOOLBAR) if (t.kind === 'sheet') expect(ids.has(t.id)).toBe(true);
   });
 

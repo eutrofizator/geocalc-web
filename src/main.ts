@@ -11,7 +11,7 @@ import { MODULES } from './modules-info';
 import { initDescriptorView, refreshDescriptor } from './descriptor-view';
 import { initExchangeView, refreshExchange } from './exchange-view';
 import { DEFAULT_LOGO_SVG, logoDataUri } from './core/logo';
-import { parseSession, serializeSession, sessionFileName } from './core/session';
+import { newJobChanges, parseSession, serializeSession, sessionFileName } from './core/session';
 import { initNetworkView } from './network-view';
 import { initNetSettingsView } from './net-settings-view';
 import { initRecorderView, recorderSettings } from './recorder-view';
@@ -454,6 +454,29 @@ function sessionLoad(): void {
   input.click();
 }
 
+/* ---------- új munka: minden munkalap munkaadatának törlése ---------- */
+function newJob(): void {
+  if (
+    !confirm(
+      'Új munka: minden munkalapról törlődnek az eddigi munka adatai (koordináták, mérések, nyers mérés, megbízó, tulajdonosok, rajz, munkaszám).\n\n' +
+        'Megmaradnak a saját adataid és beállításaid (készítő, székhely, igazolványszám, műszer, téma, nyelv).\n\n' +
+        'Ha a mostani munkára még szükséged lehet, előtte mentsd munkamenetbe (Beállítások / Munkamenet mentése…). Folytatod?',
+    )
+  )
+    return;
+  try {
+    const all: Record<string, string> = {};
+    for (const key of Object.keys(localStorage)) all[key] = localStorage.getItem(key) ?? '';
+    for (const [key, value] of Object.entries(newJobChanges(all))) {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    }
+  } catch {
+    shell.setHint('A böngésző tárolója nem érhető el; az oldal újratöltése után sem maradnak adatok.');
+  }
+  location.reload();
+}
+
 /* ---------- a burok: menüsor, ikonsáv, navigátor, munkalapok, állapotsor ---------- */
 setCodeProvider(() => MODULES.map((m) => ({ id: m.code, name: m.name })));
 
@@ -462,7 +485,7 @@ initAboutView();
 initGeoConvertView();
 initDxfView();
 initParcelView();
-const generalSettings = initGeneralSettingsView({ sessionSave: () => sessionSave(), sessionLoad: () => sessionLoad() });
+const generalSettings = initGeneralSettingsView({ sessionSave: () => sessionSave(), sessionLoad: () => sessionLoad(), newJob: () => newJob() });
 
 const shell = initShell({
   new: () => $<HTMLButtonElement>('btn-new').click(),
@@ -472,6 +495,7 @@ const shell = initShell({
   run: () => compute(),
   'session-save': sessionSave,
   'session-load': sessionLoad,
+  'new-job': newJob,
   'select-all': () => {
     editor.focus();
     editor.select();
@@ -534,7 +558,8 @@ initExchangeView({
 });
 buildModuleList();
 renderFiles();
-editor.value = loadDraft() || (EXAMPLES.find((x) => x.id === 'po')?.source ?? '');
+// Új munka után a tárolt üres vázlat üres munkaterületet jelent, nem a mintapéldát.
+editor.value = storage.has(DRAFT_KEY) ? loadDraft() : (EXAMPLES.find((x) => x.id === 'po')?.source ?? '');
 lastLoadedSource = editor.value;
 initNetworkView({ openNav: (id) => shell.openNav(id) });
 initNetSettingsView();

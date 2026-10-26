@@ -23,6 +23,20 @@ A *Változási vázrajz* munkalap **Vázrajz és jegyzékek** részében add meg
 székhely, földmérő igazolvány száma, IRF minősítés száma, a készítés helye. Ezeket a böngésző
 megjegyzi, nem kell minden munkánál újra beírni.
 
+### 0.1a Minden munkát „Új munka” gombbal kezdj
+
+Az ikonsáv első gombja (lapocska pluszjellel), illetve a *Beállítások* menü **Új munka (az előző
+munka adatainak törlése)…** parancsa minden munkalapról kitörli az előző munka adatait: koordináták,
+mérések, nyers mérés, földrészletek, megbízó, tulajdonosok, rajzszerkesztés, munkaszám,
+munkaterület neve. Így két egymás utáni munka adatai nem keveredhetnek össze.
+
+Megmaradnak a saját adataid és beállításaid: készítő (vállalkozás), logó, székhely, igazolványszám,
+IRF minősítés, készítés helye, műszer és gyári szám, e-mail, telefon, a mérőállomás beállításai, a
+téma és a nyelv.
+
+Ha az előző munkára még szükséged lehet, előbb mentsd el: *Beállítások / Munkamenet mentése…*
+(.gcs fájl). Később ugyanott a *Munkamenet betöltése…* paranccsal visszahozható.
+
 ### 0.2 A legfontosabb szabály: a pontszámok
 
 A program **a pontszám alapján** dolgozik. Ezért mielőtt kimész a terepre, döntsd el, melyik pontnak

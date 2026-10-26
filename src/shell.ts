@@ -197,6 +197,8 @@ function defaultNavFor(sheetId: string): { group: NavGroup; page: NavPage } | un
 type ToolItem = { kind: 'action'; id: string; caption: string; icon: string } | { kind: 'sheet'; id: string } | { kind: 'sep' };
 
 export const TOOLBAR: ToolItem[] = [
+  { kind: 'action', id: 'new-job', caption: 'Új munka (az előző munka adatainak törlése)', icon: '#i-file-plus' },
+  { kind: 'sep' },
   { kind: 'action', id: 'settings-save', caption: 'Általános beállítások mentése', icon: '#i-save' },
   { kind: 'sep' },
   { kind: 'action', id: 'db-open', caption: 'Adatbázis beolvasása', icon: '#i-folder-open' },
@@ -280,6 +282,7 @@ export const MENUS: Menu[] = [
       { label: 'Általános beállítások', nav: 'set-general' },
       { label: 'Beállítások mentése', action: 'settings-save' },
       { label: '', sep: true },
+      { label: 'Új munka (az előző munka adatainak törlése)…', action: 'new-job' },
       { label: 'Munkamenet mentése…', action: 'session-save' },
       { label: 'Munkamenet betöltése…', action: 'session-load' },
       { label: '', sep: true },

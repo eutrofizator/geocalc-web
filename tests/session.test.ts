@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SESSION_FORMAT, SESSION_PREFIX, SESSION_VERSION, parseSession, sessionEntries, sessionFileName, serializeSession } from '../src/core/session';
+import { SESSION_FORMAT, SESSION_PREFIX, SESSION_VERSION, newJobChanges, parseSession, sessionEntries, sessionFileName, serializeSession } from '../src/core/session';
 
 const saved = '2026-10-19T14:00:00.000Z';
 
@@ -54,5 +54,67 @@ describe('munkamenet (.gcs)', () => {
 
   it('a fájlnév a mentés napját tartalmazza', () => {
     expect(sessionFileName(saved)).toBe('munkamenet-2026-10-19.gcs');
+  });
+});
+
+describe('új munka', () => {
+  const P = SESSION_PREFIX;
+  const all: Record<string, string> = {
+    [`${P}theme`]: 'dark',
+    [`${P}lang`]: 'hu',
+    [`${P}draft`]: 'PO 1 2',
+    [`${P}transform`]: '{"points":"1 2 3"}',
+    [`${P}exchange-file`]: '[{"id":"1"}]',
+    [`${P}recorder`]: JSON.stringify({ recorder: 'gsi', k: 0.13, drafts: [{ no: '1' }] }),
+    [`${P}cover`]: JSON.stringify({ keszitette: 'Minta Geodézia Kft.', munkanev: 'Fő utca 12.', msz: '2026/41', telepules: 'Kisváros', logo: 'data:x' }),
+    [`${P}parcel`]: JSON.stringify({
+      coords: '101 1 2',
+      before: '123 ; 100 ; 101',
+      after: '123 ; 101',
+      owners: 'Kiss Anna ; Kisváros ; 123',
+      raw: { name: 'a.mes', text: 'x' },
+      annex: 8,
+      job: 'setout',
+      fees: { on: true },
+      plan: { szekhely: '1111 Budapest', iktatoszam: '41/2026', igazolvany: 'G-1', hely: 'Kisváros', drawing: 'felirat ; x' },
+      work: { megbizo: 'Kiss Anna', muszer: 'FOIF RTS102', ugyfelkod: '9', helyszin: 'Fő u. 12.' },
+    }),
+    'mas-program.adat': 'marad',
+  };
+  const ch = newJobChanges(all);
+
+  it('a beállításokat és a más programok kulcsait nem bántja', () => {
+    expect(`${P}theme` in ch).toBe(false);
+    expect(`${P}lang` in ch).toBe(false);
+    expect('mas-program.adat' in ch).toBe(false);
+  });
+
+  it('a mintapéldát betöltő munkalapokra üres értéket ír, a többit törli', () => {
+    expect(ch[`${P}draft`]).toBe('');
+    expect(ch[`${P}transform`]).toBeNull();
+    expect(ch[`${P}exchange-file`]).toBeNull();
+  });
+
+  it('a műszerbeállítás és a készítő megmarad, a mérés és a munka adatai törlődnek', () => {
+    expect(JSON.parse(ch[`${P}recorder`]!)).toEqual({ recorder: 'gsi', k: 0.13, drafts: [] });
+    expect(JSON.parse(ch[`${P}cover`]!)).toEqual({ keszitette: 'Minta Geodézia Kft.', logo: 'data:x' });
+  });
+
+  it('a változási vázrajz munkaadatai törlődnek, a vállalkozó adatai maradnak', () => {
+    const p = JSON.parse(ch[`${P}parcel`]!);
+    expect(p).toMatchObject({ coords: '', before: '', after: '', owners: '', raw: null, annex: 8, job: 'setout' });
+    expect(p.fees).toBeUndefined();
+    expect(p.plan).toEqual({ szekhely: '1111 Budapest', igazolvany: 'G-1', hely: 'Kisváros' });
+    expect(p.work).toEqual({ muszer: 'FOIF RTS102' });
+  });
+
+  it('másodszor futtatva már nincs mit változtatni', () => {
+    const after = { ...all };
+    for (const [k, v] of Object.entries(ch)) {
+      if (v === null) delete after[k];
+      else after[k] = v;
+    }
+    const again = newJobChanges(after);
+    expect(Object.keys(again).filter((k) => again[k] !== '')).toEqual([]);
   });
 });

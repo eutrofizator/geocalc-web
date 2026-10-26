@@ -76,3 +76,85 @@ export function parseSession(text: string): SessionParse {
 export function sessionFileName(iso: string): string {
   return `munkamenet-${iso.slice(0, 10)}.gcs`;
 }
+
+/* ---------- új munka: a munkaadatok törlése, a beállítások megtartása ---------- */
+
+/** Tisztán beállítást tároló kulcsok: új munkánál változatlanok maradnak. */
+const SETTING_KEYS = new Set(['theme', 'lang', 'start', 'last', 'nav', 'codes-panel']);
+
+/**
+ * Munkalaponként a megtartott (beállítás jellegű) mezők és a felülírt munkaadatok. Ami itt nem
+ * szerepel, az törlődik. Az üres értéket ki kell írni ott, ahol a munkalap hiányzó adatnál a
+ * mintapéldát töltené be.
+ */
+const JOB_RULES: Record<string, { keep: string[]; set?: Record<string, unknown>; nested?: Record<string, string[]> }> = {
+  draft: { keep: [] },
+  recorder: { keep: ['*'], set: { drafts: [] } },
+  cover: { keep: ['keszitette', 'vetulet', 'magassag', 'fekves', 'logo'] },
+  parcel: {
+    keep: ['annex', 'scale', 'kind', 'check', 'job', 'plan', 'work'],
+    set: { coords: '', before: '', after: '', measured: '', owners: '', raw: null },
+    nested: {
+      plan: ['szekhely', 'megnevezes', 'igazolvany', 'minosites', 'hely', 'address', 'prefix', 'scale'],
+      work: ['muszer', 'gyariszam', 'minosegtanusito', 'megjeloles', 'email', 'telefon', 'vegzok'],
+    },
+  },
+  akg: { keep: ['common'], set: { coords: '', ams: '', records: [], selected: 0 }, nested: { common: ['merteVegzo', 'muszer'] } },
+  geoconvert: { keep: ['from', 'to', 'dec'], set: { text: '' } },
+  dxfview: { keep: ['radius', 'texts'], set: { points: '', hidden: [] } },
+  fieldbook: { keep: ['type', 'angle', 'showAp'], set: { rows: [], file: '' } },
+  network: { keep: ['settings', 'heights', 'details', 'averaging', 'sketch', 'vertical'], set: { coordinates: '', gmj: '', workname: '' } },
+  'transform-apply': { keep: ['from', 'to', 'twoD', 'fields', 'ski', 'interpolate', 'saveKind'], set: { points: '' } },
+  descriptor: { keep: ['code'], set: { obs: [] } },
+  exchange: { keep: ['*'] },
+};
+
+function pick(obj: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of keys) if (k in obj) out[k] = obj[k];
+  return out;
+}
+
+/**
+ * Új munka kezdése: a tárolt kulcsokból kiszámolja, mi változik. Az eredményben a `null` törlést,
+ * a szöveg új értéket jelent; a hiányzó kulcs változatlan marad. A munkához tartozó adatok
+ * (koordináták, mérések, megbízó, tulajdonosok, munkaszám) törlődnek, a felhasználó saját adatai
+ * (téma, nyelv, műszer, készítő, székhely, igazolványszám) megmaradnak.
+ */
+export function newJobChanges(all: Record<string, string>): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  for (const key of Object.keys(all)) {
+    if (!key.startsWith(SESSION_PREFIX)) continue;
+    const name = key.slice(SESSION_PREFIX.length);
+    if (SETTING_KEYS.has(name)) continue;
+    const rule = JOB_RULES[name];
+    if (!rule) {
+      out[key] = null;
+      continue;
+    }
+    if (rule.keep.length === 0 && !rule.set) {
+      out[key] = '';
+      continue;
+    }
+    let data: unknown;
+    try {
+      data = JSON.parse(all[key]!);
+    } catch {
+      data = null;
+    }
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      out[key] = null;
+      continue;
+    }
+    const obj = data as Record<string, unknown>;
+    const next = rule.keep.includes('*') ? { ...obj } : pick(obj, rule.keep);
+    for (const [field, keys] of Object.entries(rule.nested ?? {})) {
+      const inner = next[field];
+      if (typeof inner === 'object' && inner !== null && !Array.isArray(inner)) next[field] = pick(inner as Record<string, unknown>, keys);
+    }
+    Object.assign(next, rule.set ?? {});
+    const text = JSON.stringify(next);
+    if (text !== all[key]) out[key] = text;
+  }
+  return out;
+}

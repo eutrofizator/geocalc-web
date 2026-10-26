@@ -33,23 +33,24 @@ if (!REMOTE && !existsSync(HTML)) {
 const URL_TO_LOAD = REMOTE || pathToFileURL(HTML).href;
 const DL = join(tmpdir(), 'geocalc-web-browser-check');
 
-// az ikonsáv gombjainak sorrendje (a 15 parancsikon)
+// az ikonsáv gombjainak sorrendje (a 16 parancsikon)
 const TB = {
-  settingsSave: 0,
-  dbOpen: 1,
-  dbSave: 2,
-  coords: 3,
-  recorder: 4,
-  calc: 5,
-  descriptor: 6,
-  network: 7,
-  networkSettings: 8,
-  transform: 9,
-  transformApply: 10,
-  exchangeCoords: 11,
-  exchangeFile: 12,
-  exchangeAkg: 13,
-  help: 14,
+  newJob: 0,
+  settingsSave: 1,
+  dbOpen: 2,
+  dbSave: 3,
+  coords: 4,
+  recorder: 5,
+  calc: 6,
+  descriptor: 7,
+  network: 8,
+  networkSettings: 9,
+  transform: 10,
+  transformApply: 11,
+  exchangeCoords: 12,
+  exchangeFile: 13,
+  exchangeAkg: 14,
+  help: 15,
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -169,7 +170,7 @@ async function main() {
     `[...document.querySelectorAll('.menu-btn')].map(b => b.firstChild.textContent).join('|')`,
     'Adatrögzítő|Geodéziai számítások|Hálózatkiegyenlítés|Térbeli transzformáció|Adatcsere|Beállítások',
   );
-  await check('ikonsáv gombjai', `document.querySelectorAll('.tb-btn').length`, 15);
+  await check('ikonsáv gombjai', `document.querySelectorAll('.tb-btn').length`, 16);
   await check('a navigátor hat csoportja', `document.querySelectorAll('#navigator .nav-group').length`, 6);
   await check('a navigátor pontjai', `document.querySelectorAll('#navigator .nav-item').length`, 24);
   await check('csak a Beállítások csoport kiemelt', `[...document.querySelectorAll('#navigator .nav-group.special .nav-head-label')].map(e => e.textContent).join('|')`, 'Beállítások');
@@ -244,10 +245,10 @@ async function main() {
   await check(
     'a Beállítások menü a munkamenet-parancsokat is kínálja',
     `[...document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item .menu-label')].map(e => e.textContent).join('|')`,
-    'Általános beállítások|Beállítások mentése|Munkamenet mentése…|Munkamenet betöltése…|Nyomtatás…|Sötét / világos téma|Nyelv: magyar / English|Súgó|Névjegy',
+    'Általános beállítások|Beállítások mentése|Új munka (az előző munka adatainak törlése)…|Munkamenet mentése…|Munkamenet betöltése…|Nyomtatás…|Sötét / világos téma|Nyelv: magyar / English|Súgó|Névjegy',
   );
-  // Munkamenet mentése (.gcs): a menü 3. pontja – a letöltés valóban fájlt ad.
-  await evalJs(`document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item')[2].click()`);
+  // Munkamenet mentése (.gcs): a menü 4. pontja – a letöltés valóban fájlt ad.
+  await evalJs(`document.querySelectorAll('.menu-btn.open .menu-drop > .menu-item')[3].click()`);
   await sleep(1000);
   const gcsName = readdirSync(DL).find((n) => /^munkamenet-\d{4}-\d{2}-\d{2}\.gcs$/.test(n));
   checkNode('a munkamenet mentése .gcs fájlt ad', Boolean(gcsName), true);

@@ -46,6 +46,13 @@ export const storage = {
       return '';
     }
   },
+  has(key: string): boolean {
+    try {
+      return localStorage.getItem(key) !== null;
+    } catch {
+      return false;
+    }
+  },
   set(key: string, value: string): void {
     try {
       localStorage.setItem(key, value);

@@ -289,7 +289,8 @@ export function initAkgView(): void {
   // Indulás: az utolsó munka, különben a mintapélda.
   try {
     const saved = JSON.parse(storage.get(STORAGE_KEY) || 'null') as Partial<FormState> | null;
-    if (saved && typeof saved.coords === 'string' && saved.coords.trim() !== '') {
+    // Az üres, de tárolt koordinátalista (új munka) üresen marad.
+    if (saved && typeof saved.coords === 'string') {
       coords.value = saved.coords;
       ams.value = saved.ams ?? '';
       records = Array.isArray(saved.records) ? saved.records.map((r) => ({ ...EMPTY_RECORD, ...r })) : [];

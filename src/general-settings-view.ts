@@ -42,7 +42,7 @@ function storedKeys(): string[] {
   }
 }
 
-export function initGeneralSettingsView(actions: { sessionSave: () => void; sessionLoad: () => void }): { refresh: () => void } {
+export function initGeneralSettingsView(actions: { sessionSave: () => void; sessionLoad: () => void; newJob: () => void }): { refresh: () => void } {
   const { body } = createPage('general-settings', 'Beállítások / Általános beállítások');
   const pane = el('section', 'pane gs-pane');
   pane.setAttribute('aria-label', 'Általános beállítások');
@@ -128,7 +128,12 @@ export function initGeneralSettingsView(actions: { sessionSave: () => void; sess
   data.append(el('legend', undefined, 'A böngészőben tárolt adatok'));
   const count = el('p', 'hint');
   count.id = 'gs-stored';
-  const clearBtn = el('button', undefined, 'Tárolt adatok törlése…');
+  const newJobBtn = el('button', undefined, 'Új munka (az előző munka adatainak törlése)…');
+  newJobBtn.type = 'button';
+  newJobBtn.id = 'gs-new-job';
+  newJobBtn.title = 'Minden munkalapról törli a munka adatait; a saját adataid és beállításaid megmaradnak.';
+  newJobBtn.addEventListener('click', actions.newJob);
+  const clearBtn = el('button', undefined, 'Minden tárolt adat törlése (beállításokkal együtt)…');
   clearBtn.type = 'button';
   clearBtn.id = 'gs-clear';
   clearBtn.addEventListener('click', () => {
@@ -143,7 +148,7 @@ export function initGeneralSettingsView(actions: { sessionSave: () => void; sess
     location.reload();
   });
   const dataRow = el('div', 'btnrow');
-  dataRow.append(clearBtn);
+  dataRow.append(newJobBtn, clearBtn);
   data.append(count, dataRow);
 
   form.append(look, session, calc, start, data);

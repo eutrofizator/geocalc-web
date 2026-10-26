@@ -502,10 +502,8 @@ export function initParcelView(): void {
   /* ---------- állapot ---------- */
   let saved: Saved = DEFAULTS;
   try {
-    saved = {
-      ...DEFAULTS,
-      ...(JSON.parse(storage.get(KEY) || '{}') as Partial<Saved>),
-    };
+    const stored = JSON.parse(storage.get(KEY) || '{}') as Partial<Saved>;
+    saved = { ...DEFAULTS, ...stored, plan: { ...DEFAULTS.plan, ...stored.plan } };
   } catch {
     saved = DEFAULTS;
   }
