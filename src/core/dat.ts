@@ -300,6 +300,8 @@ export interface DatExportOptions {
   subs?: { hrsz: string; letter: string; useCode: number | null; area: number; ring: NamedPt[] }[];
   /** Épületek (T_OBJ_ATTRCA): DAT-kód és a befoglaló földrészlet. */
   buildings?: { hrsz: string; code: string; ring: NamedPt[] }[];
+  /** A földrészletek címkoordinátája helyrajzi szám szerint (a pont_id geokódpontja); hiányában a földrészleten belüli pont. */
+  addresses?: Map<string, Pt>;
 }
 
 const f3 = (n: number) => String(Math.round(n * 1000) / 1000);
@@ -348,10 +350,10 @@ export function writeDat(parcels: DatExportParcel[], opts: DatExportOptions): st
     out.push(rec([ptIds.get(p.id), f3(p.x), f3(p.y), r?.[3] || '0', r?.[4] ?? '0', r?.[5] ?? '0']));
   }
   // Geokódpontok (a földrészlet pont_id mezője): a földrészleten belüli pont, középhiba nélkül (0*0, mint az ITR-ben).
-  const geocodes = rings.map((ring) => {
+  const geocodes = rings.map((ring, i) => {
     const id = ptIds.size + 1;
     ptIds.set(`#geo${id}`, id);
-    const g = interiorPoint(ring);
+    const g = (i < parcels.length ? opts.addresses?.get(parcels[i]!.hrsz) : undefined) ?? interiorPoint(ring);
     out.push(rec([id, f3(g.x), f3(g.y), '0', '0', '0']));
     return id;
   });

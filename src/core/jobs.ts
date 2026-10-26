@@ -56,6 +56,8 @@ export interface JobDef {
   /** Telekalakítási helyszínrajz (a telekalakítási eljáráshoz). */
   siteplan?: PlanTemplate;
   fee: ChangeKind;
+  /** A változási vázrajzon címkoordináták kellenek (új földrészlet, új épület). */
+  address?: boolean;
   /** A leadandó munkarészek mappái a csomagban, sorrendben. */
   folders: string[];
 }
@@ -89,6 +91,7 @@ export const JOBS: Record<JobKind, JobDef> = {
   },
   subdivision: {
     id: 'subdivision',
+    address: true,
     label: 'Telekalakítás',
     name: 'telekalakítással összefüggő változási vázrajz',
     // 15. minta
@@ -111,6 +114,7 @@ export const JOBS: Record<JobKind, JobDef> = {
   },
   building: {
     id: 'building',
+    address: true,
     label: 'Épületfeltüntetés',
     name: 'épület feltüntetésével összefüggő változási vázrajz',
     // 17. minta

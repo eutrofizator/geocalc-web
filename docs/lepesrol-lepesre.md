@@ -289,8 +289,9 @@ Példa: a 123 hrsz-ú telken új, négysarkú lakóház.
    ```
    Ha nem lakóépület, a sor végén add meg a DAT-kódot, pl. gazdasági épületnél:
    `épület ; új ; E1 E2 E3 E4 ; CA06`.
-5. Ha kell **címkoordináta**: kapcsold be a *Címkoordináták generálása a változás utáni
-   földrészletekhez* jelölőt. A pontszám előtagja alapból `C`.
+5. A **címkoordináták** épületfeltüntetésnél és telekalakításnál maguktól bekapcsolnak, amikor a
+   munka fajtáját kiválasztod (*Címkoordináták generálása a változás utáni földrészletekhez* jelölő a
+   *Vázrajz és jegyzékek* részben). A pontszám előtagja alapból `C`. Lásd még: 5.1.
 6. Ha a meglévő határpontokat is bemérted, azok a **Mért pontok** mezőbe kerülnek a földhivatali
    pontszámmal (2.4).
 
@@ -397,6 +398,36 @@ udvar) lesz, a keleti fele szántó marad.
    választhatsz, ha az automatikus nem jó.
 3. **Nézd át** a jobb oldali hibaüzeneteket – piros hibával ne add le a munkát.
 4. **Munkarészek nyomtatása** (PDF) vagy **Leadandó csomag (.zip)**.
+
+### 5.1 A digitális leadás: DAT és címkoordináták
+
+A földhivatalnak a változást digitálisan, **DAT adatcsere-formátumban** (DAT Szabályzat, DAT-M1
+melléklet, MSZ 7772-1) is le kell adni. Ezt a program magától elkészíti:
+
+- **Leadandó csomag (.zip)**: a DAT mappájában (telekalakításnál 07, épületfeltüntetésnél 09,
+  művelési ág változásnál 06) a `DAT.dat` fájl. Kitűzésnél nincs DAT, mert a nyilvántartás nem
+  változik.
+- **Mentés DAT-ba** gomb (a *Változási vázrajz* munkalap jobb oldalán, a *Területkimutatás*
+  fejlécében): csak a DAT fájlt menti, `…_valtozas.dat` néven.
+
+A DAT a változás utáni állapotot tartalmazza: a pontokat (T_PONT), a földrészleteket a
+területükkel (T_OBJ_ATTRBC / BD), az alrészleteket a művelési ággal (T_OBJ_ATTRBE) és az új
+épületeket (T_OBJ_ATTRCA), a határvonalakkal együtt. Windows-1250 kódolású, ahogy az ITR is írja.
+Ha a földhivatali DAT-ot olvastad be, a meglévő földrészletek adatait (fekvés, tulajdoni jelleg
+stb.) onnan veszi át.
+
+**Hol vannak a címkoordináták?**
+
+- a *Vázrajz és jegyzékek* részben a *Címkoordináták generálása…* jelölő kapcsolja be őket
+  (telekalakításnál és épületfeltüntetésnél magától bekapcsol);
+- a **változási vázrajzon** jobb oldalt, „Címkoordináták … hrsz” táblázatban és a rajzon a
+  jelükkel;
+- a **Koordinátajegyzékben** külön csoportban (méter élességgel, 5411-es pontkóddal);
+- a **csomagban**: épületfeltüntetésnél a `05_Címkoordináta` mappában (`cimkoordinatak.txt` és
+  nyomtatható `.html`), a többi munkánál a koordinátajegyzékben;
+- a **DAT-ban**: ez a földrészlet geokódpontja (a földrészlet rekordjának `pont_id` mezője).
+
+A generált címkoordináta (5411) a földrészleten belüli pont, méterre kerekítve.
 
 ---
 

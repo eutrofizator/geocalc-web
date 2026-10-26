@@ -1190,6 +1190,7 @@ export function initParcelView(): void {
       pointRecords: dat?.data.pointRecords,
       subs: subs.map((r) => ({ hrsz: r.hrsz, letter: r.letter, useCode: landUseCode(r.use), area: r.area, ring: r.ring })),
       buildings,
+      addresses: plAddr.checked ? new Map(addressPoints().map((a) => [a.hrsz, a])) : undefined,
     });
     return { name: `${base}_valtozas`, text };
   }
@@ -1542,6 +1543,8 @@ export function initParcelView(): void {
     const names = JOB_LIST.map((j) => j.name);
     if (!plMegnev.value.trim() || names.includes(plMegnev.value.trim()) || plMegnev.value === DEFAULTS.plan.megnevezes) plMegnev.value = currentJob().name;
     feeKind.value = currentJob().fee;
+    // Telekalakításnál és épületfeltüntetésnél a vázrajzon és a csomagban címkoordináták is kellenek.
+    plAddr.checked = currentJob().address === true;
     syncJobButtons();
     run();
   });

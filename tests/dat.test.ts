@@ -123,6 +123,17 @@ describe('visszaírás (az ITR 5 DAT kimenetének szerkezete)', () => {
   );
   const back = parseDatTables(text);
 
+  it('a földrészlet geokódpontja a megadott címkoordináta', () => {
+    const parcels = [{ hrsz: '123/1', area: 251, ring: ring('101', 'U1', 'U2', '4') }];
+    const withAddr = parseDatTables(
+      writeDat(parcels, { name: 'c', date: new Date(2026, 9, 25), addresses: new Map([['123/1', { y: 650005, x: 240012 }]]) }),
+    );
+    const bd = withAddr.tables.get('T_OBJ_ATTRBD') ?? withAddr.tables.get('T_OBJ_ATTRBC')!;
+    const pontId = bd[0]!.at(-1)!;
+    const pont = withAddr.tables.get('T_PONT')!.find((r) => r[0] === pontId)!;
+    expect([pont[1], pont[2]]).toEqual(['240012', '650005']);
+  });
+
   it('az ITR címrekordja, CR LF sorvég, CTRL-Z nélkül', () => {
     const lines = text.split('\r\n');
     expect(lines[0]).toBe('GEOK_DAT*2025_123DAT**-*-*-*20261025*GEOkalkulus 1.0*2015.07.01 1.1*');
