@@ -40,10 +40,58 @@ import { subStatement } from './core/subparcels';
 import { SYMBOLS } from './core/symbols';
 import { buildPackage, printAll, type PackageParts } from './core/package';
 import { writeZip } from './core/zip-writer';
-import type { WorkData } from './core/documents';
-import { parseDrawing } from './core/drawing';
+import { measurementRecord, type RecordRow, type StakedPoint, type WorkData } from './core/documents';
+import { parseDrawing, type DrawingElement } from './core/drawing';
 import { writeDxf } from './core/dxf-writer';
 import { buildingLayer } from './core/layers';
+import { computeDm, computeTvet, detectFieldFormat, parseFieldData } from './core/field-book';
+import { DEFAULT_RECORDER_SETTINGS, type RecorderSettings } from './core/recorder';
+import { formatDms } from './core/angle';
+import { fix } from './core/format';
+
+/**
+ * A nyers mérés sorai a mérési jegyzőkönyvhöz: a vízszintes távolság a ferdéből és a zenitszögből, ha
+ * a műszer nem adta; a magasságkülönbség; a vetületi távolság az Adatrögzítő beállításai szerint.
+ */
+function recordRows(raw: { name: string; text: string }): RecordRow[] {
+  const fmt = detectFieldFormat(raw.text);
+  if (!fmt) return [];
+  let rows;
+  try {
+    rows = parseFieldData(raw.text, fmt).rows;
+  } catch {
+    return [];
+  }
+  rows = rows.map((r) => (r.kind === 'obs' && r.tv === null && r.tf !== null && r.zi !== null ? { ...r, tv: Math.round(r.tf * Math.sin((r.zi * Math.PI) / 180) * 10000) / 10000 } : r));
+  rows = computeDm(rows);
+  let settings: RecorderSettings = DEFAULT_RECORDER_SETTINGS;
+  try {
+    settings = { ...DEFAULT_RECORDER_SETTINGS, ...(JSON.parse(storage.get('geocalc-web.recorder') || '{}') as Partial<RecorderSettings>) };
+  } catch {
+    settings = DEFAULT_RECORDER_SETTINGS;
+  }
+  try {
+    rows = computeTvet(rows, settings);
+  } catch {
+    /* a vetületi távolság nélkül is kiírható */
+  }
+  return rows.filter((r) => r.state !== 'skip').map((r) => ({ kind: r.kind, id: r.id, hz: r.hz, zi: r.zi, tf: r.tf, tv: r.tv, mj: r.mj, mm: r.mm, code: r.code, tvet: r.tvet, dm: r.dm }));
+}
+
+/** Az új épületek ellenőrző területszámítása: töréspontok és terület (m², négyzetméterre kerekítve is). */
+function buildingAreaText(drawing: DrawingElement[]): string | undefined {
+  const blds = drawing.filter((d): d is Extract<DrawingElement, { kind: 'building' }> => d.kind === 'building' && d.type === 'new');
+  if (blds.length === 0) return undefined;
+  const lines = ['Ellenőrző területszámítás – új épület(ek)', ''];
+  blds.forEach((b, i) => {
+    const a = polygonArea(b.ring);
+    lines.push(`${i + 1}. épület (${b.code}): ${b.ring.map((p) => p.id).join(' ')}`);
+    lines.push('Pontszám\tY\tX');
+    for (const p of b.ring) lines.push(`${p.id}\t${fix(p.y, 2)}\t${fix(p.x, 2)}`);
+    lines.push(`Terület: ${fix(a, 3)} m², kerekítve ${Math.round(a)} m²`, '');
+  });
+  return lines.join('\r\n');
+}
 
 /**
  * Geodéziai számítások/Változási vázrajz: területszámítás a koordinátákból, terület-összevetés a
@@ -80,6 +128,10 @@ interface Saved {
   plan: { szekhely: string; iktatoszam: string; megnevezes: string; igazolvany: string; minosites: string; hely: string; address: boolean; prefix: string; drawing?: string; scale?: string };
   job?: JobKind;
   work?: Partial<Record<WorkKey, string>>;
+  /** Tulajdonosok soronként: név ; lakcím ; hrsz. */
+  owners?: string;
+  /** A nyers mérés (a mérési jegyzőkönyvhöz). */
+  raw?: { name: string; text: string } | null;
 }
 
 /** A „Munka adatai” mezői: kulcs, felirat, súgószöveg. */
@@ -91,12 +143,15 @@ const WORK_FIELDS = [
   ['okmany', 'Személyazonosító okmány és száma', ''],
   ['statisztikai', 'Statisztikai számjel', ''],
   ['email', 'E-mail-cím', ''],
+  ['telefon', 'Telefonszám', 'pl. +36 30 123 4567'],
   ['muszer', 'Mérőműszer típusa', 'pl. FOIF RTS102'],
   ['gyariszam', 'Gyári szám', ''],
   ['minosegtanusito', 'Minőségtanúsító neve', ''],
   ['megjeloles', 'A határpontok megjelölése', 'pl. fakaróval'],
   ['idopont', 'A munkavégzés (kitűzés) időpontja', 'pl. 2026.11.05. 9:00'],
   ['szomszedok', 'Szomszédos hrsz-ek (kitűzés)', 'pl. 122, 124, 125'],
+  ['helyszin', 'A munkavégzés helyszíne (cím)', 'pl. Kisváros, Fő utca 12.'],
+  ['vegzok', 'A munkát végzők (név, ig. szám)', 'üresen: a készítő'],
   ['feljegyzes', 'Egyéb feljegyzés (műszaki leírás)', ''],
 ] as const;
 type WorkKey = (typeof WORK_FIELDS)[number][0];
@@ -239,7 +294,15 @@ export function initParcelView(): void {
   stakeFile.hidden = true;
   stakeFile.id = 'pc-stake-input';
   const stakeAct = el('div', 'pane-actions');
-  stakeAct.append(stakeBtn, stakeFile);
+  const rawBtn = button('pc-raw-open', 'Nyers mérés (.MES, GSI…)…', 'A műszer nyers mérési állománya a mérési jegyzőkönyvhöz (FOIF MES, Leica GSI, GeoCalc AR, Sokkia SDR, Topcon, RW5)');
+  const rawClear = button('pc-raw-clear', 'Nyers mérés törlése', 'A beolvasott nyers mérés elhagyása');
+  const rawInfo = el('span', 'hint');
+  rawInfo.id = 'pc-raw-info';
+  const rawFile = el('input');
+  rawFile.type = 'file';
+  rawFile.hidden = true;
+  rawFile.id = 'pc-raw-input';
+  stakeAct.append(stakeBtn, stakeFile, rawBtn, rawClear, rawFile, rawInfo);
   const g4 = el('div', 'grid3');
   g4.append(labelled('Az alaptérkép készítése', mapKindSel), labelled('Fekvés', areaSel), labelled('Alapértelmezett rendűség', orderSel));
   chk.append(
@@ -315,7 +378,14 @@ export function initParcelView(): void {
     gWork.append(labelled(label, i));
   }
   const workDetails = el('details', 'settings');
-  workDetails.append(el('summary', undefined, 'Munka adatai (adatigénylés, műszaki leírás, kérelem, jegyzőkönyv)'), gWork);
+  const owners = area('pc-owners', 4);
+  owners.placeholder = ['# név ; lakcím ; hrsz', 'Kiss Anna ; 1111 Kisváros, Fő u. 1. ; 124', 'Nagy Béla ; 1111 Kisváros, Fő u. 3. ; 125'].join('\n');
+  workDetails.append(
+    el('summary', undefined, 'Munka adatai (adatigénylés, műszaki leírás, kérelem, jegyzőkönyv)'),
+    gWork,
+    labelled('Tulajdonosok (név ; lakcím ; hrsz) – az értesítéshez és a helyszíni jegyzőkönyvhöz', owners),
+    el('p', 'hint', 'Az érintett földrészlet tulajdonosa az, akinek a hrsz-a a munka földrészletei között van; a többiek szomszédok. Tulajdonosonként külön értesítés készül.'),
+  );
   const jobAct = el('div', 'pane-actions');
   const printAllBtn = button('pc-print-all', 'Munkarészek nyomtatása', 'A munka összes szöveges munkarésze és rajza egy nyomtatásban (PDF-be menthető)');
   const zipBtn = button('pc-package', 'Leadandó csomag (.zip)', 'A munkarészek a leadott munkák mappaszerkezetében: vázrajz, vázlat, DAT, területszámítás, koordinátajegyzék, dokumentumok');
@@ -367,7 +437,8 @@ export function initParcelView(): void {
   const planSketchBtn = button('pc-plan-sketch', 'Mérési vázlat', 'A mérési vázlat nyomtatható oldala (10. melléklet)');
   const coordListBtn = button('pc-coordlist', 'Koordinátajegyzék (.txt)', 'A koordinátajegyzék csoportonként, számsorrendben (46. § (1) i))');
   const dxfBtn = button('pc-plan-dxf', 'DXF (földhivatali rétegek)', 'A változási vázrajz rajza DXF-ben, a földhivatali rajzok rétegrendjével');
-  plAct.append(planChangeBtn, planSketchBtn, dxfBtn, coordListBtn);
+  const planSiteBtn = button('pc-plan-site', 'Telekalakítási helyszínrajz', 'A telekalakítási helyszínrajz nyomtatható oldala (telekalakításnál)');
+  plAct.append(planChangeBtn, planSketchBtn, planSiteBtn, dxfBtn, coordListBtn);
   pl.append(
     g7,
     g8,
@@ -467,6 +538,8 @@ export function initParcelView(): void {
   drawing.value = saved.plan.drawing ?? '';
   jobSel.value = saved.job ?? 'subdivision';
   for (const [key] of WORK_FIELDS) workInputs.get(key)!.value = saved.work?.[key] ?? '';
+  owners.value = saved.owners ?? '';
+  let raw: { name: string; text: string } | null = saved.raw ?? null;
   fillScales(saved.scale);
 
   let division: { result: DivisionResult; sections: Section[] } | null = null;
@@ -523,6 +596,8 @@ export function initParcelView(): void {
       },
       job: jobSel.value as JobKind,
       work: Object.fromEntries(WORK_FIELDS.map(([k]) => [k, workInputs.get(k)!.value])),
+      owners: owners.value,
+      raw,
     };
     storage.set(KEY, JSON.stringify(state));
     fillParcels();
@@ -885,7 +960,9 @@ export function initParcelView(): void {
   };
   for (const [k, b] of toolBtns) b.addEventListener('click', () => setTool(k));
   setTool('none');
-  let planKind: 'change' | 'sketch' = 'change';
+  type PlanKind = 'change' | 'sketch' | 'site';
+  const PLAN_TITLES: Record<PlanKind, string> = { change: 'Változási vázrajz', sketch: 'Mérési vázlat', site: 'Telekalakítási helyszínrajz' };
+  let planKind: PlanKind = 'change';
   let planView: ReturnType<typeof renderPlan> | null = null;
   /** A Rajzelemek mező módosítása soronként, visszavonhatóan, majd a rajz frissítése. */
   const editDrawing = (fn: (lines: string[]) => string[]) => {
@@ -1003,11 +1080,13 @@ export function initParcelView(): void {
     });
   }
 
-  function showPlan(kind: 'change' | 'sketch', scroll = true): void {
+  function showPlan(kind: PlanKind, scroll = true): void {
     planKind = kind;
     const input = planInput();
     if (input.before.length + input.after.length === 0) return;
-    const r = renderPlan(kind, input, planMeta(), { template: kind === 'change' ? currentJob().plan : currentJob().sketch, job: currentJob().id, scale: planScale() });
+    const j = currentJob();
+    const template = kind === 'sketch' ? j.sketch : kind === 'site' ? (j.siteplan ?? j.plan) : j.plan;
+    const r = renderPlan(kind === 'sketch' ? 'sketch' : 'change', input, planMeta(), { template, job: j.id, scale: planScale() });
     planSvg = r.svg;
     planView = r;
     planBox.replaceChildren();
@@ -1015,7 +1094,7 @@ export function initParcelView(): void {
     const printBtn = button('pc-plan-print', 'Nyomtatás / PDF', 'A vázrajz nyomtatása vagy mentése PDF-be (A4 álló)');
     const svgBtn = button('pc-plan-svg', 'SVG mentése', 'A vázrajz mentése SVG rajzként');
     const closeBtn = button('pc-plan-close', 'Bezár', 'Az előnézet bezárása');
-    bar.append(el('span', 'hint', `${kind === 'change' ? 'Változási vázrajz' : 'Mérési vázlat'} – 1:${r.scale}${r.scale < r.autoScale ? ` (a rajz nem fér a keretbe, legalább 1:${r.autoScale} kell)` : ''}`), printBtn, svgBtn, closeBtn);
+    bar.append(el('span', 'hint', `${PLAN_TITLES[kind]} – 1:${r.scale}${r.scale < r.autoScale ? ` (a rajz nem fér a keretbe, legalább 1:${r.autoScale} kell)` : ''}`), printBtn, svgBtn, closeBtn);
     const holder = el('div', 'plan-page');
     holder.innerHTML = r.svg;
     const scroller = el('div', 'plan-scroll');
@@ -1157,6 +1236,10 @@ export function initParcelView(): void {
       hely: m.hely,
       datum: m.datum,
       adatallomany: buildDat()?.name ?? '',
+      telefon: w('telefon'),
+      helyszin: w('helyszin'),
+      vegzok: w('vegzok'),
+      tulajdonosok: owners.value,
     };
   }
 
@@ -1195,8 +1278,22 @@ export function initParcelView(): void {
           scale: scaleSel.value,
         })
       : null;
+    const work = workData();
+    const site = j.siteplan ? renderPlan('change', input, meta, { template: j.siteplan, job: j.id, scale: planScale() }) : null;
+    const cl = coordinateList(list);
+    // kitűzött pontok: a mért pontok közül azok, amelyeknek van nyilvántartott (terv) koordinátája
+    const staked: StakedPoint[] = [...parseMeasured(measured.value).points.values()]
+      .filter((m) => pts.has(m.id))
+      .map((m) => ({ id: m.id, planY: pts.get(m.id)!.y, planX: pts.get(m.id)!.x, y: m.y, x: m.x }));
     return {
-      work: workData(),
+      work,
+      siteplan: site && j.siteplan ? { svg: site.svg, dxf: writeDxf(planEntities('change', input, site.scale, { template: j.siteplan, job: j.id }), site.scale) } : undefined,
+      coordSections: cl.sections,
+      addressSections: addr.length > 0 ? [addressSection(addr)] : undefined,
+      raw: raw ?? undefined,
+      record: raw ? measurementRecord(work, recordRows(raw), raw.name, formatDms) : undefined,
+      staked: j.id === 'setout' ? staked : undefined,
+      buildingArea: j.id === 'building' ? buildingAreaText(input.drawing ?? []) : undefined,
       plan: { svg: plan.svg, dxf: writeDxf(planEntities('change', input, plan.scale, { template: j.plan, job: j.id }), plan.scale) },
       sketch: { svg: sketch.svg, dxf: writeDxf(planEntities('sketch', input, sketch.scale, { template: j.sketch, job: j.id }), sketch.scale) },
       dat: j.id === 'setout' ? undefined : buildDat()?.text,
@@ -1408,12 +1505,46 @@ export function initParcelView(): void {
   datSaveBtn.addEventListener('click', saveDat);
   planChangeBtn.addEventListener('click', () => showPlan('change'));
   planSketchBtn.addEventListener('click', () => showPlan('sketch'));
+  planSiteBtn.addEventListener('click', () => showPlan('site'));
+  const syncJobButtons = () => {
+    planSiteBtn.hidden = !currentJob().siteplan;
+  };
+  syncJobButtons();
+  owners.addEventListener('input', run);
+  const showRaw = () => {
+    rawInfo.textContent = raw ? `Nyers mérés: ${raw.name} – ${recordRows(raw).filter((r) => r.kind === 'station').length} álláspont, ${recordRows(raw).filter((r) => r.kind === 'obs').length} mérés.` : '';
+    rawClear.hidden = !raw;
+  };
+  rawBtn.addEventListener('click', () => rawFile.click());
+  rawFile.addEventListener('change', async () => {
+    const f = rawFile.files?.[0];
+    rawFile.value = '';
+    if (!f) return;
+    const text = await readText(f);
+    const fmt = detectFieldFormat(text);
+    if (!fmt) {
+      datNotes = [{ level: 'error', message: `Nyers mérés: ${f.name} – ismeretlen formátum (FOIF MES, Leica GSI, GeoCalc AR, Sokkia SDR, Topcon GTS-7, RW5, Geodimeter).` }];
+      run();
+      return;
+    }
+    raw = { name: f.name, text };
+    datNotes = [{ level: 'info', message: `Nyers mérés: ${f.name} – a mérési jegyzőkönyv a csomagba kerül.` }];
+    showRaw();
+    run();
+  });
+  rawClear.addEventListener('click', () => {
+    raw = null;
+    showRaw();
+    run();
+  });
+  showRaw();
   coordListBtn.addEventListener('click', saveCoordList);
   jobSel.addEventListener('change', () => {
     // A vázrajz megnevezése a munka fajtája szerint (ha nem írták át).
     const names = JOB_LIST.map((j) => j.name);
     if (!plMegnev.value.trim() || names.includes(plMegnev.value.trim()) || plMegnev.value === DEFAULTS.plan.megnevezes) plMegnev.value = currentJob().name;
     feeKind.value = currentJob().fee;
+    syncJobButtons();
     run();
   });
   for (const i of workInputs.values()) i.addEventListener('input', run);

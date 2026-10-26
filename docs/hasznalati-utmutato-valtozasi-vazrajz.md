@@ -9,6 +9,10 @@ A munkalap bal oldalán adod meg az adatokat, a jobb oldalon azonnal megjelenik 
 vázlat és az esetleges hibaüzenet. Minden beírt adatot a böngésző megjegyez, így a munka a következő
 megnyitáskor is megvan.
 
+> **Először használod?** A [Lépésről lépésre](lepesrol-lepesre.md) útmutató példákkal végigvezet a
+> kitűzésen, a telekalakításon, az épületfeltüntetésen és a művelési ág változáson – többek között azon
+> is, hogyan nevezd el a pontokat a terepen.
+
 ---
 
 ## 1. A munka menete röviden
@@ -113,6 +117,12 @@ Itt veti össze a program a mért pontokat a nyilvántartás koordinátáival.
 - **Mért pontok (pontszám, Y, X [, R1–R4])** – a pontszám egyezzen a koordináták azonos pontjáéval.
   A sor végén pontonként más rendűség is megadható.
 - **Kitűzési jegyzőkönyv (.txt)…** – a kitűzött pontok jegyzékét a mért pontok közé tölti.
+  Kitűzésnél ezekből készül a csomag **kitűzési jegyzőkönyve** (terv és kitűzött koordináta, eltérés).
+- **Nyers mérés (.MES, GSI…)…** – a műszer nyers mérési állománya (FOIF MES, Leica GSI, GeoCalc,
+  Sokkia SDR, Topcon, RW5, Geodimeter). Ebből készül a **mérési jegyzőkönyv** álláspontonként (Hz, Zi,
+  Tf, Tv, Mj, jelleg, Tvet, dM), és az eredeti fájl is a csomagba kerül. A vetületi távolságot az
+  *Adatrögzítő / Beállítások* szerint számolja. A zenitszöget I. távcsőállásra számítva írja ki.
+  A **Nyers mérés törlése** gomb elhagyja.
 
 A program pontonként és a mindkét végén mért határvonalak hosszára is kiírja az eltérést és azt, hogy
 belefér-e a hibahatárba. A mérési vázlaton a mért pontok zölden jelennek meg.
@@ -136,9 +146,14 @@ Ettől függ a vázrajz és a vázlat felirata, a tárgymondat, a lábrész zár
 leadandó csomag mappái.
 
 A **Munka adatai** lenyitható részben adhatók meg a dokumentumokhoz szükséges adatok: megbízó neve
-és címe, kormányhivatal, ügyfélkód, okmány, statisztikai számjel, e-mail, mérőműszer és gyári szám,
-minőségtanúsító, a határpontok megjelölése, a munkavégzés időpontja, a szomszédos hrsz-ek és egyéb
-feljegyzés.
+és címe, kormányhivatal, ügyfélkód, okmány, statisztikai számjel, e-mail, telefonszám, mérőműszer és
+gyári szám, minőségtanúsító, a határpontok megjelölése, a munkavégzés időpontja és helyszíne (cím), a
+szomszédos hrsz-ek, a munkát végzők és egyéb feljegyzés.
+
+A **Tulajdonosok** mezőbe soronként `név ; lakcím ; hrsz` kerül. Akinek a hrsz-a a munka
+földrészletei között van, az az érintett tulajdonos, a többiek szomszédok. Tulajdonosonként külön
+**értesítés** készül (a 8/2018. AM rendelet 6. § (4) szerint), és kitűzésnél a **helyszíni
+jegyzőkönyvbe** is bekerülnek a nevek.
 
 ---
 
@@ -183,6 +198,7 @@ Megjegyzések:
 |---|---|
 | **Változási vázrajz** | A vázrajz nyomtatható előnézete (15., 17., 19., 28. melléklet a munka fajtája szerint). |
 | **Mérési vázlat** | A mérési vázlat előnézete a 11. melléklet színeivel (mért: zöld, új / kitűzési: piros, átvett: kék). |
+| **Telekalakítási helyszínrajz** | Csak telekalakításnál: a telekalakítási helyszínrajz az új határ méreteivel és a „A helyrajzi számozás és a területszámítás helyes…” záradék helyével. |
 | **DXF (földhivatali rétegek)** | A vázrajz rajza DXF-ben, a földhivatali rétegrenddel. |
 | **Koordinátajegyzék (.txt)** | A pontok csoportonként, számsorrendben. |
 

@@ -1358,8 +1358,9 @@ async function main() {
   await check('kitűzésnél a rajz KITŰZÉSI VÁZRAJZ a 43. § (3) szerinti felirattal (28. melléklet)', `(() => { const t = document.querySelector('#pc-plan svg').textContent; return t.includes('KITŰZÉSI VÁZRAJZ') && t.includes('határpontjait') && t.includes('Nyilvántartásba véve:'); })()`, true);
   await evalJs(`(() => { const j = document.getElementById('pc-job'); j.value = 'subdivision'; j.dispatchEvent(new Event('change')); document.getElementById('pc-package').click(); return true; })()`);
   await sleep(900);
-  await check('a leadandó csomag elkészül (telekalakítás: 8 mappa)', `(() => { const t = document.getElementById('pc-issues').textContent; return t.includes('_subdivision.zip') && t.includes('(8 mappa)'); })()`, true);
+  await check('a leadandó csomag elkészül (telekalakítás: 9 mappa)', `(() => { const t = document.getElementById('pc-issues').textContent; return t.includes('_subdivision.zip') && t.includes('(9 mappa)'); })()`, true);
   checkNode('a csomag ZIP-je letöltődik', readdirSync(DL).some((n) => /_subdivision\.zip$/.test(n)), true);
+  await check('telekalakításnál van telekalakítási helyszínrajz', `(() => { const b = document.getElementById('pc-plan-site'); if (b.hidden) return false; b.click(); return document.querySelector('#pc-plan svg').textContent.includes('TELEKALAKÍTÁSI HELYSZÍNRAJZ') && document.querySelector('#pc-plan svg').textContent.includes('A helyrajzi számozás és a területszámítás helyes.'); })()`, true);
   await evalJs(`document.getElementById('pc-plan-close').click()`);
 
   // Igazgatási szolgáltatási díjak (1/2024. KTM): a minta 2 → 2 földrészlete telekfelosztásként.

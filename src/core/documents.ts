@@ -1,4 +1,5 @@
 import { JOBS, type JobKind } from './jobs';
+import type { Section } from './types';
 
 /**
  * A leadandó szöveges munkarészek A4-es, nyomtatható HTML oldalként, a 8/2018. (VI. 29.) AM rendelet
@@ -48,7 +49,41 @@ export interface WorkData {
   datum: string;
   /** A leadott adatállomány neve (DAT). */
   adatallomany: string;
+  /** Telefonszám az értesítésen. */
+  telefon?: string;
+  /** A munkavégzés helyszíne (cím), az értesítésen. */
+  helyszin?: string;
+  /** A munkát végzők (név, földmérő ig. sz.), az értesítésen; üresen a készítő. */
+  vegzok?: string;
+  /** Az érintett és a szomszédos tulajdonosok soronként: név ; lakcím ; hrsz. */
+  tulajdonosok?: string;
 }
+
+export interface Owner {
+  name: string;
+  address: string;
+  hrsz: string;
+}
+
+/** A tulajdonosok sorai („név ; lakcím ; hrsz”, # után megjegyzés). */
+export function parseOwners(text: string | undefined): Owner[] {
+  return (text ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/#.*/, '').trim())
+    .filter(Boolean)
+    .map((l) => {
+      const [name = '', address = '', hrsz = ''] = l.split(';').map((s) => s.trim());
+      return { name, address, hrsz };
+    })
+    .filter((o) => o.name !== '');
+}
+
+/** A munkával érintett földrészlet tulajdonosai, illetve a szomszédosak (a hrsz szerint). */
+const ownersOf = (w: WorkData) => {
+  const all = parseOwners(w.tulajdonosok);
+  const own = new Set(w.hrsz);
+  return { main: all.filter((o) => own.has(o.hrsz)), neighbours: all.filter((o) => !own.has(o.hrsz)) };
+};
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const dots = (s: string, n = 30) => (s.trim() ? esc(s) : '.'.repeat(n));
@@ -70,6 +105,10 @@ th { background: #f0f0f0; width: 42%; font-weight: normal; }
 .sign div { width: 45%; border-top: 0.2mm dotted #000; text-align: center; font-size: 9pt; padding-top: 1mm; }
 .note { font-size: 9pt; margin-top: 4mm; }
 .empty td { height: 7mm; }
+table.grid th { width: auto; text-align: center; font-size: 9pt; }
+table.grid td { font-size: 9pt; padding: 0.8mm 1.5mm; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; }
+h1 small { font-size: 11pt; font-weight: normal; letter-spacing: 0; }
 `;
 
 function header(w: WorkData, title: string): string {
@@ -196,42 +235,170 @@ export function clauseRequest(w: WorkData): string {
 
 /** 25. melléklet: helyszíni jegyzőkönyv a földrészlet kitűzéséről. */
 export function setoutMinutes(w: WorkData): string {
-  const decl = '„A kitűzés jelenlétemben megtörtént, a kitűzött határpontokat elfogadom – nem fogadom el.”';
-  const neighbours = w.szomszedok
-    .split(/[,;]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const decl = 'A kitűzés jelenlétemben megtörtént, a kitűzött határpontokat elfogadom* – nem fogadom el*.';
+  const { main, neighbours } = ownersOf(w);
+  // a szomszédok a tulajdonosok közül, különben a „Szomszédos hrsz-ek” mezőből
+  const others = neighbours.length > 0
+    ? neighbours.map((o) => `${esc(o.name)}${o.hrsz ? ` (${esc(o.hrsz)} hrsz.)` : ''}`)
+    : w.szomszedok
+        .split(/[,;]/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((h) => `${esc(h)} hrsz.`);
+  const dotted = `<p>${'.'.repeat(150)}</p>`;
   return (
-    `<div class="page">${header(w, `HELYSZÍNI JEGYZŐKÖNYV a ${esc(hrszList(w))} hrsz.-ú földrészlet(ek) kitűzéséről`)}` +
-    `<table>${row('Megbízó neve és lakcíme', `${dots(w.megbizo)}${w.megbizoCim ? `, ${esc(w.megbizoCim)}` : ''}`)}</table>` +
-    `<h2>A kitűzött földrészlet tulajdonosának nyilatkozata</h2><p>${decl}</p>` +
-    signLine('tulajdonos', 'tulajdonos') +
-    `<h2>A szomszédos ingatlanok tulajdonosainak nyilatkozata</h2><p>${decl}</p>` +
-    (neighbours.length > 0 ? neighbours : ['', '']).map((h) => `<p>${h ? `${esc(h)} hrsz.:` : 'hrsz.: ............'}</p>${signLine('tulajdonos', 'tulajdonos')}`).join('') +
-    `<p>Kelt: ${esc(w.telepules)}, ${dots(w.idopont || w.datum)}</p>` +
-    signLine(`készítő (${esc(w.keszito)}, ig. sz.: ${esc(w.igazolvany)})`, `ingatlanrendező földmérő minősítés: ${esc(w.minosites)}`) +
+    `<div class="page">${header(w, `HELYSZÍNI JEGYZŐKÖNYV<br><small>a ${esc(hrszList(w))} helyrajzi számú földrészlet kitűzéséről</small>`)}` +
+    `<table>${row('A megbízó neve és lakcíme', `${dots(w.megbizo)}${w.megbizoCim ? `, ${esc(w.megbizoCim)}` : ''}`)}` +
+    `${row('A kitűzött földrészlet tulajdonosa (képviselője)', main.length > 0 ? main.map((o) => esc(o.name)).join(', ') : dots(''))}</table>` +
+    `<h2>Nyilatkozatok</h2><p><b>A kitűzött földrészlet tulajdonosának nyilatkozata:</b></p><p>${decl}</p>` +
+    signLine('', 'a földrészlet tulajdonosának aláírása') +
+    `<p><b>A kitűzéssel érintett földrészlettel szomszédos ingatlanok tulajdonosainak – kitűzéssel kapcsolatos – nyilatkozatai:</b></p>` +
+    (others.length > 0 ? others : ['', '']).map((o) => `<p>${o ? `${o}: ` : ''}${decl}</p>${signLine('', 'a szomszédos ingatlan tulajdonosának aláírása')}`).join('') +
+    `<h2>A földmérési munkára vonatkozó egyéb nyilatkozatok és megállapítások</h2>${dotted.repeat(4)}` +
+    `<p class="note">* A megfelelő rész aláhúzandó!</p>` +
+    `<p>${esc(w.telepules)}, ${dots(w.idopont || w.datum)}</p>` +
+    signLine(`készítő: ${esc(w.keszito)}, földmérő ig. száma: ${dots(w.igazolvany, 10)}`, `ing. rend. min. sz.: ${dots(w.minosites, 10)}`) +
     `</div>`
   );
 }
 
-/** Értesítés a munkavégzésről az érintett és a szomszédos tulajdonosoknak (Fttv. 24. § (1), 8/2018. AM r. 6. § (4)). */
+/**
+ * Értesítés a munkavégzésről (Fttv. 24. § (1), 8/2018. AM rendelet 6. § (4)): tulajdonosonként egy
+ * oldal, a címzettel; ha nincs megadva tulajdonos, egy általános „Tisztelt Tulajdonos!” levél.
+ */
 export function workNotice(w: WorkData): string {
+  const setout = w.job === 'setout';
+  const all = parseOwners(w.tulajdonosok);
+  const recipients: (Owner | null)[] = all.length > 0 ? all : [null];
+  const workers = w.vegzok?.trim() || `${w.keszito} (földmérő igazolvány szám: ${w.igazolvany || '…'})`;
+  const what = setout
+    ? `a(z) ${esc(w.telepules)}, ${esc(hrszList(w))} helyrajzi szám alatt nyilvántartott földrészlet határpontjainak kitűzési munkálatait elvégezzük`
+    : `a(z) ${esc(w.telepules)}, ${esc(hrszList(w))} helyrajzi számú földrészlet(ek)en ${esc(JOBS[w.job].label.toLowerCase())} céljából földmérési munkát végzünk`;
+  return recipients
+    .map(
+      (o) =>
+        `<div class="page">` +
+        `<table>${row('Címzett', o ? `${esc(o.name)}${o.address ? `, ${esc(o.address)}` : ''}` : dots(''))}${row('Küldő', `${esc(w.keszito)}${w.szekhely ? `, ${esc(w.szekhely)}` : ''}`)}</table>` +
+        `<h1>ÉRTESÍTÉS<br><small>${setout ? 'a kitűzési munkavégzésről' : 'földmérési munkavégzésről'} (8/2018. (VI. 29.) AM rendelet 6. § (4) bek.)</small></h1>` +
+        `<p>Tisztelt ${o ? esc(o.name) : 'Tulajdonos'}!</p>` +
+        `<p>Ezúton értesítjük, hogy ${what}.</p>` +
+        `<table>${row('A munkavégzés időpontja', dots(w.idopont))}${row('Helyszíne', w.helyszin?.trim() ? esc(w.helyszin) : `${esc(w.telepules)}, ${esc(hrszList(w))} hrsz.`)}${row('Megbízó', dots(w.megbizo))}</table>` +
+        `<p>A munkát a 8/2018. (VI. 29.) AM rendelet 6. § (4) bekezdése alapján végezzük, amely előírja, hogy a ${setout ? 'kitűzési munkálatokról' : 'földmérési munkálatokról'} az érintett tulajdonosokat, illetve jogosultakat előzetesen, igazolható módon értesíteni kell.</p>` +
+        `<p>A ${setout ? 'kitűzést' : 'munkát'} ${esc(workers)} végzi.${setout ? ' Kérjük szíves jelenlétét, hogy a kitűzött határpontokat megtekinthesse és nyilatkozhasson.' : ''}</p>` +
+        `<p>Amennyiben kérdése vagy észrevétele van a ${setout ? 'kitűzéssel' : 'munkával'} kapcsolatban, kérjük, vegye fel velünk a kapcsolatot az alábbi elérhetőségeken:</p>` +
+        `<table>${row('E-mail', dots(w.email, 20))}${row('Telefon', dots(w.telefon ?? '', 20))}</table>` +
+        `<p>Kelt: ${esc(w.hely)} ${esc(w.datum)}</p>` +
+        signLine('', `aláírás (${esc(w.keszito)})`) +
+        `</div>`,
+    )
+    .join('');
+}
+
+/** A kitűzött pont: a tervezett (nyilvántartott) és a kitűzött (bemért) koordináta. */
+export interface StakedPoint {
+  id: string;
+  planY: number;
+  planX: number;
+  y: number;
+  x: number;
+}
+
+/** Kitűzési jegyzőkönyv: a tervezett és a kitűzött koordináták, az eltérések. */
+export function setoutReport(w: WorkData, pts: StakedPoint[]): string {
+  const f = (n: number, d = 3) => n.toFixed(d);
+  const rows = pts
+    .map((p) => {
+      const dy = p.y - p.planY;
+      const dx = p.x - p.planX;
+      return `<tr><td>${esc(p.id)}</td><td class="n">${f(p.planY, 2)}</td><td class="n">${f(p.planX, 2)}</td><td class="n">${f(p.y)}</td><td class="n">${f(p.x)}</td><td class="n">${f(dy)}</td><td class="n">${f(dx)}</td><td class="n">${f(Math.hypot(dy, dx))}</td></tr>`;
+    })
+    .join('');
+  const max = pts.reduce((m, p) => Math.max(m, Math.hypot(p.y - p.planY, p.x - p.planX)), 0);
   return (
-    `<div class="page">${header(w, 'ÉRTESÍTÉS FÖLDMÉRÉSI MUNKAVÉGZÉSRŐL')}` +
-    `<p>Tisztelt Tulajdonos!</p>` +
-    `<p>Értesítem, hogy a(z) ${esc(w.telepules)} ${esc(hrszList(w))} helyrajzi számú földrészlet(ek)en ${esc(JOBS[w.job].label.toLowerCase())} céljából földmérési munkát végzek.</p>` +
-    `<table>${row('A munkavégzés időpontja', dots(w.idopont))}${row('A munkavégzés helye', `${esc(w.telepules)}, ${esc(hrszList(w))} hrsz.`)}${row('Megbízó', dots(w.megbizo))}${row('A munkát végző földmérő', `${esc(w.keszito)}, földmérő ig. sz.: ${esc(w.igazolvany)}`)}${row('Elérhetőség', `${esc(w.szekhely)}${w.email ? `, ${esc(w.email)}` : ''}`)}</table>` +
-    `<p>A kitűzésnél kérem szíves jelenlétét, hogy a kitűzött határpontokat megtekinthesse és nyilatkozhasson.</p>` +
-    `<p>Kelt: ${esc(w.hely)} ${esc(w.datum)}</p>` +
-    signLine('', `${esc(w.keszito)}`) +
+    `<div class="page">${header(w, `KITŰZÉSI JEGYZŐKÖNYV<br><small>a ${esc(hrszList(w))} helyrajzi számú földrészlet kitűzéséről</small>`)}` +
+    `<table>${row('A kitűzés időpontja', dots(w.idopont || w.datum))}${row('Mérőműszer típusa, gyári száma', `${dots(w.muszer)} &nbsp; ${esc(w.gyariszam)}`)}${row('A kitűzött pontok megjelölése', dots(w.megjeloles))}</table>` +
+    `<table class="grid"><tr><th>Pontszám</th><th>Terv Y [m]</th><th>Terv X [m]</th><th>Kitűzött Y [m]</th><th>Kitűzött X [m]</th><th>dY [m]</th><th>dX [m]</th><th>Eltérés [m]</th></tr>${rows || '<tr><td colspan="8">Nincs kitűzött pont.</td></tr>'}</table>` +
+    `<p>Kitűzött pontok száma: ${pts.length}; a legnagyobb eltérés: ${f(max)} m. Eltérés = kitűzött − terv.</p>` +
+    `<p>${esc(w.hely)} ${esc(w.datum)}</p>` +
+    signLine(`készítő: ${esc(w.keszito)}, földmérő ig. száma: ${dots(w.igazolvany, 10)}`, '') +
     `</div>`
   );
 }
 
-/** Tartalomjegyzék a csomag mappái szerint. */
-export function tableOfContents(w: WorkData): string {
-  const items = JOBS[w.job].folders.map((f) => `<tr><td>${esc(f.replace(/^(\d+)_/, '$1. '))}</td></tr>`).join('');
-  return `<div class="page">${header(w, 'TARTALOMJEGYZÉK')}<table>${items}</table></div>`;
+/** A mérési jegyzőkönyv egy sora (a nyers mérésből: Hz, Zi fokban, a távolságok méterben). */
+export interface RecordRow {
+  kind: 'station' | 'obs';
+  id: string;
+  hz: number | null;
+  zi: number | null;
+  tf: number | null;
+  tv: number | null;
+  mj: number | null;
+  mm: number | null;
+  code: string;
+  tvet: number | null;
+  dm: number | null;
+}
+
+/** Mérési jegyzőkönyv a nyers mérésből: álláspontonként a mért irányok és távolságok. */
+export function measurementRecord(w: WorkData, rows: RecordRow[], source: string, formatAngle: (deg: number) => string): string {
+  const a = (n: number | null) => (n === null ? '' : formatAngle(n));
+  const d = (n: number | null, k = 3) => (n === null ? '' : n.toFixed(k));
+  const blocks: string[] = [];
+  let cur: string[] | null = null;
+  let head = '';
+  const flush = () => {
+    if (cur) blocks.push(`<h2>${head}</h2><table class="grid"><tr><th>Psz</th><th>Hz</th><th>Zi</th><th>Tf</th><th>Tv</th><th>Mj</th><th>Jelleg</th><th>Tvet</th><th>dM</th></tr>${cur.join('')}</table>`);
+  };
+  for (const r of rows) {
+    if (r.kind === 'station') {
+      flush();
+      cur = [];
+      head = `Álláspont: ${esc(r.id)} (műszermagasság = ${d(r.mm)})`;
+    } else {
+      if (!cur) {
+        cur = [];
+        head = 'Álláspont: –';
+      }
+      cur.push(`<tr><td>${esc(r.id)}</td><td class="n">${a(r.hz)}</td><td class="n">${a(r.zi)}</td><td class="n">${d(r.tf)}</td><td class="n">${d(r.tv)}</td><td class="n">${d(r.mj)}</td><td>${esc(r.code)}</td><td class="n">${d(r.tvet)}</td><td class="n">${d(r.dm)}</td></tr>`);
+    }
+  }
+  flush();
+  return (
+    `<div class="page">${header(w, `MÉRÉSI JEGYZŐKÖNYV${w.job === 'setout' ? ' KITŰZÉSRŐL' : ''}`)}` +
+    `<table>${row('Vetület', 'EOV')}${row('Magasság', 'Balti')}${row('Mérőeszköz típusa, száma', `${dots(w.muszer)} &nbsp; ${esc(w.gyariszam)}`)}${row('Nyers mérés', esc(source))}</table>` +
+    (blocks.join('') || '<p>Nincs beolvasott nyers mérés.</p>') +
+    `<p class="note">Hz, Zi: fok-perc-másodperc; Tf: ferde, Tv: vízszintes, Tvet: vetületi távolság; Mj: jelmagasság; dM: magasságkülönbség [m].</p>` +
+    signLine(`készítő: ${esc(w.keszito)}`, '') +
+    `</div>`
+  );
+}
+
+/** Táblázatos munkarész (koordinátajegyzék, címkoordináták, területszámítás) nyomtatható oldalon. */
+export function sectionsPage(w: WorkData, title: string, sections: Section[]): string {
+  const tables = sections
+    .map(
+      (s) =>
+        `<h2>${esc(s.title)}</h2><table class="grid"><tr>${s.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>` +
+        s.rows.map((r) => `<tr>${r.cells.map((c) => `<td${/^-?[\d.]+$/.test(c) ? ' class="n"' : ''}>${esc(c)}</td>`).join('')}</tr>`).join('') +
+        `</table>${(s.footer ?? []).map((t) => `<p class="note">${esc(t)}</p>`).join('')}`,
+    )
+    .join('');
+  return `<div class="page">${header(w, esc(title))}${tables}<p>${esc(w.hely)} ${esc(w.datum)}</p>${signLine(`készítő: ${esc(w.keszito)}`, '')}</div>`;
+}
+
+/** Tartalomjegyzék a csomag mappái szerint, mappánként az adatállományok nevével. */
+export function tableOfContents(w: WorkData, files: Record<string, string[]> = {}): string {
+  const items = JOBS[w.job].folders
+    .map((f) => {
+      const [, no, name] = /^(\d+)_(.*)$/.exec(f) ?? [f, '', f];
+      return `<tr><td>${esc(no ?? '')}.</td><td>${esc(name ?? f)}</td><td>${(files[f] ?? []).map(esc).join('<br>')}</td></tr>`;
+    })
+    .join('');
+  return (
+    `<div class="page">${header(w, `TARTALOMJEGYZÉK<br><small>${esc(JOBS[w.job].label)} – ${esc(hrszList(w))} hrsz.</small>`)}` +
+    `<table class="grid"><tr><th>Fsz.</th><th>Munkarész megnevezése</th><th>Munkarész adatállományai</th></tr>${items}</table></div>`
+  );
 }
 
 /** Önálló HTML állomány egy vagy több oldallal (a csomagba és a nyomtatáshoz). */

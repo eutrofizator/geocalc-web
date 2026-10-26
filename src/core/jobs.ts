@@ -24,9 +24,10 @@ export type JobKind = 'setout' | 'subdivision' | 'building' | 'landuse';
  * - clause511 / clause512: az 51. § (1) / (2) szerinti záradék helye (J.H. székhelye, Záradékoló, P.H.);
  * - marked: „A kitűzött földrészlet határpontjait … jelöltem meg.” (43. § (3));
  * - newmarked: „A változással érintett földrészlet új határpontjait …-val jelöltem meg.”;
- * - register: „Nyilvántartásba véve:” (kitűzés, Vizsgáló, P.H.).
+ * - register: „Nyilvántartásba véve:” (kitűzés, Vizsgáló, P.H.);
+ * - siteclause: a telekalakítási helyszínrajz záradéka („A helyrajzi számozás és a területszámítás helyes…”).
  */
-export type FooterItem = 'sign' | 'place' | 'maker' | 'cert' | 'makercert' | 'taken' | 'optional' | 'soil' | 'clause511' | 'clause512' | 'marked' | 'newmarked' | 'register';
+export type FooterItem = 'sign' | 'place' | 'maker' | 'cert' | 'makercert' | 'taken' | 'optional' | 'soil' | 'clause511' | 'clause512' | 'marked' | 'newmarked' | 'register' | 'siteclause';
 
 export interface PlanTemplate {
   /** A rajz felirata. */
@@ -52,6 +53,8 @@ export interface JobDef {
   name: string;
   plan: PlanTemplate;
   sketch: PlanTemplate;
+  /** Telekalakítási helyszínrajz (a telekalakítási eljáráshoz). */
+  siteplan?: PlanTemplate;
   fee: ChangeKind;
   /** A leadandó munkarészek mappái a csomagban, sorrendben. */
   folders: string[];
@@ -92,16 +95,18 @@ export const JOBS: Record<JobKind, JobDef> = {
     plan: { title: 'VÁLTOZÁSI VÁZRAJZ', subject: 'subdivision', left: ['sign', 'place', 'maker', 'cert'], right: ['optional', 'soil', 'clause511'], notForMeasure: NOT_FOR_MEASURE, areaTable: 'full', dimensions: false, colored: false },
     // 10/A. minta
     sketch: { title: 'MÉRÉSI VÁZLAT', subject: 'subdivision', left: ['place', 'taken', 'maker'], right: ['newmarked', 'cert'], notForMeasure: '', areaTable: null, dimensions: true, colored: true },
+    siteplan: { title: 'TELEKALAKÍTÁSI HELYSZÍNRAJZ', subject: 'subdivision', left: ['sign', 'place', 'makercert'], right: ['optional', 'soil', 'siteclause'], notForMeasure: NOT_FOR_MEASURE, areaTable: null, dimensions: true, colored: false },
     fee: 'subdivision',
     folders: [
       '01_Adatigénylő lap',
       '02_Változási vázrajz',
       '03_Mérési vázlat',
-      '04_Koordináta jegyzék',
-      '05_Területszámítás',
-      '06_DAT állomány',
-      '07_Műszaki leírás',
-      '08_Záradékolási kérelem',
+      '04_Telekalakítási helyszínrajz',
+      '05_Koordináta jegyzék',
+      '06_Területszámítás',
+      '07_DAT állomány',
+      '08_Műszaki leírás',
+      '09_Záradékolási kérelem',
     ],
   },
   building: {

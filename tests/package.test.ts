@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clauseRequest, dataRequest, setoutMinutes, technicalReport, workNotice, type WorkData } from '../src/core/documents';
+import { clauseRequest, dataRequest, measurementRecord, parseOwners, setoutMinutes, setoutReport, technicalReport, workNotice, type RecordRow, type WorkData } from '../src/core/documents';
 import { JOBS, type JobKind } from '../src/core/jobs';
 import { decodeText, readZip } from '../src/core/land-office';
 import { buildPackage, printAll, type PackageParts } from '../src/core/package';
@@ -49,6 +49,11 @@ const parts = (job: JobKind): PackageParts => ({
   addressList: '123/1\tC1\t650000\t240000\t5411',
   measured: '101 650000 240000',
   subList: '123/1\ta\tkivett\t600',
+  siteplan: job === 'subdivision' ? { svg: '<svg>HELYSZÍNRAJZ</svg>', dxf: '0\r\nEOF\r\n' } : undefined,
+  coordSections: [{ kind: 'coord-list-detail', title: 'Koordinátajegyzék', columns: ['Pontszám', 'Y [m]', 'X [m]'], rows: [{ cells: ['101', '650000.00', '240000.00'], role: 'result' }] }],
+  raw: { name: 'proba.MES', text: 'A,1\r\n' },
+  record: '<div class="page">MÉRÉSI JEGYZŐKÖNYV</div>',
+  staked: [{ id: '101', planY: 650000, planX: 240000, y: 650000.02, x: 240000.01 }],
 });
 
 describe('dokumentumok', () => {
@@ -66,9 +71,44 @@ describe('dokumentumok', () => {
     expect(clauseRequest(work('building'))).toContain('Tisztelt Minta Vármegyei Kormányhivatal!');
     expect(clauseRequest(work('building'))).toContain('épület feltüntetésével összefüggő változási vázrajz');
     const m = setoutMinutes(work('setout'));
-    expect(m).toContain('„A kitűzés jelenlétemben megtörtént, a kitűzött határpontokat elfogadom – nem fogadom el.”');
+    expect(m).toContain('A kitűzés jelenlétemben megtörtént, a kitűzött határpontokat elfogadom* – nem fogadom el*.');
     expect(m).toContain('122 hrsz.:');
+    expect(m).toContain('* A megfelelő rész aláhúzandó!');
     expect(workNotice(work('setout'))).toContain('2026.11.05. 9:00');
+  });
+
+  it('a tulajdonosok: a helyszíni jegyzőkönyvben név szerint, értesítés tulajdonosonként', () => {
+    const w = {
+      ...work('setout'),
+      hrsz: ['124'],
+      tulajdonosok: ['# név ; lakcím ; hrsz', 'Kiss Anna ; 1111 Kisváros, Fő u. 1. ; 124', 'Nagy Béla ; 1111 Kisváros, Fő u. 3. ; 125'].join('\n'),
+      helyszin: 'Kisváros, Fő u. 1.',
+      telefon: '+36 30 000 0000',
+    };
+    expect(parseOwners(w.tulajdonosok)).toEqual([
+      { name: 'Kiss Anna', address: '1111 Kisváros, Fő u. 1.', hrsz: '124' },
+      { name: 'Nagy Béla', address: '1111 Kisváros, Fő u. 3.', hrsz: '125' },
+    ]);
+    const m = setoutMinutes(w);
+    expect(m).toMatch(/A kitűzött földrészlet tulajdonosa \(képviselője\)<\/th><td>Kiss Anna</);
+    expect(m).toContain('Nagy Béla (125 hrsz.):');
+    const n = workNotice(w);
+    expect(n.match(/<div class="page">/g)).toHaveLength(2);
+    for (const s of ['Tisztelt Kiss Anna!', 'Tisztelt Nagy Béla!', '6. § (4)', 'Kisváros, Fő u. 1.', '+36 30 000 0000', 'kitűzési munkálatait elvégezzük']) expect(n).toContain(s);
+  });
+
+  it('kitűzési jegyzőkönyv: terv és kitűzött koordináta, eltérés', () => {
+    const h = setoutReport(work('setout'), [{ id: '105', planY: 650190.4, planX: 241242.05, y: 650190.43, x: 241242.01 }]);
+    for (const s of ['KITŰZÉSI JEGYZŐKÖNYV', '>105<', '>0.030<', '>-0.040<', '>0.050<', 'a legnagyobb eltérés: 0.050 m']) expect(h).toContain(s);
+  });
+
+  it('mérési jegyzőkönyv a nyers mérésből: álláspontonként', () => {
+    const rows: RecordRow[] = [
+      { kind: 'station', id: '1', hz: null, zi: null, tf: null, tv: null, mj: null, mm: 1.56, code: '', tvet: null, dm: null },
+      { kind: 'obs', id: '105', hz: 158.5, zi: 90.25, tf: 20.43, tv: 20.428, mj: 1.55, mm: null, code: 'HP', tvet: 20.427, dm: 0.056 },
+    ];
+    const h = measurementRecord(work('setout'), rows, 'proba.MES', (d) => d.toFixed(4));
+    for (const s of ['MÉRÉSI JEGYZŐKÖNYV KITŰZÉSRŐL', 'Álláspont: 1 (műszermagasság = 1.560)', '>158.5000<', '>20.428<', '>HP<', 'proba.MES', 'EOV']) expect(h).toContain(s);
   });
 });
 
@@ -81,9 +121,34 @@ describe('a leadandó csomag', () => {
       expect(files.every((f) => f.path.split('/')[1]!.startsWith('12_2026_'))).toBe(true);
     });
 
-  it('a telekalakítás csomagja: vázrajz (HTML, SVG, DXF), ve/vu.lst, DAT, dokumentumok', () => {
+  it('a telekalakítás csomagja: vázrajz (HTML, SVG, DXF), helyszínrajz, ve/vu.lst, DAT, dokumentumok', () => {
     const names = buildPackage(parts('subdivision')).map((f) => f.path);
-    for (const n of ['02_Változási vázrajz/12_2026_valtozasi_vazrajz.dxf', '05_Területszámítás/12_2026_ve.lst', '05_Területszámítás/12_2026_vu.lst', '06_DAT állomány/12_2026_DAT.dat', '08_Záradékolási kérelem/12_2026_zaradekolasi_kerelem.html'])
+    for (const n of [
+      '02_Változási vázrajz/12_2026_valtozasi_vazrajz.dxf',
+      '04_Telekalakítási helyszínrajz/12_2026_telekalakitasi_helyszinrajz.html',
+      '05_Koordináta jegyzék/12_2026_koordinatajegyzek.csv',
+      '05_Koordináta jegyzék/12_2026_koordinatajegyzek.html',
+      '06_Területszámítás/12_2026_ve.lst',
+      '06_Területszámítás/12_2026_vu.lst',
+      '07_DAT állomány/12_2026_DAT.dat',
+      '09_Záradékolási kérelem/12_2026_zaradekolasi_kerelem.html',
+    ])
+      expect(names).toContain(n);
+  });
+
+  it('a kitűzés csomagja: mérési és kitűzési jegyzőkönyv, nyers mérés, tartalomjegyzék az állománynevekkel', () => {
+    const files = buildPackage(parts('setout'));
+    const names = files.map((f) => f.path);
+    for (const n of ['05_Mérési jegyzőkönyv/12_2026_meresi_jegyzokonyv.html', '05_Mérési jegyzőkönyv/12_2026_proba.MES', '05_Mérési jegyzőkönyv/12_2026_kituzesi_jegyzokonyv.html', '11_Értesítés kitűzési munkavégzésről/12_2026_ertesites_kituzesrol.html'])
+      expect(names).toContain(n);
+    const toc = files.find((f) => f.path.endsWith('tartalomjegyzek.html'))!.data as string;
+    expect(toc).toContain('12_2026_kituzesi_vazrajz.dxf');
+    expect(toc).toContain('Munkarész adatállományai');
+  });
+
+  it('épületfeltüntetés: címkoordináta és koordinátajegyzék nyomtathatóan, az épület területe', () => {
+    const names = buildPackage({ ...parts('building'), buildingArea: 'Terület: 131.996 m²', addressSections: [{ kind: 'a', title: 'Címkoordináták', columns: ['Hrsz'], rows: [{ cells: ['123/1'], role: 'result' }] }] }).map((f) => f.path);
+    for (const n of ['05_Címkoordináta/12_2026_cimkoordinatak.html', '06_Ellenőrző területszámítás/12_2026_epulet_terulete.txt', '04_Koordinátajegyzék/12_2026_koordinatajegyzek.html'])
       expect(names).toContain(n);
   });
 

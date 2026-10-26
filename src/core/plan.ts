@@ -862,6 +862,15 @@ function footerSvg(out: string[], t: TextFn, items: FooterItem[], x: number, y0:
         t(x, y + 4, 'határpontjait ……………..-val jelöltem meg.', 2.8, it);
         y += 11;
         break;
+      case 'siteclause':
+        t(x, y, 'A helyrajzi számozás és a területszámítás helyes. Ez a záradék a', 2.6, it);
+        t(x, y + 4, 'keltezéstől számított egy évig hatályos.', 2.6, it);
+        t(x, y + 10, 'J.H. székhelye, 20…. ……………. hó ……… nap', 2.6, it);
+        t(x + 8, y + 16, 'P.H.', 2.6, it);
+        t(x + 26, y + 16, 'Záradékoló: …………………………………', 2.6, it);
+        t(x + 40, y + 20, 'Ing.rend.min.sz.: ………./………', 2.6, it);
+        y += 24;
+        break;
       case 'register':
         t(x, y, 'Nyilvántartásba véve:', 2.6, it);
         t(x, y + 6, 'J.H. székhelye, 20…. ……………. hó ……… nap', 2.6, it);
