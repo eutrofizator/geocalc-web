@@ -1,8 +1,9 @@
-import { encodeWindows1250, readDat, writeDat, type DatImport } from './core/dat';
+import { encodeWindows1250, readDat, writeDat, type DatImport, type DatParcel } from './core/dat';
 import { checkBoundary, type Area, type CheckOptions, type MapKind, type PointOrder } from './core/boundary-check';
 import { CHANGE_KINDS, feesSection, type ChangeKind } from './core/fees';
 import { sectionsToText } from './core/format';
 import { parseMeasured } from './core/boundary-check';
+import { mergePointLines, parseGnssText, splitByKnown } from './core/gnss';
 import { writeLst } from './core/lst';
 import { decodeText, mergeRegistered, readCadastralDxf, readRegisteredAreas, readZip, type CadastralMap, type RegisteredParcel } from './core/land-office';
 import { polygonArea } from './core/geometry';
@@ -293,6 +294,16 @@ export function initParcelView(): void {
   stakeFile.accept = '.txt,.csv,.koo,text/plain';
   stakeFile.hidden = true;
   stakeFile.id = 'pc-stake-input';
+  const gnssBtn = button(
+    'pc-gnss-open',
+    'GNSS pontok (.txt, .csv)…',
+    'A GNSS vevő koordináta-exportja: a már ismert pontszámúak (az 5001_01 alakú utótag nélkül) a mért pontok, az újak a koordináták közé kerülnek',
+  );
+  const gnssFile = el('input');
+  gnssFile.type = 'file';
+  gnssFile.accept = '.txt,.csv,.koo,.pkt,text/plain';
+  gnssFile.hidden = true;
+  gnssFile.id = 'pc-gnss-input';
   const stakeAct = el('div', 'pane-actions');
   const rawBtn = button('pc-raw-open', 'Nyers mérés (.MES, GSI…)…', 'A műszer nyers mérési állománya a mérési jegyzőkönyvhöz (FOIF MES, Leica GSI, GeoCalc AR, Sokkia SDR, Topcon, RW5)');
   const rawClear = button('pc-raw-clear', 'Nyers mérés törlése', 'A beolvasott nyers mérés elhagyása');
@@ -302,7 +313,7 @@ export function initParcelView(): void {
   rawFile.type = 'file';
   rawFile.hidden = true;
   rawFile.id = 'pc-raw-input';
-  stakeAct.append(stakeBtn, stakeFile, rawBtn, rawClear, rawFile, rawInfo);
+  stakeAct.append(gnssBtn, gnssFile, stakeBtn, stakeFile, rawBtn, rawClear, rawFile, rawInfo);
   const g4 = el('div', 'grid3');
   g4.append(labelled('Az alaptérkép készítése', mapKindSel), labelled('Fekvés', areaSel), labelled('Alapértelmezett rendűség', orderSel));
   chk.append(
@@ -493,7 +504,7 @@ export function initParcelView(): void {
   datFile.id = 'pc-dat-input';
   const officeFile = el('input');
   officeFile.type = 'file';
-  officeFile.accept = '.zip,.dxf,.txt,.DXF,.TXT,.ZIP';
+  officeFile.accept = '.zip,.dxf,.txt,.dat,.DXF,.TXT,.DAT,.ZIP';
   officeFile.multiple = true;
   officeFile.hidden = true;
   officeFile.id = 'pc-office-input';
@@ -648,55 +659,102 @@ export function initParcelView(): void {
   }
 
   async function openDat(f: File): Promise<void> {
-    const d = readDat(await readText(f));
-    datNotes = d.warnings.map((message) => ({
-      level: 'warning' as const,
-      message: `DAT: ${message}`,
-    }));
+    loadDat(f.name, readDat(await readText(f)));
+  }
+
+  /**
+   * A DAT betöltése a munkalapra. A földhivatali csomagban a munka tárgya (`subject`) a fő DAT
+   * földrészletei, a geometria a szomszédokat is tartalmazó DAT-ból jöhet; a tulajdoni lapi terület
+   * a földkönyvi kivonatból (`registered`), ha van.
+   */
+  function loadDat(name: string, d: DatImport, opts: { subject?: Set<string>; registered?: RegisteredParcel[]; notes?: Issue[] } = {}): void {
+    datNotes = [
+      ...(opts.notes ?? []),
+      ...d.warnings.map((message) => ({
+        level: 'warning' as const,
+        message: `DAT: ${message}`,
+      })),
+    ];
     if (d.parcels.length === 0) {
       datNotes.unshift({
         level: 'error',
-        message: `DAT: a(z) ${f.name} állományban nincs beolvasható földrészlet.`,
+        message: `DAT: a(z) ${name} állományban nincs beolvasható földrészlet.`,
       });
       run();
       return;
     }
-    dat = { name: f.name, data: d };
+    dat = { name, data: d };
+    const byId = new Map(d.points.map((q) => [q.id, q]));
+    const picked = opts.subject ? d.parcels.filter((p) => opts.subject!.has(p.hrsz)) : [];
+    const work = picked.length > 0 ? picked : d.parcels;
+    const workHrsz = new Set(work.map((p) => p.hrsz));
+    const rings = work.map((p) => p.ring.map((id) => byId.get(id)!));
+    const inWork = (ring: string[]) => {
+      const pts = ring.map((id) => byId.get(id)!);
+      const c = { y: pts.reduce((a, q) => a + q.y, 0) / pts.length, x: pts.reduce((a, q) => a + q.x, 0) / pts.length };
+      return rings.some((r) => {
+        let k = false;
+        for (let i = 0, j = r.length - 1; i < r.length; j = i++)
+          if (r[i]!.x > c.x !== r[j]!.x > c.x && c.y < ((r[j]!.y - r[i]!.y) * (c.x - r[i]!.x)) / (r[j]!.x - r[i]!.x) + r[i]!.y) k = !k;
+        return k;
+      });
+    };
+    const subs = d.subs.filter((x) => workHrsz.has(x.hrsz));
+    const buildings = d.buildings.filter((b) => inWork(b.ring));
     // A meglévő alrészletek és épületek rajzelemként (a munka a jelenlegi állapotból indul).
     {
       const typeOf = (code: string) => (code === 'CA01' ? 'lakó' : code === 'CA02' ? 'üdülő' : 'gazdasági');
       const lines = [
-        ...d.subs.map((x) => `alrészlet ; ${x.letter} ; ${landUseName(x.useCode) || 'kivett'} ; ${x.ring.join(' ')}`),
-        ...d.buildings.map((b) => `épület ; ${typeOf(b.code)} ; ${b.ring.join(' ')} ; ${b.code}`),
+        ...subs.map((x) => `alrészlet ; ${x.letter} ; ${landUseName(x.useCode) || 'kivett'} ; ${x.ring.join(' ')}`),
+        ...buildings.map((b) => `épület ; ${typeOf(b.code)} ; ${b.ring.join(' ')} ; ${b.code}`),
       ];
       if (lines.length > 0) drawing.value = ['# a DAT meglévő alrészletei és épületei', ...lines].join('\n');
     }
-    {
-      const byId = new Map(d.points.map((q) => [q.id, q]));
-      background = {
-        parcels: d.parcels.map((q) => ({ hrsz: q.hrsz, ring: q.ring.map((id) => byId.get(id)!) })),
-        // A DAT épületei rajzelemként kerülnek a munkalapra, a környezetben nem kell őket megismételni.
-        buildings: [],
-      };
-    }
-    const holes = d.parcels.filter((p) => p.holes.length > 0).map((p) => p.hrsz);
+    background = {
+      parcels: d.parcels.map((q) => ({ hrsz: q.hrsz, ring: q.ring.map((id) => byId.get(id)!) })),
+      // A munka épületei rajzelemként kerülnek a munkalapra; a szomszédoké a környezetben látszik.
+      buildings: d.buildings
+        .filter((b) => !buildings.includes(b))
+        .map((b) => ({ layer: b.code === 'CA01' ? 'residential' : b.code === 'CA02' ? 'holiday' : 'farm', ring: b.ring.map((id) => byId.get(id)!) })),
+    };
+    const holes = work.filter((p) => p.holes.length > 0).map((p) => p.hrsz);
     if (holes.length > 0)
       datNotes.push({
         level: 'warning',
         message: `DAT: belső határos (lyukas) földrészlet(ek): ${holes.join(', ')} – a munkalap csak a külső határral számol.`,
       });
+    // Tulajdoni lapi terület: a földkönyvi kivonaté, ha van; különben a DAT-ban tárolt.
+    const areaOf = (p: DatParcel) => {
+      const reg = opts.registered?.find((r) => r.hrsz === p.hrsz);
+      if (reg && p.area !== null && Math.round(reg.area) !== Math.round(p.area))
+        datNotes.push({
+          level: 'warning',
+          message: `${p.hrsz}: a földkönyv szerinti (tulajdoni lapi) terület ${reg.area} m², a DAT-ban tárolt ${p.area} m² – a tulajdoni lapi területtel számolok.`,
+        });
+      return reg?.area ?? p.area;
+    };
     datNotes.push({
       level: 'info',
-      message: `DAT: ${f.name} – ${d.points.length} pont, ${d.parcels.length} földrészlet` + (d.title[1] ? ` (${d.title[1]})` : '') + '.',
+      message:
+        `DAT: ${name} – ${d.points.length} pont, ${d.parcels.length} földrészlet` +
+        (d.title[1] ? ` (${d.title[1]})` : '') +
+        (work.length < d.parcels.length ? `; a munka tárgya: ${work.map((p) => p.hrsz).join(', ')}, a többi a környezetben látszik` : '') +
+        (d.addresses.length > 0 ? `; ${d.addresses.length} meglévő címkoordináta` : '') +
+        '.',
     });
-    const used = new Set([...d.parcels.flatMap((p) => p.ring), ...d.subs.flatMap((x) => x.ring), ...d.buildings.flatMap((b) => b.ring)]);
+    // A közös határponttal érintkező földrészletek a szomszédok (a kitűzési jegyzőkönyvhöz, értesítéshez).
+    const workPts = new Set(work.flatMap((p) => p.ring));
+    const neighbours = d.parcels.filter((p) => !workHrsz.has(p.hrsz) && p.ring.some((id) => workPts.has(id))).map((p) => p.hrsz);
+    const nbInput = workInputs.get('szomszedok');
+    if (nbInput && neighbours.length > 0 && !nbInput.value.trim()) nbInput.value = neighbours.join(', ');
+    const used = new Set([...work.flatMap((p) => p.ring), ...subs.flatMap((x) => x.ring), ...buildings.flatMap((b) => b.ring)]);
     coords.value = ['# pontszám  Y  X  (DAT)', ...d.points.filter((p) => used.has(p.id)).map((p) => `${p.id}  ${p.y.toFixed(2)}  ${p.x.toFixed(2)}`)].join(
       '\n',
     );
-    before.value = ['# hrsz ; tulajdoni lapi terület [m²] ; pontok (DAT)', ...d.parcels.map((p) => `${p.hrsz} ; ${p.area ?? ''} ; ${p.ring.join(' ')}`)].join(
+    before.value = ['# hrsz ; tulajdoni lapi terület [m²] ; pontok (DAT)', ...work.map((p) => `${p.hrsz} ; ${areaOf(p) ?? ''} ; ${p.ring.join(' ')}`)].join(
       '\n',
     );
-    after.value = ['# hrsz ; pontok', ...d.parcels.map((p) => `${p.hrsz} ; ${p.ring.join(' ')}`)].join('\n');
+    after.value = ['# hrsz ; pontok', ...work.map((p) => `${p.hrsz} ; ${p.ring.join(' ')}`)].join('\n');
     division = null;
     takeBtn.disabled = true;
     run();
@@ -708,7 +766,7 @@ export function initParcelView(): void {
     try {
       for (const f of list) {
         if (/\.zip$/i.test(f.name)) {
-          for (const z of await readZip(await f.arrayBuffer())) if (/\.(dxf|txt)$/i.test(z.name)) texts.push({ name: z.name, text: decodeText(z.data) });
+          for (const z of await readZip(await f.arrayBuffer())) if (/\.(dxf|txt|dat)$/i.test(z.name)) texts.push({ name: z.name, text: decodeText(z.data) });
         } else
           texts.push({
             name: f.name,
@@ -726,6 +784,23 @@ export function initParcelView(): void {
       return;
     }
     const dxfFile = texts.find((t) => /\.dxf$/i.test(t.name));
+    const datFiles = texts.filter((t) => /\.dat$/i.test(t.name));
+    // DXF nélküli csomag (DAT + földkönyv): a fő DAT a munka tárgya, a „szomszed_…” DAT a környezet.
+    if (!dxfFile && datFiles.length > 0) {
+      const reads = datFiles.map((t) => ({ name: t.name, data: readDat(t.text), neighbour: /szomsz/i.test(t.name) }));
+      const main = reads.find((r) => !r.neighbour && r.data.parcels.length > 0) ?? reads[0]!;
+      const subject = new Set(main.data.parcels.map((p) => p.hrsz));
+      // A szomszédos DAT akkor ad geometriát, ha a munka minden földrészletét tartalmazza (így a pontszámok egy állományból jönnek).
+      const wide = reads.filter((r) => r !== main && [...subject].every((h) => r.data.parcels.some((p) => p.hrsz === h))).sort((a, b) => b.data.parcels.length - a.data.parcels.length)[0];
+      const source = wide ?? main;
+      if (source !== main) source.data.addresses.push(...main.data.addresses.filter((a) => !source.data.addresses.some((b) => b.y === a.y && b.x === a.x)));
+      const registered = mergeRegistered(texts.filter((t) => /\.txt$/i.test(t.name)).map((t) => readRegisteredAreas(t.text)));
+      const notes: Issue[] = [];
+      if (wide) notes.push({ level: 'info', message: `Földhivatali csomag: a munka a(z) ${main.name}, a környezet a(z) ${wide.name} alapján (DXF nincs a csomagban).` });
+      if (registered.length > 0) notes.push({ level: 'info', message: `Földkönyv: ${registered.length} földrészlet tulajdoni lapi területe (${registered.map((r) => `${r.hrsz}: ${r.area} m²`).join(', ')}).` });
+      loadDat(source.name, source.data, { subject, registered, notes });
+      return;
+    }
     const map: CadastralMap | null = dxfFile ? readCadastralDxf(dxfFile.text) : null;
     if (map) {
       const byId = new Map(map.points.map((q) => [q.id, q]));
@@ -811,7 +886,7 @@ export function initParcelView(): void {
   }
 
   function addressPoints(): AddressPoint[] {
-    return generateAddressPoints(afterRings(), plPrefix.value.trim() || 'C');
+    return generateAddressPoints(afterRings(), plPrefix.value.trim() || 'C', 1, dat?.data.addresses ?? []);
   }
 
   function planMeta(): PlanMeta {
@@ -1569,6 +1644,32 @@ export function initParcelView(): void {
     run();
   });
   dxfBtn.addEventListener('click', saveDxf);
+  gnssBtn.addEventListener('click', () => gnssFile.click());
+  gnssFile.addEventListener('change', async () => {
+    const f = gnssFile.files?.[0];
+    gnssFile.value = '';
+    if (!f) return;
+    const g = parseGnssText(await readText(f));
+    if (g.points.length === 0) {
+      datNotes = [{ level: 'error', message: `GNSS pontok: ${f.name} – ${g.issues[0]?.message ?? 'nincs benne pont.'}` }, ...g.issues.slice(1)];
+      run();
+      return;
+    }
+    // A földhivatali (vagy már számolt) pontszámmal egyezők azonosításra, az újak a koordináták közé.
+    const { known, fresh } = splitByKnown(g.points, new Set(parsePoints(coords.value).points.keys()));
+    if (known.length > 0) measured.value = mergePointLines(measured.value, known, false);
+    if (fresh.length > 0) coords.value = mergePointLines(coords.value, fresh);
+    datNotes = [
+      {
+        level: 'info',
+        message:
+          `GNSS pontok: ${f.name} – ${g.points.length} pont (oszlopok: ${g.layout}). ` +
+          `${known.length} ismert pontszámú a Mért pontok közé, ${fresh.length} új a Koordináták közé került.`,
+      },
+      ...g.issues,
+    ];
+    run();
+  });
   stakeBtn.addEventListener('click', () => stakeFile.click());
   stakeFile.addEventListener('change', async () => {
     const f = stakeFile.files?.[0];

@@ -56,6 +56,30 @@ Két dologra figyelj:
   előtti* vagy *Változás utáni földrészletek* mezőben felsorolsz. Az új épületsarkok tehát nem
   keverednek össze semmivel.
 
+**Utótag a terepen.** Ha a kontroller mentéskor utótagot tesz a pontszám végére (`5001_01`,
+`5001_02`), az nem baj: a program az aláhúzás utáni számot (legfeljebb három jegy) elhagyja, így az
+`5001_01` az `5001`-es földhivatali pontnak számít. Ha ugyanazt a pontot többször mentetted
+(`_01`, `_02`), a program a mérések átlagát veszi, és figyelmeztet, ha 5 cm-nél jobban eltérnek.
+
+### 0.2a GNSS-mérés: koordináták TXT-ben
+
+GNSS-szel nincs nyers mérés, csak koordináták. A kontrollerből exportáld a pontokat szöveges
+fájlba (TXT vagy CSV), és a *Változási vázrajz* munkalap **Határpont-azonosítás** részében töltsd
+be a **GNSS pontok (.txt, .csv)…** gombbal.
+
+- Az elválasztó lehet vessző, pontosvessző, tabulátor vagy szóköz, lehet benne fejlécsor és
+  tizedesvessző is.
+- Az oszlopok sorrendje mindegy: a program az EOV tartományokból (Y 400 000–950 000, X 30 000–
+  400 000 m) felismeri, melyik az Y és melyik az X. A felismert sorrendet kiírja (pl. „pontszám, X,
+  Y, Z, kód”) – ezt érdemes egy pillantással ellenőrizni.
+- Ahol a pontszám (utótag nélkül) már szerepel a *Koordináták* között (földhivatali vagy kitűzendő
+  pont), a pont a **Mért pontok** közé kerül, azonosításra vagy a kitűzés ellenőrzésére.
+- A többi, **új pont** (új határpont, épületsarok) a **Koordináták** végére kerül, utótag nélkül.
+- Több fájl egymás után is betölthető (pl. két nap mérése): az azonos pontszámú régi sort az új
+  váltja.
+
+A *DXF megjelenítő* **Pontok állományból…** gombja ugyanezt a fájlt olvassa.
+
 ### 0.3 Hová kerül melyik pont
 
 A munkalapon két külön pontmező van, ezeket ne keverd:
@@ -70,7 +94,8 @@ A munkalapon két külön pontmező van, ezeket ne keverd:
 Minden munka így kezdődik:
 
 1. Kattints a **Földhivatali adatok…** gombra, és válaszd ki a földhivataltól kapott ZIP-et (vagy a
-   DXF-et a Report.txt-vel együtt). Ha DAT-ot kaptál, a **DAT beolvasása…** gombot használd.
+   DXF-et a Report.txt-vel együtt). A DXF nélküli, DAT-ot tartalmazó ZIP is így tölthető be (lásd
+   lent). Egyetlen DAT fájlhoz a **DAT beolvasása…** gombot is használhatod.
 2. A program kitölti:
    - a **Koordináták** mezőt a földhivatali pontokkal,
    - a **Változás előtti földrészletek** mezőt (hrsz ; tulajdoni lapi terület ; pontok),
@@ -80,6 +105,26 @@ Minden munka így kezdődik:
 
 Ha a ZIP-ben a környék több földrészlete is benne van, a *Változás előtti / utáni* mezőkből töröld ki
 azokat, amelyeket a munka nem érint – a vázrajzon környezetként úgyis megjelennek.
+
+**Ha a ZIP-ben nincs DXF, csak DAT.** Egyes földhivatalok DXF helyett DAT állományokat adnak, például:
+`<ügyszám>.dat` (a munka földrészlete), `szomszed_(…)_<ügyszám>.dat` (a földrészlet és a
+szomszédai), `foldm_foldk-…-szomsz.txt` (földkönyvi kivonat) és egy PDF. Ezt a ZIP-et is egyben a
+**Földhivatali adatok…** gombbal töltsd be, nem kell kicsomagolni:
+
+- a munka tárgya a fő DAT földrészlete (a fenti példában egy földrészlet), ez kerül a *Változás
+  előtti / utáni* mezőkbe;
+- a pontszámok és a határ a „szomszed” DAT-ból jönnek, a szomszédos földrészletek és az épületeik a
+  vázrajzon környezetként látszanak;
+- a **tulajdoni lapi terület a földkönyvi kivonatból** jön. Ha a DAT-ban tárolt terület ettől eltér
+  (pl. 500 m² a földkönyvben, 506 m² a DAT-ban), a program figyelmeztet, és a tulajdoni lapival
+  számol;
+- a DAT-ban lévő **meglévő címkoordináta** (T_OBJ_ATTRAD) megmarad: a változás utáni földrészletbe
+  eső régi címkoordinátát veszi át, csak ahol nincs, ott generál újat;
+- a közös határponttal érintkező földrészletek a *Szomszédos hrsz-ek* mezőbe kerülnek (ha üres) – a
+  kitűzési jegyzőkönyvhöz és az értesítésekhez.
+
+A tulajdonosok nevét és címét a program nem veszi át a földkönyvi kivonatból: azokat a
+*Tulajdonosok* mezőbe neked kell beírni. A PDF-et a program nem olvassa.
 
 ---
 

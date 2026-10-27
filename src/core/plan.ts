@@ -109,11 +109,28 @@ export interface AddressPoint extends NamedPt {
  * Generált címkoordináta (pontkód 5411) a földrészleten belül, méterre kerekítve; a pontszám az
  * előtag és a sorszám. A mérésből levezetett címkoordinátát (5412) a felhasználó adja meg.
  */
-export function generateAddressPoints(parcels: { hrsz: string; ring: Pt[] }[], prefix: string, first = 1): AddressPoint[] {
+export function generateAddressPoints(
+  parcels: { hrsz: string; ring: Pt[] }[],
+  prefix: string,
+  first = 1,
+  /** A földhivatali DAT meglévő címkoordinátái: a földrészletbe eső marad (pl. épületfeltüntetésnél). */
+  existing: { code: string; y: number; x: number }[] = [],
+): AddressPoint[] {
   return parcels.map((p, i) => {
-    const c = interiorPoint(p.ring);
-    return { id: `${prefix}${first + i}`, hrsz: p.hrsz, y: Math.round(c.y), x: Math.round(c.x), code: '5411' };
+    const old = existing.find((e) => insideRing(e, p.ring));
+    const c = old ?? interiorPoint(p.ring);
+    return { id: `${prefix}${first + i}`, hrsz: p.hrsz, y: Math.round(c.y), x: Math.round(c.x), code: old?.code ?? '5411' };
   });
+}
+
+function insideRing(p: Pt, ring: Pt[]): boolean {
+  let c = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i]!;
+    const b = ring[j]!;
+    if (a.x > p.x !== b.x > p.x && p.y < ((b.y - a.y) * (p.x - a.x)) / (b.x - a.x) + a.y) c = !c;
+  }
+  return c;
 }
 
 export function addressSection(points: AddressPoint[]): Section {

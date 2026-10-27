@@ -116,6 +116,9 @@ Itt veti össze a program a mért pontokat a nyilvántartás koordinátáival.
   **szabatosan megjelölt**-e (± 0,10 m, különben ± 0,20 m).
 - **Mért pontok (pontszám, Y, X [, R1–R4])** – a pontszám egyezzen a koordináták azonos pontjáéval.
   A sor végén pontonként más rendűség is megadható.
+- **GNSS pontok (.txt, .csv)…** – a GNSS vevő koordináta-exportja, bármilyen elválasztóval és
+  oszlopsorrendben. Az ismert pontszámú pontok a mért pontok, az újak a koordináták közé kerülnek; az
+  `5001_01` alakú utótagot elhagyja, az ismételt mérések átlagát veszi.
 - **Kitűzési jegyzőkönyv (.txt)…** – a kitűzött pontok jegyzékét a mért pontok közé tölti.
   Kitűzésnél ezekből készül a csomag **kitűzési jegyzőkönyve** (terv és kitűzött koordináta, eltérés).
 - **Nyers mérés (.MES, GSI…)…** – a műszer nyers mérési állománya (FOIF MES, Leica GSI, GeoCalc,

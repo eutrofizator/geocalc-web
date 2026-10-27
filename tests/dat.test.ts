@@ -53,6 +53,8 @@ const DAT = [
   'T_OBJ_ATTRAC*',
   '1*AC01*101*1*1*1*20200101*0**1*1*K*',
   '2*AC01*102*2*1*1*20200101*0**1*1*K*',
+  'T_OBJ_ATTRAD*',
+  '1*AD01*1*5411*7*0*195***1***1*1*',
   'T_OBJ_ATTRBD*',
   '11*BD01*1*123*0*1*502*****1*0***1*1*0*****0**1*1**',
   '12*BD01*2*124*0*1*371*****1*0***1*1*0*****0**1*1**',
@@ -69,7 +71,7 @@ describe('DAT rekordok', () => {
     const t = parseDatTables(DAT);
     expect(t.title.slice(0, 3)).toEqual(['PROBA', 'Teszt adatcsere', 'DAT1']);
     expect(t.tables.get('T_PONT')).toHaveLength(10);
-    expect([...t.tables.keys()]).toEqual(['T_PONT', 'T_HATARVONAL', 'T_HATAR', 'T_FELULET', 'T_OBJ_ATTRAC', 'T_OBJ_ATTRBD']);
+    expect([...t.tables.keys()]).toEqual(['T_PONT', 'T_HATARVONAL', 'T_HATAR', 'T_FELULET', 'T_OBJ_ATTRAC', 'T_OBJ_ATTRAD', 'T_OBJ_ATTRBD']);
   });
 });
 
@@ -180,5 +182,11 @@ describe('visszaírás (az ITR 5 DAT kimenetének szerkezete)', () => {
   it('Windows-1250 kódolás (az ITR kódlapja)', () => {
     expect([...encodeWindows1250('Sző közút')]).toEqual([0x53, 0x7a, 0xf5, 0x20, 0x6b, 0xf6, 0x7a, 0xfa, 0x74]);
     expect(decodeText(encodeWindows1250('T_FELIRAT*Sző 5*'))).toBe('T_FELIRAT*Sző 5*');
+  });
+});
+
+describe('címkoordináták a DAT-ban (T_OBJ_ATTRAD)', () => {
+  it('a pontkód és a pont helye', () => {
+    expect(readDat(DAT).addresses).toEqual([{ code: '5411', y: 650025, x: 240010 }]);
   });
 });

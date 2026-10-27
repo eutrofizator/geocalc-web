@@ -59,7 +59,7 @@ A pontokat háromféleképpen adhatod meg:
 | Gomb / mód | Mit csinál |
 |---|---|
 | beírás | A mezőbe közvetlenül írod vagy bemásolod a pontokat. |
-| **Pontok állományból…** | Szöveges koordináta-állomány (pontszám Y X) beolvasása; a térkép a pontokra nagyít. |
+| **Pontok állományból…** | Szöveges koordináta-állomány beolvasása, a GNSS export is (bármilyen elválasztó és oszlopsorrend, az `5001_01` utótag nélkül); a térkép a pontokra nagyít. |
 | **A Változási vázrajz pontjai** | Átveszi a *Változási vázrajz* munkalap mért pontjait; ha ott nincs mért pont, a koordinátákat. |
 
 A saját pontok **pirossal**, pontszámmal jelennek meg a térképen. A beírt pontokat a böngésző

@@ -1,5 +1,6 @@
 import { fix } from './format';
 import { distance } from './geometry';
+import { baseName } from './gnss';
 import type { NamedPt, ParcelDef } from './parcel';
 import type { Issue, Row, Section } from './types';
 
@@ -92,9 +93,10 @@ export interface MeasuredPt extends NamedPt {
   order?: PointOrder;
 }
 
-/** Mért pontok: pontszám, Y, X [, rendűség R1–R4]. */
+/** Mért pontok: pontszám, Y, X [, rendűség R1–R4]; a pontszám „_01” utótagja elhagyható (5001_01 = 5001). */
 export function parseMeasured(text: string): { points: Map<string, MeasuredPt>; issues: Issue[] } {
   const points = new Map<string, MeasuredPt>();
+  const counts = new Map<string, number>();
   const issues: Issue[] = [];
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = raw.replace(/#.*/, '').trim();
@@ -109,8 +111,16 @@ export function parseMeasured(text: string): { points: Map<string, MeasuredPt>; 
       return;
     }
     const ord = f[3]?.toUpperCase();
-    points.set(f[0]!, { id: f[0]!, y, x, order: ord === 'R1' || ord === 'R2' || ord === 'R3' || ord === 'R4' ? ord : undefined });
+    const order = ord === 'R1' || ord === 'R2' || ord === 'R3' || ord === 'R4' ? ord : undefined;
+    // A terepen mentett pont utótagja (5001_01) nélkül a földhivatali pontszám; az ismételt mérések átlaga számít.
+    const id = baseName(f[0]!);
+    const prev = points.get(id);
+    const n = (counts.get(id) ?? 0) + 1;
+    counts.set(id, n);
+    if (prev) points.set(id, { id, y: prev.y + (y - prev.y) / n, x: prev.x + (x - prev.x) / n, order: order ?? prev.order });
+    else points.set(id, { id, y, x, order });
   });
+  for (const [id, n] of counts) if (n > 1) issues.push({ level: 'info', message: `Mért pontok: a(z) ${id} pont ${n} mérésének átlaga.` });
   return { points, issues };
 }
 

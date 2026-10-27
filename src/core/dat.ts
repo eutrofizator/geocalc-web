@@ -107,6 +107,8 @@ export interface DatImport {
   buildings: { code: string; ring: string[] }[];
   /** Alrészletek (T_OBJ_ATTRBE): helyrajzi szám, betűjel, művelési ág kódja (T_MUVEL_AG), terület, határ. */
   subs: { hrsz: string; letter: string; useCode: number | null; area: number | null; ring: string[] }[];
+  /** Címkoordináták (T_OBJ_ATTRAD): a pontkód (5411 generált, 5412 levezetett) és a pont helye. */
+  addresses: { code: string; y: number; x: number }[];
 }
 
 export interface PointRecords {
@@ -268,6 +270,14 @@ export function readDat(text: string): DatImport {
   if (arcs > 0) warnings.push(`${arcs} íves határszakasz egyenesként szerepel (az ív a területet módosítja).`);
   if (points.size === 0) warnings.push('Az állományban nincs T_PONT táblázat – nem DAT adatcsere-állomány?');
 
+  // Címkoordináták: a rekordban az 54xx pontkód után a pont azonosítója áll (pl. „1*AD01*1*5411*15*…”).
+  const addresses: DatImport['addresses'] = [];
+  for (const r of get('T_OBJ_ATTRAD')) {
+    const k = r.findIndex((v, i) => i > 1 && /^54\d\d$/.test(v.trim()));
+    const p = k > 0 ? points.get(r[k + 1]?.trim() ?? '') : undefined;
+    if (p) addresses.push({ code: r[k]!.trim(), y: p.y, x: p.x });
+  }
+
   return {
     title,
     points: [...points.values()],
@@ -277,6 +287,7 @@ export function readDat(text: string): DatImport {
     pointRecords,
     buildings,
     subs,
+    addresses,
   };
 }
 

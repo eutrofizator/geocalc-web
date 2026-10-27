@@ -1,4 +1,5 @@
 import { parseMeasured } from './core/boundary-check';
+import { gnssToText, parseGnssText } from './core/gnss';
 import { readDxfDrawing, matchPoints, type DxfDrawing } from './core/dxf-drawing';
 import { decodeText, readZip } from './core/land-office';
 import { parsePoints, type NamedPt } from './core/parcel';
@@ -335,7 +336,10 @@ export function initDxfView(): void {
     const f = ptsFile.files?.[0];
     ptsFile.value = '';
     if (!f) return;
-    points.value = decodeText(new Uint8Array(await f.arrayBuffer()));
+    const text = decodeText(new Uint8Array(await f.arrayBuffer()));
+    // GNSS export (bármilyen oszlopsorrend, 5001_01 alakú utótag): a program saját jegyzékalakjára hozva.
+    const g = parseGnssText(text);
+    points.value = g.points.length > 0 ? gnssToText(g.points, false) : text;
     refresh();
     fit(ownBounds(ownPoints()) ?? drawing?.bounds ?? null);
   });

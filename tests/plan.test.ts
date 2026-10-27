@@ -63,6 +63,20 @@ describe('címkoordináták', () => {
     ];
     expect(generateAddressPoints([{ hrsz: '123/1', ring }], 'C')).toEqual([{ id: 'C1', hrsz: '123/1', y: 650010, x: 240013, code: '5411' }]);
   });
+
+  it('a földrészletbe eső meglévő (DAT) címkoordináta marad, a kódjával együtt', () => {
+    const ring = [
+      { y: 650000, x: 240000 },
+      { y: 650020, x: 240000 },
+      { y: 650020, x: 240025 },
+      { y: 650000, x: 240025 },
+    ];
+    const existing = [
+      { code: '5412', y: 650100, x: 240100 },
+      { code: '5412', y: 650004, x: 240021 },
+    ];
+    expect(generateAddressPoints([{ hrsz: '123', ring }], 'C', 1, existing)).toEqual([{ id: 'C1', hrsz: '123', y: 650004, x: 240021, code: '5412' }]);
+  });
 });
 
 describe('vázrajz', () => {
