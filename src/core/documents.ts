@@ -1,4 +1,6 @@
 import { JOBS, type JobKind } from './jobs';
+import type { StationOrientation } from './orientation';
+import { findSymbol, symbolPaths } from './symbols';
 import type { Section } from './types';
 
 /**
@@ -345,7 +347,77 @@ export interface RecordRow {
 }
 
 /** Mérési jegyzőkönyv a nyers mérésből: álláspontonként a mért irányok és távolságok. */
-export function measurementRecord(w: WorkData, rows: RecordRow[], source: string, formatAngle: (deg: number) => string): string {
+/** Koordinátás pont a jegyzőkönyvhöz. */
+export interface RecordPoint {
+  id: string;
+  y: number;
+  x: number;
+  m: number | null;
+}
+
+/** Jelkulcsi jel kis SVG-ként (1 mm = 4 px), a jegyzőkönyv táblázatába. */
+function symbolSvg(key: string): string {
+  const def = findSymbol(key);
+  if (!def) return '';
+  const paths = symbolPaths(def, 0)
+    .map((p) => {
+      const d = p.pts.map(([u, v]) => `${(u * 4 + 10).toFixed(2)} ${(10 - v * 4).toFixed(2)}`).join(' L ');
+      return `<path d="M ${d}${p.closed ? ' Z' : ''}" ${p.fill ? 'fill="#000"' : 'fill="none" stroke="#000" stroke-width="0.8"'}/>`;
+    })
+    .join('');
+  return `<svg width="20" height="20" viewBox="0 0 20 20" aria-label="${esc(def.name)}">${paths}</svg>`;
+}
+
+/** A tájékozás és a poláris részletpontok számítása álláspontonként. */
+function orientationPages(list: StationOrientation[], formatAngle: (deg: number) => string): string {
+  const f = (n: number | null, k = 3) => (n === null ? '' : n.toFixed(k));
+  return list
+    .map((s) => {
+      const src = s.source === 'known' ? 'ismert koordináta' : `szabad álláspont (méretarány-tényező ${f(s.scale ?? null, 6)})`;
+      const rows = s.rows
+        .map(
+          (r) =>
+            `<tr><td>${esc(r.id)}</td><td class="n">${formatAngle(r.hz)}</td><td class="n">${formatAngle(r.bearing)}</td><td class="n">${formatAngle(r.z)}</td><td class="n">${r.v.toFixed(1)}</td><td class="n">${r.e.toFixed(1)}</td><td class="n">${r.dist.toFixed(3)}</td><td class="n">${f(r.dd)}</td></tr>`,
+        )
+        .join('');
+      const check = s.freeCheck
+        ? `<p class="note">Ellenőrzés szabad álláspontként: dY = ${s.freeCheck.dy.toFixed(3)} m, dX = ${s.freeCheck.dx.toFixed(3)} m, d = ${Math.hypot(s.freeCheck.dy, s.freeCheck.dx).toFixed(3)} m.</p>`
+        : '';
+      const pts = s.points
+        .map(
+          (p) =>
+            `<tr><td>${esc(p.id)}</td><td class="n">${p.y.toFixed(3)}</td><td class="n">${p.x.toFixed(3)}</td><td class="n">${p.dist.toFixed(3)}</td><td class="n">${f(p.dy)}</td><td class="n">${f(p.dx)}</td></tr>`,
+        )
+        .join('');
+      return (
+        `<h2>Tájékozás – álláspont: ${esc(s.station)} (Y = ${s.y.toFixed(3)}, X = ${s.x.toFixed(3)}; ${src})</h2>` +
+        `<table class="grid"><tr><th>Irányzott pont</th><th>Hz</th><th>Irányszög δ</th><th>Tájékozási szög z</th><th>v [″]</th><th>e [mm]</th><th>Távolság [m]</th><th>Δt [m]</th></tr>${rows}</table>` +
+        `<p class="note">Tájékozási szög (középérték): z = ${formatAngle(s.z)}; a tájékozás középhibája: ${s.m0 === null ? '– (egy tájékozó irány)' : `± ${s.m0.toFixed(1)}″`}. v = z − z<sub>i</sub>; e = v · távolság; Δt = mért − koordinátákból számított távolság.</p>` +
+        check +
+        (pts
+          ? `<h2>Részletpontok számítása – álláspont: ${esc(s.station)} (poláris pontok)</h2><table class="grid"><tr><th>Psz</th><th>Y [m]</th><th>X [m]</th><th>Távolság [m]</th><th>dY [m]</th><th>dX [m]</th></tr>${pts}</table><p class="note">dY, dX: a számított mínusz a meglévő koordináta (ha a pont szerepel a koordináták között).</p>`
+          : '')
+      );
+    })
+    .join('');
+}
+
+function pointTable(title: string, pts: RecordPoint[], sym: string): string {
+  if (pts.length === 0) return '';
+  const body = pts
+    .map((p) => `<tr><td>${esc(p.id)}</td><td class="n">${p.y.toFixed(3)}</td><td class="n">${p.x.toFixed(3)}</td><td class="n">${p.m === null ? '' : p.m.toFixed(3)}</td>${sym ? `<td>${sym}</td>` : ''}</tr>`)
+    .join('');
+  return `<h2>${esc(title)}</h2><table class="grid"><tr><th>Psz</th><th>Y [m]</th><th>X [m]</th><th>M [m]</th>${sym ? '<th>Jel</th>' : ''}</tr>${body}</table>` + (sym ? '<p class="note">Jel: felmérési alappont (DAT1-M2 JKDATA22).</p>' : '');
+}
+
+export function measurementRecord(
+  w: WorkData,
+  rows: RecordRow[],
+  source: string,
+  formatAngle: (deg: number) => string,
+  /** Az alappontok és (nyers mérés nélkül, pl. GNSS-nél) a mért pontok koordinátái. */
+  extra: { bases?: RecordPoint[]; points?: RecordPoint[]; orientation?: StationOrientation[] } = {},
+): string {
   const a = (n: number | null) => (n === null ? '' : formatAngle(n));
   const d = (n: number | null, k = 3) => (n === null ? '' : n.toFixed(k));
   const blocks: string[] = [];
@@ -371,7 +443,9 @@ export function measurementRecord(w: WorkData, rows: RecordRow[], source: string
   return (
     `<div class="page">${header(w, `MÉRÉSI JEGYZŐKÖNYV${w.job === 'setout' ? ' KITŰZÉSRŐL' : ''}`)}` +
     `<table>${row('Vetület', 'EOV')}${row('Magasság', 'Balti')}${row('Mérőeszköz típusa, száma', `${dots(w.muszer)} &nbsp; ${esc(w.gyariszam)}`)}${row('Nyers mérés', esc(source))}</table>` +
-    (blocks.join('') || '<p>Nincs beolvasott nyers mérés.</p>') +
+    pointTable('Felhasznált alappontok', extra.bases ?? [], symbolSvg('felmérési alappont')) +
+    orientationPages(extra.orientation ?? [], formatAngle) +
+    (blocks.join('') || (extra.points?.length ? pointTable('Mért pontok koordinátái (GNSS / koordinátaállomány)', extra.points, '') : '<p>Nincs beolvasott nyers mérés.</p>')) +
     `<p class="note">Hz, Zi: fok-perc-másodperc; Tf: ferde, Tv: vízszintes, Tvet: vetületi távolság; Mj: jelmagasság; dM: magasságkülönbség [m].</p>` +
     signLine(`készítő: ${esc(w.keszito)}`, '') +
     `</div>`

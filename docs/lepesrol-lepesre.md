@@ -68,7 +68,8 @@ Két dologra figyelj:
 
 GNSS-szel nincs nyers mérés, csak koordináták. A kontrollerből exportáld a pontokat szöveges
 fájlba (TXT vagy CSV), és a *Változási vázrajz* munkalap **Határpont-azonosítás** részében töltsd
-be a **GNSS pontok (.txt, .csv)…** gombbal.
+be a **GNSS pontok / GSI koordináták…** gombbal. A Leica GSI koordinátaállományt (11-es pontszám,
+81–83-as koordinátaszavak) ugyanez a gomb olvassa.
 
 - Az elválasztó lehet vessző, pontosvessző, tabulátor vagy szóköz, lehet benne fejlécsor és
   tizedesvessző is.
@@ -80,6 +81,45 @@ be a **GNSS pontok (.txt, .csv)…** gombbal.
 - A többi, **új pont** (új határpont, épületsarok) a **Koordináták** végére kerül, utótag nélkül.
 - Több fájl egymás után is betölthető (pl. két nap mérése): az azonos pontszámú régi sort az új
   váltja.
+
+**A pont szerepe a kódja szerint** (a sor utolsó, szöveges oszlopa):
+
+| Kód | Jelentés | Hová kerül |
+|---|---|---|
+| `ap` | alappont (pl. GNSS-szel meghatározott, erről mérsz vagy tűzöl ki) | *Koordináták*, a sor végén `AP` jellel |
+| `fix` | a földhivatali (terv) koordináta | *Koordináták*, ha még nincs ott |
+| `kit` | a kitűzött, bemért pont (pl. `5001_1`) | *Mért pontok*, a földhivatali pontszámmal |
+
+A `fix` és a `kit` pont akkor sem átlagolódik, ha a pontszámuk ugyanaz: a kettő különbsége a kitűzés
+ellenőrzése. Az **alappontok** a mérési (kitűzési) vázlaton a felmérési alappont jelével (DAT1-M2
+JKDATA22) jelennek meg, a koordinátajegyzékben külön csoportban, a mérési jegyzőkönyvben a
+„Felhasznált alappontok” táblázatban a jelükkel.
+
+**Ellenőrző mérés:** a betűs utótag (pl. `1001_E`) a pont ellenőrző mérése. Nem átlagolódik, a
+program kiírja az eltérését. Ha egy már meglévő alappontot újra bemértél, az is ellenőrzésként
+jelenik meg, nem kerül a *Mért pontok* közé.
+
+**Messzi pont:** a munkaterülettől 2 km-nél távolabbi pontot (pl. a műszer tájékozatlan kezdő
+álláspontját) a program kihagyja, és szól róla.
+
+**Tájékozás, mérési jegyzőkönyv:** ezekhez a műszer **nyers mérése** kell (irány, zenitszög,
+távolság – GSI-ben a 21, 22, 31-es szavak). Ha a *Nyers mérés* gombbal olyan GSI-t töltesz be,
+amelyben csak koordináták vannak, a program szól, és a pontokat koordinátaként veszi át.
+
+Ha a nyers mérést betöltötted (*Nyers mérés* gomb), a mérési jegyzőkönyvbe álláspontonként bekerül:
+
+- a **tájékozás**: a tájékozó irányok (az alappontokra – ha nincs `AP` jelű pont, a többi ismert
+  pontra – mért irányok) irányszöge, tájékozási szöge, javítása (″) és ennek lineáris megfelelője
+  (mm), a mért és a koordinátákból számított távolság különbsége, valamint a tájékozás
+  **középhibája**;
+- ha az álláspont koordinátája ismert, a program **szabad álláspontként** is kiszámolja, és kiírja
+  az eltérést (1 cm fölött figyelmeztet); ha nem ismert, legalább két ismert pontra mért távolsággal
+  szabad álláspontot számol;
+- a **részletpontok számítása** poláris pontként, és az eltérésük a koordináták között már meglévő
+  ugyanilyen pontszámú ponttól.
+
+A GSI álláspont-blokkjait (41–43-as szavak) a program felismeri: ha a 41-es szó (kódszám) minden
+blokkban ugyanaz, a 42-es az álláspont, a 43-as a műszermagasság.
 
 A *DXF megjelenítő* **Pontok állományból…** gombja ugyanezt a fájlt olvassa.
 

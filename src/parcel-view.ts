@@ -3,7 +3,8 @@ import { checkBoundary, type Area, type CheckOptions, type MapKind, type PointOr
 import { CHANGE_KINDS, feesSection, type ChangeKind } from './core/fees';
 import { sectionsToText } from './core/format';
 import { parseMeasured } from './core/boundary-check';
-import { mergePointLines, parseGnssText, splitByKnown } from './core/gnss';
+import { farPoints, mergePointLines, parseGnssText, splitByKnown } from './core/gnss';
+import { orientStations } from './core/orientation';
 import { writeLst } from './core/lst';
 import { decodeText, mergeRegistered, readCadastralDxf, readRegisteredAreas, readSettlement, readZip, type CadastralMap, type RegisteredParcel } from './core/land-office';
 import { polygonArea } from './core/geometry';
@@ -28,6 +29,7 @@ import {
   coordinateList,
   generateAddressPoints,
   parsePointAttrs,
+  type ListPoint,
   planEntities,
   PLAN_SCALES,
   renderPlan,
@@ -297,12 +299,12 @@ export function initParcelView(): void {
   stakeFile.id = 'pc-stake-input';
   const gnssBtn = button(
     'pc-gnss-open',
-    'GNSS pontok (.txt, .csv)…',
-    'A GNSS vevő koordináta-exportja: a már ismert pontszámúak (az 5001_01 alakú utótag nélkül) a mért pontok, az újak a koordináták közé kerülnek',
+    'GNSS pontok / GSI koordináták…',
+    'Koordinátaállomány (GNSS export .txt/.csv vagy Leica GSI koordináták): ap = alappont, fix = földhivatali pont, kit = kitűzött pont; az 5001_01 utótag nélkül a földhivatali pontszám',
   );
   const gnssFile = el('input');
   gnssFile.type = 'file';
-  gnssFile.accept = '.txt,.csv,.koo,.pkt,text/plain';
+  gnssFile.accept = '.txt,.csv,.koo,.pkt,.gsi,text/plain';
   gnssFile.hidden = true;
   gnssFile.id = 'pc-gnss-input';
   const stakeAct = el('div', 'pane-actions');
@@ -670,7 +672,7 @@ export function initParcelView(): void {
       ...(division?.sections ?? []),
       ...(fees ? [fees] : []),
     ];
-    showIssues([...datNotes, ...st.issues, ...drawingIssues, ...subs.issues, ...(bc?.issues ?? []), ...(division?.result.issues ?? [])]);
+    showIssues([...datNotes, ...(orientation()?.issues ?? []), ...st.issues, ...drawingIssues, ...subs.issues, ...(bc?.issues ?? []), ...(division?.result.issues ?? [])]);
     results.replaceChildren(...sections.map(renderSection));
     if (sections.length === 0) results.append(el('p', 'empty', 'Add meg a koordinátákat és a földrészleteket, vagy töltsd be a mintát.'));
     const errors = st.issues.filter((i) => i.level === 'error').length;
@@ -971,6 +973,21 @@ export function initParcelView(): void {
   const planScale = () => (plScale.value ? Number(plScale.value) : undefined);
 
   /** A vázrajz bemenete a munkalap mezőiből. */
+  /** A nyers mérés tájékozása: az alappontokra (ha nincsenek, a többi ismert pontra) mért irányokból. */
+  function orientation() {
+    if (!raw) return null;
+    const known = parsePoints(coords.value).points;
+    const bases = basePoints();
+    const refs = bases.length > 0 ? new Map(bases.map((b) => [b.id, b])) : known;
+    return orientStations(recordRows(raw), refs, known);
+  }
+
+  /** Az alappontok: a Koordináták mező „AP” jelű sorai. */
+  function basePoints(): NamedPt[] {
+    const pts = parsePoints(coords.value).points;
+    return [...parsePointAttrs(coords.value)].filter(([, a]) => a.base).flatMap(([id]) => (pts.has(id) ? [pts.get(id)!] : []));
+  }
+
   function planInput(): PlanInput {
     const pts = parsePoints(coords.value).points;
     const st = areaStatement({
@@ -993,6 +1010,7 @@ export function initParcelView(): void {
       address: plAddr.checked ? addressPoints() : [],
       measured: new Set(mp.keys()),
       measuredPts: mp,
+      bases: basePoints(),
       drawing: elements,
       background,
       subs: { before: subs.before, after: subs.after },
@@ -1256,7 +1274,7 @@ export function initParcelView(): void {
   function saveCoordList(): void {
     const pts = parsePoints(coords.value).points;
     const attrs = parsePointAttrs(coords.value);
-    const list = [...pts.values()].map((p) => ({ ...p, m: attrs.get(p.id)?.m ?? null, code: attrs.get(p.id)?.code ?? '' }));
+    const list: ListPoint[] = [...pts.values()].map((p) => ({ ...p, m: attrs.get(p.id)?.m ?? null, code: attrs.get(p.id)?.code ?? '', base: attrs.get(p.id)?.base }));
     if (plAddr.checked) for (const a of addressPoints()) list.push({ id: a.id, y: a.y, x: a.x, m: null, code: a.code });
     if (list.length === 0) return;
     const r = coordinateList(list);
@@ -1376,9 +1394,10 @@ export function initParcelView(): void {
     const sketch = renderPlan('sketch', input, meta, { template: j.sketch, job: j.id, scale: planScale() });
     const pts = parsePoints(coords.value).points;
     const attrs = parsePointAttrs(coords.value);
-    const list = [...pts.values()].map((p) => ({ ...p, m: attrs.get(p.id)?.m ?? null, code: attrs.get(p.id)?.code ?? '' }));
+    const list: ListPoint[] = [...pts.values()].map((p) => ({ ...p, m: attrs.get(p.id)?.m ?? null, code: attrs.get(p.id)?.code ?? '', base: attrs.get(p.id)?.base }));
     const addr = plAddr.checked ? addressPoints() : [];
     for (const a of addr) list.push({ id: a.id, y: a.y, x: a.x, m: null, code: a.code });
+    const bases = input.bases ?? [];
     const ringList = (text: string, withArea: boolean) =>
       parseParcels(text, withArea, '')
         .parcels.filter((p) => p.points.every((id) => pts.has(id)))
@@ -1414,7 +1433,14 @@ export function initParcelView(): void {
       coordSections: cl.sections,
       addressSections: addr.length > 0 ? [addressSection(addr)] : undefined,
       raw: raw ?? undefined,
-      record: raw ? measurementRecord(work, recordRows(raw), raw.name, formatDms) : undefined,
+      record:
+        raw || bases.length > 0
+          ? measurementRecord(work, raw ? recordRows(raw) : [], raw?.name ?? '–', formatDms, {
+              orientation: orientation()?.stations,
+              bases: bases.map((b) => ({ ...b, m: attrs.get(b.id)?.m ?? null })),
+              points: [...parseMeasured(measured.value).points.values()].map((q) => ({ id: q.id, y: q.y, x: q.x, m: null })),
+            })
+          : undefined,
       staked: j.id === 'setout' ? staked : undefined,
       buildingArea: j.id === 'building' ? buildingAreaText(input.drawing ?? []) : undefined,
       plan: { svg: plan.svg, dxf: writeDxf(planEntities('change', input, plan.scale, { template: j.plan, job: j.id }), plan.scale) },
@@ -1650,6 +1676,16 @@ export function initParcelView(): void {
       run();
       return;
     }
+    // Csak koordinátákat tartalmazó állomány (pl. GSI 81–83 szavak): pontként olvassuk be.
+    if (parseFieldData(text, fmt).rows.length === 0 && parseGnssText(text).points.length > 0) {
+      importPoints(f.name, text);
+      datNotes.unshift({
+        level: 'warning',
+        message: `Nyers mérés: ${f.name} – csak koordinátákat tartalmaz, mért irányt és távolságot nem; a pontokat koordinátaként vettem át. A tájékozáshoz és a mérési jegyzőkönyvhöz a műszer nyers mérési állománya kell (GSI: 21, 22, 31 szavak).`,
+      });
+      run();
+      return;
+    }
     raw = { name: f.name, text };
     datNotes = [{ level: 'info', message: `Nyers mérés: ${f.name} – a mérési jegyzőkönyv a csomagba kerül.` }];
     showRaw();
@@ -1697,28 +1733,65 @@ export function initParcelView(): void {
   gnssFile.addEventListener('change', async () => {
     const f = gnssFile.files?.[0];
     gnssFile.value = '';
-    if (!f) return;
-    const g = parseGnssText(await readText(f));
+    if (f) importPoints(f.name, await readText(f));
+  });
+  /**
+   * Koordinátaállomány (GNSS export, GSI koordináták) beolvasása a pontok szerepe szerint: az
+   * alappont (ap) és az új pont a koordináták közé, a földhivatali (fix) pont csak ha még nincs ott,
+   * a kitűzött (kit) és az ismert pontszámú mért pont a mért pontok közé.
+   */
+  function importPoints(name: string, text: string): void {
+    const g = parseGnssText(text);
     if (g.points.length === 0) {
-      datNotes = [{ level: 'error', message: `GNSS pontok: ${f.name} – ${g.issues[0]?.message ?? 'nincs benne pont.'}` }, ...g.issues.slice(1)];
+      datNotes = [{ level: 'error', message: `Koordináták: ${name} – ${g.issues[0]?.message ?? 'nincs benne pont.'}` }, ...g.issues.slice(1)];
       run();
       return;
     }
-    // A földhivatali (vagy már számolt) pontszámmal egyezők azonosításra, az újak a koordináták közé.
-    const { known, fresh } = splitByKnown(g.points, new Set(parsePoints(coords.value).points.keys()));
-    if (known.length > 0) measured.value = mergePointLines(measured.value, known, false);
-    if (fresh.length > 0) coords.value = mergePointLines(coords.value, fresh);
+    const office = parsePoints(coords.value).points;
+    const usable = g.points.filter((p) => p.role !== 'check');
+    const far = farPoints(usable, [...office.values()].length > 0 ? [...office.values()] : usable);
+    const pts = usable.filter((p) => !far.has(p.id));
+    const bases = pts.filter((p) => p.role === 'base');
+    const refs = pts.filter((p) => p.role === 'reference' && !office.has(p.id));
+    // A már meglévő alappont újramérése ellenőrzés: az eltérése számít, nem kerül a mért pontok közé.
+    const attrs = parsePointAttrs(coords.value);
+    const baseChecks = pts.filter((p) => (p.role === 'staked' || p.role === 'other') && attrs.get(p.id)?.base && office.has(p.id));
+    const rest = pts.filter((p) => (p.role === 'staked' || p.role === 'other') && !baseChecks.includes(p));
+    const known = new Set([...office.keys(), ...refs.map((p) => p.id), ...bases.map((p) => p.id)]);
+    const { known: hit, fresh } = splitByKnown(rest, known);
+    if (hit.length > 0) measured.value = mergePointLines(measured.value, hit, false);
+    const toCoords = [...bases, ...refs, ...fresh];
+    if (toCoords.length > 0) coords.value = mergePointLines(coords.value, toCoords);
     datNotes = [
       {
         level: 'info',
         message:
-          `GNSS pontok: ${f.name} – ${g.points.length} pont (oszlopok: ${g.layout}). ` +
-          `${known.length} ismert pontszámú a Mért pontok közé, ${fresh.length} új a Koordináták közé került.`,
+          `Koordináták: ${name} – ${g.points.length} pont (${g.layout}). ` +
+          [
+            bases.length > 0 ? `${bases.length} alappont (${bases.map((p) => p.id).join(', ')})` : '',
+            refs.length > 0 ? `${refs.length} földhivatali pont a koordináták közé` : '',
+            hit.length > 0 ? `${hit.length} mért/kitűzött pont a Mért pontok közé` : '',
+            fresh.length > 0 ? `${fresh.length} új pont a koordináták közé` : '',
+          ]
+            .filter(Boolean)
+            .join(', ') +
+          '.',
       },
+      ...(far.size > 0
+        ? [{ level: 'warning' as const, message: `A munkaterülettől 2 km-nél távolabbi pont(ok) kihagyva: ${[...far].join(', ')} (pl. tájékozatlan kezdő álláspont).` }]
+        : []),
+      ...baseChecks.map((p) => {
+        const o = office.get(p.id)!;
+        const d = Math.hypot(p.y - o.y, p.x - o.x);
+        return {
+          level: d > 0.05 ? ('warning' as const) : ('info' as const),
+          message: `Alappont ellenőrzése: ${p.id} – dY = ${(p.y - o.y).toFixed(3)}, dX = ${(p.x - o.x).toFixed(3)}, d = ${d.toFixed(3)} m.`,
+        };
+      }),
       ...g.issues,
     ];
     run();
-  });
+  }
   stakeBtn.addEventListener('click', () => stakeFile.click());
   stakeFile.addEventListener('change', async () => {
     const f = stakeFile.files?.[0];

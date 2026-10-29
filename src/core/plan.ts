@@ -6,7 +6,7 @@ import type { FooterItem, JobKind, PlanTemplate } from './jobs';
 import { fix } from './format';
 import { distance, pointInRing, polygonArea, type Pt } from './geometry';
 import type { NamedPt } from './parcel';
-import { symbolPaths } from './symbols';
+import { findSymbol, symbolPaths } from './symbols';
 import type { Row, Section } from './types';
 
 /**
@@ -31,6 +31,8 @@ export interface PointAttrs {
   m: number | null;
   /** Pontkód (4 jegyű, a 4. melléklet szerint), ha a sorban szerepel. */
   code: string;
+  /** Alappont (a sor végén „AP” jel, pl. GNSS-szel meghatározott felmérési alappont). */
+  base?: boolean;
 }
 
 /** A koordinátasorok 4. (magasság) és 5. (pontkód) oszlopa – pl. az ITR koordinátajegyzék formája. */
@@ -43,7 +45,8 @@ export function parsePointAttrs(text: string): Map<string, PointAttrs> {
     if (f.length < 3 || !Number.isFinite(Number(f[1]?.replace(',', '.')))) continue;
     const m = f[3] !== undefined && /^-?\d+([.,]\d+)?$/.test(f[3]) ? Number(f[3].replace(',', '.')) : null;
     const code = f[4] !== undefined && /^\d{4}$/.test(f[4]) ? f[4] : '';
-    out.set(f[0]!, { m, code });
+    const base = f.slice(3).some((v) => v.toUpperCase() === 'AP');
+    out.set(f[0]!, { m, code, ...(base ? { base } : {}) });
   }
   return out;
 }
@@ -71,6 +74,7 @@ const byNumber = (a: string, b: string) => a.localeCompare(b, 'hu', { numeric: t
 export interface ListPoint extends NamedPt {
   m: number | null;
   code: string;
+  base?: boolean;
 }
 
 /**
@@ -82,7 +86,7 @@ export function coordinateList(points: ListPoint[]): { text: string; sections: S
   const lines: string[] = ['Pontszám\tY\tX\tZ\tPontkód'];
   const sections: Section[] = [];
   for (const g of groups) {
-    const list = points.filter((p) => pointGroup(p.code) === g).sort((a, b) => byNumber(a.id, b.id));
+    const list = points.filter((p) => (p.base ? 'base' : pointGroup(p.code)) === g).sort((a, b) => byNumber(a.id, b.id));
     if (list.length === 0) continue;
     const d = g === 'address' ? 0 : 2;
     const rows: Row[] = list.map((p) => ({ cells: [p.id, fix(p.y, d), fix(p.x, d), p.m === null ? '' : fix(p.m, 2), p.code], role: 'result' }));
@@ -179,6 +183,8 @@ export interface PlanInput {
   subs?: { before: SubLike[]; after: SubLike[] };
   /** A mért pontok koordinátái (a vázlaton a mért távolságokhoz). */
   measuredPts?: Map<string, Pt>;
+  /** A mérésnél használt alappontok (a vázlaton és a jegyzőkönyvben a felmérési alappont jelével). */
+  bases?: NamedPt[];
 }
 
 /** A határvonalak és a helyrajzi számok besorolása: változatlan, megszűnő, új. */
@@ -425,6 +431,8 @@ export interface PlanRender {
 
 export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta, opts: PlanOptions = {}): PlanRender {
   const tpl = opts.template ?? DEFAULT_TEMPLATES[kind];
+  // Az alappontok a mérési (kitűzési) vázlaton látszanak.
+  const bases = kind === 'sketch' ? (input.bases ?? []) : [];
   const W = 210;
   const H = 297;
   const M = 12;
@@ -455,8 +463,9 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   const frame = { x: M, y: mapTop, w: W - 2 * M, h: mapBottom - mapTop };
 
   const all = [...input.before, ...input.after].flatMap((p) => p.ring);
-  const ys = all.map((p) => p.y);
-  const xs = all.map((p) => p.x);
+  // A rajz terjedelmébe az alappontok is beleszámítanak (a mérési vázlaton látszaniuk kell).
+  const ys = [...all, ...bases].map((p) => p.y);
+  const xs = [...all, ...bases].map((p) => p.x);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
   const minX = Math.min(...xs);
@@ -635,6 +644,18 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
     );
     const style = tpl.colored && measured ? `${it} text-decoration="underline" fill="${GREEN}"` : tpl.colored && fresh ? `text-decoration="underline" fill="${RED}"` : '';
     t(sx(p.y) + 1, sy(p.x) - 1, p.id, 2, style);
+  }
+  // Alappontok: felmérési alappont jele (DAT1-M2 JKDATA22), a pontszám félkövéren
+  const baseSym = findSymbol('felmérési alappont');
+  for (const b of bases) {
+    if (!baseSym) break;
+    const x = sx(b.y);
+    const y = sy(b.x);
+    for (const p of symbolPaths(baseSym, 0)) {
+      const pts = p.pts.map(([u, v]) => `${(x + u).toFixed(3)} ${(y - v).toFixed(3)}`).join(' L ');
+      out.push(`<path d="M ${pts}${p.closed ? ' Z' : ''}" ${p.fill ? 'fill="#000" stroke="none"' : 'fill="#fff" stroke="#000" stroke-width="0.18"'}/>`);
+    }
+    t(x + 2.2, y - 1.2, b.id, 2.2, 'font-weight="bold"');
   }
   // Címkoordináták jele
   for (const a of input.address) {
@@ -940,6 +961,13 @@ export function planEntities(kind: 'change' | 'sketch', input: PlanInput, scale:
     seen.add(p.id);
     e.push({ type: 'insert', layer: 'pointNo', block: 'Pont', at: p, scale: 1 });
     e.push({ type: 'text', layer: 'pointNo', at: { y: p.y + mm, x: p.x + mm }, text: p.id, height: 1.5 });
+  }
+  const baseSym = findSymbol('felmérési alappont');
+  for (const b of kind === 'sketch' ? (input.bases ?? []) : []) {
+    if (baseSym)
+      for (const p of symbolPaths(baseSym, 0))
+        e.push({ type: 'polyline', layer: 'symbol', pts: p.pts.map(([u, v]) => ({ y: b.y + u * mm, x: b.x + v * mm })), closed: p.closed });
+    e.push({ type: 'text', layer: 'pointNo', at: { y: b.y + 2.2 * mm, x: b.x + 1.2 * mm }, text: b.id, height: 1.5 });
   }
   for (const a of input.address) {
     e.push({ type: 'insert', layer: 'address', block: 'Címkoordináta', at: a, scale: 1 });

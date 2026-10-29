@@ -110,6 +110,35 @@ describe('dokumentumok', () => {
     const h = measurementRecord(work('setout'), rows, 'proba.MES', (d) => d.toFixed(4));
     for (const s of ['MÉRÉSI JEGYZŐKÖNYV KITŰZÉSRŐL', 'Álláspont: 1 (műszermagasság = 1.560)', '>158.5000<', '>20.428<', '>HP<', 'proba.MES', 'EOV']) expect(h).toContain(s);
   });
+
+  it('mérési jegyzőkönyv: tájékozás és poláris részletpontok álláspontonként', () => {
+    const h = measurementRecord(work('setout'), [], '–', (d) => d.toFixed(4), {
+      orientation: [
+        {
+          station: '101',
+          source: 'known',
+          y: 650000,
+          x: 240000,
+          z: 10,
+          m0: 4.2,
+          rows: [{ id: '1001', hz: 35, bearing: 45, z: 10, v: 3, e: 0.3, dist: 20, dd: 0.001 }],
+          freeCheck: { dy: 0.001, dx: -0.002 },
+          points: [{ id: '2001', y: 649994.87, x: 239985.9, dist: 15, dy: 0.002, dx: null }],
+        },
+      ],
+    });
+    for (const s of ['Tájékozás – álláspont: 101', 'ismert koordináta', '>10.0000<', '± 4.2″', 'Ellenőrzés szabad álláspontként', 'Részletpontok számítása – álláspont: 101', '>2001<', '>649994.870<'])
+      expect(h).toContain(s);
+  });
+
+  it('mérési jegyzőkönyv GNSS-mérésről: alappontok a jelükkel, mért pontok koordinátái', () => {
+    const h = measurementRecord(work('setout'), [], '–', (d) => d.toFixed(4), {
+      bases: [{ id: '1001', y: 650100.31, x: 241278.359, m: 109.841 }],
+      points: [{ id: '5001', y: 650106.548, x: 241281.398, m: null }],
+    });
+    for (const s of ['Felhasznált alappontok', '>1001<', '>650100.310<', '>109.841<', '<svg', 'JKDATA22', 'Mért pontok koordinátái', '>5001<']) expect(h).toContain(s);
+    expect(h).not.toContain('Nincs beolvasott nyers mérés');
+  });
 });
 
 describe('a leadandó csomag', () => {

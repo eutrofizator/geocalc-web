@@ -243,6 +243,17 @@ export function parseGsi(text: string): FieldParseResult {
   const rows: FieldRow[] = [];
   const issues: Issue[] = [];
   let lastMj: number | null = null;
+  // A kódblokkok kiosztása: ha több blokkban a 41-es szó (kódszám) azonos, a 42-es pedig változik, akkor
+  // 41 = kódszám, 42 = álláspont, 43 = műszermagasság [mm]; különben a TC-600 technikája (41 = álláspont).
+  const codeBlocks = text
+    .split(/\r?\n/)
+    .map((l) => l.trim().replace(/^\*/, '').split(/\s+/))
+    .filter((ws) => ws.some((w) => w.startsWith('41')) && !ws.some((w) => w.startsWith('21')))
+    .map((ws) => ws.map(gsiValue));
+  const codeFirst =
+    codeBlocks.length >= 2 &&
+    new Set(codeBlocks.map((b) => gsiText(b.find((v) => v.wi === 41)!.raw))).size === 1 &&
+    new Set(codeBlocks.map((b) => gsiText(b.find((v) => v.wi === 42)?.raw ?? ''))).size > 1;
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = raw.trim().replace(/^\*/, '');
     if (line === '') return;
@@ -257,6 +268,14 @@ export function parseGsi(text: string): FieldParseResult {
       const point = w.get(11);
       const id = point ? gsiText(point.raw) : '';
       const code = w.get(71) ? gsiText(w.get(71)!.raw) : '';
+      if (!w.has(21) && w.has(41) && codeFirst) {
+        // Kódblokk: kódszám (41), álláspont (42), műszermagasság mm-ben (43).
+        const st = emptyRow('station', gsiText(w.get(42)?.raw ?? ''));
+        st.mm = w.get(43) ? gsiNumber(w.get(43)!.raw) : null;
+        st.code = gsiText(w.get(41)!.raw);
+        rows.push(st);
+        return;
+      }
       if (!w.has(21) && w.has(41)) {
         // TC-600 kódblokk: álláspont (Cod), műszermagasság (In1), azonosító (In2).
         const st = emptyRow('station', gsiText(w.get(41)!.raw));
@@ -301,7 +320,40 @@ export function parseGsi(text: string): FieldParseResult {
       issues.push({ level: 'error', message: e.message, line: i + 1 });
     }
   });
+  if (rows.length === 0 && parseGsiCoordinates(text).length > 0)
+    issues.push({
+      level: 'error',
+      message:
+        'Az állomány csak koordinátákat tartalmaz (81–83-as szavak), mért irányt és távolságot (21, 22, 31) nem: ez koordinátajegyzék, nem nyers mérés. ' +
+        'A pontokat a Változási vázrajz „GNSS pontok / GSI koordináták” gombja olvassa be; a tájékozás és a mérési jegyzőkönyv a műszer nyers mérési GSI-jéből számolható.',
+    });
   return { rows, issues, format: 'Leica GSI' };
+}
+
+/** A GSI koordinátablokkjai: 11 pontszám, 81 Y (kelet), 82 X (észak), 83 magasság, 71 pontkód. */
+export function parseGsiCoordinates(text: string): { name: string; y: number; x: number; z: number | null; code: string }[] {
+  const out: { name: string; y: number; x: number; z: number | null; code: string }[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const words = raw.trim().replace(/^\*/, '').split(/\s+/).filter((w) => /^\d{2}/.test(w));
+    const w = new Map(words.map((word) => [Number(word.slice(0, 2)), gsiValue(word)]));
+    const id = w.get(11);
+    const e = w.get(81);
+    const n = w.get(82);
+    if (!id || !e || !n || e.value === null || n.value === null) continue;
+    try {
+      const h = w.get(83);
+      out.push({
+        name: gsiText(id.raw),
+        y: gsiDistance(e.unit, e.value),
+        x: gsiDistance(n.unit, n.value),
+        z: h && h.value !== null ? gsiDistance(h.unit, h.value) : null,
+        code: w.get(71) ? gsiText(w.get(71)!.raw) : '',
+      });
+    } catch (err) {
+      if (!(err instanceof CalcError)) throw err;
+    }
+  }
+  return out;
 }
 
 /* ------------------------------------------------------------------ *

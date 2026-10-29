@@ -136,6 +136,25 @@ describe('vázrajz', () => {
     expect(setout).toMatch(/Készítő és minőséget tanúsító: \.+ {2}Minta Földmérő Kft\./);
   });
 
+  it('alappontok: „AP” jel a koordinátasorban, külön csoport a jegyzékben, jel a mérési vázlaton', () => {
+    const a = parsePointAttrs('1001 650030.00 240040.00 109.84 AP\n5001 650001.00 240001.00 - 4235');
+    expect(a.get('1001')).toEqual({ m: 109.84, code: '', base: true });
+    expect(a.get('5001')).toEqual({ m: null, code: '4235' });
+    const cl = coordinateList([
+      { id: '1001', y: 650030, x: 240040, m: 109.84, code: '', base: true },
+      { id: '5001', y: 650001, x: 240001, m: null, code: '4235' },
+    ]);
+    expect(cl.sections.map((x) => [x.title, x.rows.map((r) => r.cells[0])])).toEqual([
+      ['Koordinátajegyzék – Alappontok', ['1001']],
+      ['Koordinátajegyzék – Részletpontok', ['5001']],
+    ]);
+    const base = { id: '1001', y: 650030, x: 240040 };
+    const sketch = renderPlan('sketch', { ...input, bases: [base] }, meta, { template: JOBS.subdivision.sketch, job: 'subdivision' }).svg;
+    expect(sketch).toContain('>1001<');
+    const change = renderPlan('change', { ...input, bases: [base] }, meta, { template: JOBS.subdivision.plan, job: 'subdivision' }).svg;
+    expect(change).not.toContain('>1001<');
+  });
+
   it('a szabványos méretarány a keretbe fér', () => {
     expect(chooseScale(46, 29, 190, 150)).toBe(250);
     expect(chooseScale(400, 300, 190, 150)).toBe(4000);
