@@ -977,12 +977,29 @@ export function initParcelView(): void {
   function orientation() {
     if (!raw) return null;
     const all = parsePoints(coords.value).points;
-    const attrs = parsePointAttrs(coords.value);
-    // A korábban szabad álláspontként számolt (SZA jelű) álláspont nem ismert pont: mindig újra számolódik.
-    const known = new Map([...all].filter(([id]) => !attrs.get(id)?.free));
+    // A nyers mérésből korábban számolt pontok (SZA, SZ jel) nem ismert pontok: mindig újra számolódnak,
+    // és nem lehetnek tájékozó pontok.
+    const computed = computedIds();
+    const known = new Map([...all].filter(([id]) => !computed.has(id)));
     const bases = basePoints();
     const refs = bases.length > 0 ? new Map(bases.map((b) => [b.id, b])) : known;
     return orientStations(recordRows(raw), refs, known);
+  }
+
+  /** A mérésből számolt pontok: SZA / SZ jel, vagy a „nyers mérésből számolt pontok” megjegyzés alatti sorok. */
+  function computedIds(): Set<string> {
+    const out = new Set<string>();
+    for (const [id, a] of parsePointAttrs(coords.value)) if (a.free || a.computed) out.add(id);
+    let inBlock = false;
+    for (const raw of coords.value.split(/\r?\n/)) {
+      const t = raw.trim();
+      if (t.startsWith('#')) {
+        inBlock = /nyers mérésből számolt/.test(t);
+        continue;
+      }
+      if (inBlock && t) out.add(t.split(/[\s,;]+/)[0]!);
+    }
+    return out;
   }
 
   /**
@@ -1001,11 +1018,28 @@ export function initParcelView(): void {
     };
     for (const s of o.stations) {
       if (s.source === 'free') add(s.station, s.y, s.x, 'SZA');
-      for (const p of s.points) if (baseName(p.id) === p.id || /_\d+$/.test(p.id)) add(baseName(p.id), p.y, p.x);
+      for (const p of s.points) if (baseName(p.id) === p.id || /_\d+$/.test(p.id)) add(baseName(p.id), p.y, p.x, 'SZ');
     }
     if (lines.length === 0) return [];
     coords.value = [coords.value.replace(/\s+$/, ''), '# a nyers mérésből számolt pontok (tájékozás az alappontokra)', ...lines].join('\n');
     return [{ level: 'info', message: `A nyers mérésből ${lines.length} számított pont került a Koordináták közé (${lines.map((l) => l.split(' ')[0]).join(', ')}).` }];
+  }
+
+  /**
+   * A felhasznált alappontok: az „AP” jelű pontok, és amelyekre a nyers mérésben tájékoztak (akkor is,
+   * ha a sorukban nincs „AP” jel) – a földrészletek határpontjai kivételével.
+   */
+  function usedBases(): NamedPt[] {
+    const out = new Map(basePoints().map((b) => [b.id, b]));
+    const all = parsePoints(coords.value).points;
+    const parcelIds = new Set(parseParcels(before.value, true, '').parcels.concat(parseParcels(after.value, false, '').parcels).flatMap((p) => p.points));
+    for (const st of orientation()?.stations ?? [])
+      for (const r of st.rows) {
+        const id = baseName(r.id);
+        const p = all.get(id);
+        if (p && !parcelIds.has(id) && !out.has(id)) out.set(id, p);
+      }
+    return [...out.values()];
   }
 
   /** Az alappontok: a Koordináták mező „AP” jelű sorai. */
@@ -1036,7 +1070,7 @@ export function initParcelView(): void {
       address: plAddr.checked ? addressPoints() : [],
       measured: new Set(mp.keys()),
       measuredPts: mp,
-      bases: basePoints(),
+      bases: usedBases(),
       stations: (orientation()?.stations ?? []).map((st) => ({ id: st.station, y: st.y, x: st.x })),
       drawing: elements,
       background,

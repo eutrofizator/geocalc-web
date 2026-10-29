@@ -119,12 +119,14 @@ Ha a nyers mérést betöltötted (*Nyers mérés* gomb), a mérési jegyzőkön
   ugyanilyen pontszámú ponttól.
 
 A nyers mérésből számolt **koordináták a Koordináták mezőbe is bekerülnek**: a szabad álláspontok
-(`SZA` jellel – ezeket a program mindig újra a mérésből számolja) és azok a részletpontok, amelyek
-pontszáma még nem szerepel ott. Így az épületsarkok koordinátáit nem kell külön beírni. Ha az
+`SZA`, a részletpontok `SZ` jellel (ezeket a program mindig újra a mérésből számolja, és nem
+használja tájékozó pontként), ha a pontszámuk még nem szerepel ott. Így az épületsarkok koordinátáit nem kell külön beírni. Ha az
 álláspont pontszáma (pl. `101`) a koordináták között már egy másik pontot jelöl, a program szól –
 ilyenkor az egyiket érdemes átnevezni.
 
-A **mérési vázlaton** megjelennek az alappontok (a felmérési alappont jelével és a pontszámukkal)
+A **mérési vázlaton** megjelennek az alappontok – az `AP` jelűek és azok, amelyekre a nyers
+mérésben tájékoztál – a felmérési alappont jelével és a pontszámukkal (ha a választott
+méretarányban kilógnának, a keret szélén, a valódi irányukba mutató nyíllal)
 és a műszer-álláspontok (háromszöggel), valamint az épületek oldalainak méretei. A változási
 vázrajzra az alappontok és az álláspontok nem kerülnek rá.
 

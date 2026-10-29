@@ -170,6 +170,15 @@ describe('vázrajz', () => {
     expect(change).not.toContain('>101<');
   });
 
+  it('rögzített méretaránynál a kivágaton kívüli alappont a keret szélén, nyíllal', () => {
+    const far = { id: '1009', y: 650020, x: 239700 };
+    const sketch = renderPlan('sketch', { ...input, bases: [far] }, meta, { template: JOBS.subdivision.sketch, job: 'subdivision', scale: 500 }).svg;
+    expect(sketch).toContain('>1009 (a kivágaton kívül)<');
+    const clip = /<clipPath id="frame"><rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/.exec(sketch)!.slice(1).map(Number);
+    const label = /<text x="([\d.]+)" y="([\d.]+)"[^>]*>1009 \(a kivágaton kívül\)</.exec(sketch)!.slice(1).map(Number);
+    expect(label[1]!).toBeLessThan(clip[1]! + clip[3]!);
+  });
+
   it('a szabványos méretarány a keretbe fér', () => {
     expect(chooseScale(46, 29, 190, 150)).toBe(250);
     expect(chooseScale(400, 300, 190, 150)).toBe(4000);

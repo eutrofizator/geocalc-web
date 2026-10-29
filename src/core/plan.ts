@@ -35,6 +35,8 @@ export interface PointAttrs {
   base?: boolean;
   /** A nyers mérésből szabad álláspontként számolt álláspont („SZA” jel). */
   free?: boolean;
+  /** A nyers mérésből poláris pontként számolt pont („SZ” jel). */
+  computed?: boolean;
 }
 
 /** A koordinátasorok 4. (magasság) és 5. (pontkód) oszlopa – pl. az ITR koordinátajegyzék formája. */
@@ -49,7 +51,8 @@ export function parsePointAttrs(text: string): Map<string, PointAttrs> {
     const code = f[4] !== undefined && /^\d{4}$/.test(f[4]) ? f[4] : '';
     const base = f.slice(3).some((v) => v.toUpperCase() === 'AP');
     const free = f.slice(3).some((v) => v.toUpperCase() === 'SZA');
-    out.set(f[0]!, { m, code, ...(base ? { base } : {}), ...(free ? { free } : {}) });
+    const computed = f.slice(3).some((v) => v.toUpperCase() === 'SZ');
+    out.set(f[0]!, { m, code, ...(base ? { base } : {}), ...(free ? { free } : {}), ...(computed ? { computed } : {}) });
   }
   return out;
 }
@@ -659,13 +662,33 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   const baseSym = findSymbol('felmérési alappont');
   for (const b of bases) {
     if (!baseSym) break;
-    const x = sx(b.y);
-    const y = sy(b.x);
+    const px = sx(b.y);
+    const py = sy(b.x);
+    // A kivágaton kívül eső alappont a keret szélén, a valódi irányába mutató nyíllal (rögzített méretaránynál).
+    const inset = 4;
+    const cxm = map.x + map.w / 2;
+    const cym = map.y + map.h / 2;
+    const hw = map.w / 2 - inset;
+    const hh = map.h / 2 - inset;
+    const f = Math.max(Math.abs(px - cxm) / hw, Math.abs(py - cym) / hh, 1);
+    const x = cxm + (px - cxm) / f;
+    const y = cym + (py - cym) / f;
     for (const p of symbolPaths(baseSym, 0)) {
       const pts = p.pts.map(([u, v]) => `${(x + u).toFixed(3)} ${(y - v).toFixed(3)}`).join(' L ');
       out.push(`<path d="M ${pts}${p.closed ? ' Z' : ''}" ${p.fill ? 'fill="#000" stroke="none"' : 'fill="#fff" stroke="#000" stroke-width="0.18"'}/>`);
     }
-    t(x + 2.2, y - 1.2, b.id, 2.2, 'font-weight="bold"');
+    if (f > 1) {
+      const d = Math.hypot(px - x, py - y);
+      const ux = (px - x) / d;
+      const uy = (py - y) / d;
+      const ax = x + ux * 3.4;
+      const ay = y + uy * 3.4;
+      out.push(`<line x1="${(x + ux * 1.6).toFixed(2)}" y1="${(y + uy * 1.6).toFixed(2)}" x2="${ax.toFixed(2)}" y2="${ay.toFixed(2)}" stroke="#000" stroke-width="0.2"/>`);
+      out.push(`<path d="M ${ax.toFixed(2)} ${ay.toFixed(2)} L ${(ax - ux * 1 - uy * 0.5).toFixed(2)} ${(ay - uy * 1 + ux * 0.5).toFixed(2)} L ${(ax - ux * 1 + uy * 0.5).toFixed(2)} ${(ay - uy * 1 - ux * 0.5).toFixed(2)} Z" fill="#000"/>`);
+    }
+    // a keret jobb szélén a felirat balra kerül, hogy ne lógjon ki
+    const left = f > 1 && x > cxm;
+    t(left ? x - 2.2 : x + 2.2, y - 1.2, f > 1 ? `${b.id} (a kivágaton kívül)` : b.id, 2.2, `font-weight="bold"${left ? ' text-anchor="end"' : ''}`);
   }
   // Álláspontok: egyenlő oldalú háromszög (2,4 mm), a pontszám mellette
   for (const st of stations) {
