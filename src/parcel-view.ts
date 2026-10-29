@@ -1037,6 +1037,7 @@ export function initParcelView(): void {
       measured: new Set(mp.keys()),
       measuredPts: mp,
       bases: basePoints(),
+      stations: (orientation()?.stations ?? []).map((st) => ({ id: st.station, y: st.y, x: st.x })),
       drawing: elements,
       background,
       subs: { before: subs.before, after: subs.after },

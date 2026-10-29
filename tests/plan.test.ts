@@ -136,7 +136,7 @@ describe('vázrajz', () => {
     expect(setout).toMatch(/Készítő és minőséget tanúsító: \.+ {2}Minta Földmérő Kft\./);
   });
 
-  it('alappontok: „AP” jel a koordinátasorban, külön csoport a jegyzékben, jel a rajzokon', () => {
+  it('alappontok: „AP” jel a koordinátasorban, külön csoport a jegyzékben, jel a mérési vázlaton', () => {
     const a = parsePointAttrs('1001 650030.00 240040.00 109.84 AP\n5001 650001.00 240001.00 - 4235');
     expect(a.get('1001')).toEqual({ m: 109.84, code: '', base: true });
     expect(a.get('5001')).toEqual({ m: null, code: '4235' });
@@ -152,7 +152,22 @@ describe('vázrajz', () => {
     const sketch = renderPlan('sketch', { ...input, bases: [base] }, meta, { template: JOBS.subdivision.sketch, job: 'subdivision' }).svg;
     expect(sketch).toContain('>1001<');
     const change = renderPlan('change', { ...input, bases: [base] }, meta, { template: JOBS.subdivision.plan, job: 'subdivision' }).svg;
-    expect(change).toContain('>1001<');
+    expect(change).not.toContain('>1001<');
+    // a címkoordináták táblázata nem takarja a térképet: a kivágat a táblázat alatt kezdődik
+    const clipY = Number(/<clipPath id="frame"><rect x="[\d.]+" y="([\d.]+)"/.exec(change)![1]);
+    const tableBottom = Number(/<rect x="140" y="([\d.]+)" width="58" height="([\d.]+)"/.exec(change)!.slice(1, 3).reduce((a, b) => String(Number(a) + Number(b))));
+    expect(clipY).toBeGreaterThanOrEqual(tableBottom);
+  });
+
+  it('épületfeltüntetés mérési vázlata: az épület oldalainak méretei és az álláspontok', () => {
+    const E = (id: string, y: number, x: number) => ({ id, y, x });
+    const ring = [E('E1', 650010, 240005), E('E2', 650018, 240005), E('E3', 650018, 240015), E('E4', 650010, 240015)];
+    const drawing = [{ kind: 'building' as const, type: 'residential' as const, layer: 'residential' as const, code: 'CA01', ring, line: 1 }];
+    const one = { before: [input.before[0]!], after: [{ hrsz: '100', ring: input.before[0]!.ring, area: 1000 }], address: [], drawing };
+    const sketch = renderPlan('sketch', { ...one, stations: [{ id: '101', y: 650030, x: 240020 }] }, meta, { template: JOBS.building.sketch, job: 'building' }).svg;
+    for (const d of ['>8.00<', '>10.00<', '>101<']) expect(sketch).toContain(d);
+    const change = renderPlan('change', { ...one, stations: [{ id: '101', y: 650030, x: 240020 }] }, meta, { template: JOBS.building.plan, job: 'building' }).svg;
+    expect(change).not.toContain('>101<');
   });
 
   it('a szabványos méretarány a keretbe fér', () => {

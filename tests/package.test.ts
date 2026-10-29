@@ -68,7 +68,8 @@ describe('dokumentumok', () => {
     expect(h).toContain('fakaróval jelöltem meg');
   });
   it('záradékolási kérelem (30. melléklet), helyszíni jegyzőkönyv (25.), értesítés', () => {
-    expect(clauseRequest(work('building'))).toContain('Tisztelt Minta Vármegyei Kormányhivatal!');
+    expect(clauseRequest(work('building'))).toContain('<p>Tisztelt Földhivatal!</p>');
+    expect(clauseRequest(work('building'))).toContain('Minta Vármegyei Kormányhivatal<br>Földhivatali Osztály');
     expect(clauseRequest(work('building'))).toContain('épület feltüntetésével összefüggő változási vázrajz');
     const m = setoutMinutes(work('setout'));
     expect(m).toContain('A kitűzés jelenlétemben megtörtént, a kitűzött határpontokat elfogadom* – nem fogadom el*.');

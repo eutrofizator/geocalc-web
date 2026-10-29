@@ -188,6 +188,8 @@ export interface PlanInput {
   measuredPts?: Map<string, Pt>;
   /** A mérésnél használt alappontok (a vázlaton és a jegyzőkönyvben a felmérési alappont jelével). */
   bases?: NamedPt[];
+  /** A műszer-álláspontok (a mérési vázlaton háromszöggel). */
+  stations?: NamedPt[];
 }
 
 /** A határvonalak és a helyrajzi számok besorolása: változatlan, megszűnő, új. */
@@ -343,7 +345,7 @@ function dimensionEdges(input: PlanInput, job: JobKind | undefined): [NamedPt, N
   if (job === 'building') {
     const out = new Map<string, [NamedPt, NamedPt]>();
     for (const d of input.drawing ?? [])
-      if (d.kind === 'building' && d.type === 'new') d.ring.forEach((a, i) => out.set(edgeKey(a, d.ring[(i + 1) % d.ring.length]!), [a, d.ring[(i + 1) % d.ring.length]!]));
+      if (d.kind === 'building' && d.type !== 'old') d.ring.forEach((a, i) => out.set(edgeKey(a, d.ring[(i + 1) % d.ring.length]!), [a, d.ring[(i + 1) % d.ring.length]!]));
     return [...out.values()];
   }
   if (job === 'landuse') {
@@ -434,8 +436,9 @@ export interface PlanRender {
 
 export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta, opts: PlanOptions = {}): PlanRender {
   const tpl = opts.template ?? DEFAULT_TEMPLATES[kind];
-  // A felhasznált alappontok (pl. GNSS) a jelükkel és a nevükkel a rajzon.
-  const bases = input.bases ?? [];
+  // A felhasznált alappontok (pl. GNSS) és az álláspontok a mérési (kitűzési) vázlaton, a jelükkel és a nevükkel.
+  const bases = kind === 'sketch' ? (input.bases ?? []) : [];
+  const stations = kind === 'sketch' ? (input.stations ?? []) : [];
   const W = 210;
   const H = 297;
   const M = 12;
@@ -464,24 +467,28 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
   const mapTop = 54;
   const mapBottom = fy - (tableH ? tableH + 11 : 0) - 8;
   const frame = { x: M, y: mapTop, w: W - 2 * M, h: mapBottom - mapTop };
+  // A címkoordináták táblázata a kivágat jobb felső sarkában áll: a térkép alatta kezdődik, hogy ne takarja.
+  const addrRows = [...new Set(input.address.map((a) => a.hrsz))].reduce((sum, h) => sum + (input.address.filter((a) => a.hrsz === h).length + 2) * 4.4 + 3, 0);
+  const reserved = addrRows > 0 ? Math.min(addrRows + 2, frame.h / 3) : 0;
+  const map = { x: frame.x, y: frame.y + reserved, w: frame.w, h: frame.h - reserved };
 
   const all = [...input.before, ...input.after].flatMap((p) => p.ring);
   // A rajz terjedelmébe az alappontok is beleszámítanak (a mérési vázlaton látszaniuk kell).
-  const ys = [...all, ...bases].map((p) => p.y);
-  const xs = [...all, ...bases].map((p) => p.x);
+  const ys = [...all, ...bases, ...stations].map((p) => p.y);
+  const xs = [...all, ...bases, ...stations].map((p) => p.x);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const pad = 0.15;
-  const autoScale = chooseScale((maxY - minY) * (1 + 2 * pad) || 1, (maxX - minX) * (1 + 2 * pad) || 1, frame.w, frame.h);
+  const autoScale = chooseScale((maxY - minY) * (1 + 2 * pad) || 1, (maxX - minX) * (1 + 2 * pad) || 1, map.w, map.h);
   const scale = opts.scale ?? autoScale;
   t(W / 2, 51.5, `M= 1:${scale}`, 3.8, `${it} text-anchor="middle"`);
   const k = 1000 / scale; // mm / m
   const cy = (minY + maxY) / 2;
   const cx = (minX + maxX) / 2;
-  const sx = (y: number) => frame.x + frame.w / 2 + (y - cy) * k;
-  const sy = (x: number) => frame.y + frame.h / 2 - (x - cx) * k;
+  const sx = (y: number) => map.x + map.w / 2 + (y - cy) * k;
+  const sy = (x: number) => map.y + map.h / 2 - (x - cx) * k;
   const line = (a: Pt, b: Pt, w: number, extra = '', color = '#000') =>
     out.push(`<line x1="${sx(a.y).toFixed(2)}" y1="${sy(a.x).toFixed(2)}" x2="${sx(b.y).toFixed(2)}" y2="${sy(b.x).toFixed(2)}" stroke="${color}" stroke-width="${w}" ${extra}/>`);
   const poly = (ring: Pt[], closed: boolean, attrs: string) =>
@@ -660,6 +667,14 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
     }
     t(x + 2.2, y - 1.2, b.id, 2.2, 'font-weight="bold"');
   }
+  // Álláspontok: egyenlő oldalú háromszög (2,4 mm), a pontszám mellette
+  for (const st of stations) {
+    const x = sx(st.y);
+    const y = sy(st.x);
+    out.push(`<path d="M ${x.toFixed(2)} ${(y - 1.4).toFixed(2)} L ${(x + 1.2).toFixed(2)} ${(y + 0.7).toFixed(2)} L ${(x - 1.2).toFixed(2)} ${(y + 0.7).toFixed(2)} Z" fill="#fff" stroke="#000" stroke-width="0.25"/>`);
+    out.push(`<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="0.2" fill="#000"/>`);
+    t(x + 1.8, y + 2.4, st.id, 2.2, `font-weight="bold"${tpl.colored ? ` fill="${BLUE}"` : ''}`);
+  }
   // Címkoordináták jele
   for (const a of input.address) {
     const x = sx(a.y);
@@ -712,13 +727,13 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">` +
-    `<defs><clipPath id="frame"><rect x="${frame.x}" y="${frame.y}" width="${frame.w}" height="${frame.h}"/></clipPath></defs>` +
+    `<defs><clipPath id="frame"><rect x="${map.x}" y="${map.y.toFixed(2)}" width="${map.w}" height="${map.h.toFixed(2)}"/></clipPath></defs>` +
     `<rect width="${W}" height="${H}" fill="#fff"/>${out.join('')}</svg>`;
   return {
     svg,
     scale,
     autoScale,
-    toGround: (mx, my) => ({ y: cy + (mx - frame.x - frame.w / 2) / k, x: cx - (my - frame.y - frame.h / 2) / k }),
+    toGround: (mx, my) => ({ y: cy + (mx - map.x - map.w / 2) / k, x: cx - (my - map.y - map.h / 2) / k }),
     toPaper: (p) => ({ x: sx(p.y), y: sy(p.x) }),
   };
 }
@@ -966,11 +981,16 @@ export function planEntities(kind: 'change' | 'sketch', input: PlanInput, scale:
     e.push({ type: 'text', layer: 'pointNo', at: { y: p.y + mm, x: p.x + mm }, text: p.id, height: 1.5 });
   }
   const baseSym = findSymbol('felmérési alappont');
-  for (const b of input.bases ?? []) {
+  for (const b of kind === 'sketch' ? (input.bases ?? []) : []) {
     if (baseSym)
       for (const p of symbolPaths(baseSym, 0))
         e.push({ type: 'polyline', layer: 'symbol', pts: p.pts.map(([u, v]) => ({ y: b.y + u * mm, x: b.x + v * mm })), closed: p.closed });
     e.push({ type: 'text', layer: 'pointNo', at: { y: b.y + 2.2 * mm, x: b.x + 1.2 * mm }, text: b.id, height: 1.5 });
+  }
+  for (const st of kind === 'sketch' ? (input.stations ?? []) : []) {
+    const tri: [number, number][] = [[0, 1.4], [1.2, -0.7], [-1.2, -0.7]];
+    e.push({ type: 'polyline', layer: 'symbol', pts: tri.map(([u, v]) => ({ y: st.y + u * mm, x: st.x + v * mm })), closed: true });
+    e.push({ type: 'text', layer: 'pointNo', at: { y: st.y + 1.8 * mm, x: st.x - 2.4 * mm }, text: st.id, height: 1.5 });
   }
   for (const a of input.address) {
     e.push({ type: 'insert', layer: 'address', block: 'Címkoordináta', at: a, scale: 1 });

@@ -220,7 +220,8 @@ export function technicalReport(w: WorkData): string {
 /** 30. melléklet: vizsgálat és záradékolás iránti kérelem. */
 export function clauseRequest(w: WorkData): string {
   return (
-    `<div class="page"><p>Tisztelt ${dots(w.hivatal)}!</p>` +
+    // A címzett hivatal a bal felső sarokban, a megszólítás a földhivatalnak szól.
+    `<div class="page"><p>${dots(w.hivatal)}<br>Földhivatali Osztály</p><p>Tisztelt Földhivatal!</p>` +
     `<p>Alulírott ${esc(w.keszito)} kérem, az általam készített változási munkarészeket vizsgálat és záradékolás céljából átvenni szíveskedjen.</p>` +
     `<p>Soron kívüli eljárást kérek: igen / nem</p><table>` +
     row('Munka megnevezése – település és fekvés', `${esc(w.telepules)}, ${esc(w.fekves)}`) +

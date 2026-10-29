@@ -91,7 +91,7 @@ be a **GNSS pontok / GSI koordináták…** gombbal. A Leica GSI koordinátaáll
 | `kit` | a kitűzött, bemért pont (pl. `5001_1`) | *Mért pontok*, a földhivatali pontszámmal |
 
 A `fix` és a `kit` pont akkor sem átlagolódik, ha a pontszámuk ugyanaz: a kettő különbsége a kitűzés
-ellenőrzése. Az **alappontok** a rajzokon a felmérési alappont jelével (DAT1-M2 JKDATA22) és a
+ellenőrzése. Az **alappontok** a mérési vázlaton a felmérési alappont jelével (DAT1-M2 JKDATA22) és a
 pontszámukkal jelennek meg, a koordinátajegyzékben külön csoportban, a mérési jegyzőkönyvben a
 „Felhasznált alappontok” táblázatban a jelükkel.
 
@@ -124,8 +124,9 @@ pontszáma még nem szerepel ott. Így az épületsarkok koordinátáit nem kell
 álláspont pontszáma (pl. `101`) a koordináták között már egy másik pontot jelöl, a program szól –
 ilyenkor az egyiket érdemes átnevezni.
 
-Az **alappontok** a felmérési alappont jelével és a pontszámukkal a változási vázrajzon és a
-mérési vázlaton is megjelennek.
+A **mérési vázlaton** megjelennek az alappontok (a felmérési alappont jelével és a pontszámukkal)
+és a műszer-álláspontok (háromszöggel), valamint az épületek oldalainak méretei. A változási
+vázrajzra az alappontok és az álláspontok nem kerülnek rá.
 
 A GSI álláspont-blokkjait (41–43-as szavak) a program felismeri: ha a 41-es szó (kódszám) minden
 blokkban ugyanaz, a 42-es az álláspont, a 43-as a műszermagasság.
