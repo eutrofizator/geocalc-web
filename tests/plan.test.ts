@@ -154,7 +154,7 @@ describe('vázrajz', () => {
     const change = renderPlan('change', { ...input, bases: [base] }, meta, { template: JOBS.subdivision.plan, job: 'subdivision' }).svg;
     expect(change).not.toContain('>1001<');
     // a címkoordináták táblázata nem takarja a térképet: a kivágat a táblázat alatt kezdődik
-    const clipY = Number(/<clipPath id="frame"><rect x="[\d.]+" y="([\d.]+)"/.exec(change)![1]);
+    const clipY = Number(/<clipPath id="frame-[^"]+"><rect x="[\d.]+" y="([\d.]+)"/.exec(change)![1]);
     const tableBottom = Number(/<rect x="140" y="([\d.]+)" width="58" height="([\d.]+)"/.exec(change)!.slice(1, 3).reduce((a, b) => String(Number(a) + Number(b))));
     expect(clipY).toBeGreaterThanOrEqual(tableBottom);
   });
@@ -174,9 +174,18 @@ describe('vázrajz', () => {
     const far = { id: '1009', y: 650020, x: 239700 };
     const sketch = renderPlan('sketch', { ...input, bases: [far] }, meta, { template: JOBS.subdivision.sketch, job: 'subdivision', scale: 500 }).svg;
     expect(sketch).toContain('>1009 (a kivágaton kívül)<');
-    const clip = /<clipPath id="frame"><rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/.exec(sketch)!.slice(1).map(Number);
+    const clip = /<clipPath id="frame-[^"]+"><rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/.exec(sketch)!.slice(1).map(Number);
     const label = /<text x="([\d.]+)" y="([\d.]+)"[^>]*>1009 \(a kivágaton kívül\)</.exec(sketch)!.slice(1).map(Number);
     expect(label[1]!).toBeLessThan(clip[1]! + clip[3]!);
+  });
+
+  it('minden rajz saját vágókeretet kap (egy nyomtatott dokumentumban több rajz is van)', () => {
+    const a = renderPlan('change', input, meta, { template: JOBS.subdivision.plan, job: 'subdivision' }).svg;
+    const b = renderPlan('sketch', input, meta, { template: JOBS.subdivision.sketch, job: 'subdivision' }).svg;
+    const ids = [a, b].map((svg) => /<clipPath id="([^"]+)">/.exec(svg)![1]!);
+    expect(ids[0]).not.toBe(ids[1]);
+    expect(a).toContain(`clip-path="url(#${ids[0]})"`);
+    expect(b).toContain(`clip-path="url(#${ids[1]})"`);
   });
 
   it('a szabványos méretarány a keretbe fér', () => {

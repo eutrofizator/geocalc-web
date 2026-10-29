@@ -437,6 +437,8 @@ export interface PlanRender {
   toPaper: (p: Pt) => { x: number; y: number };
 }
 
+let clipCounter = 0;
+
 export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta, opts: PlanOptions = {}): PlanRender {
   const tpl = opts.template ?? DEFAULT_TEMPLATES[kind];
   // A felhasznált alappontok (pl. GNSS) és az álláspontok a mérési (kitűzési) vázlaton, a jelükkel és a nevükkel.
@@ -506,7 +508,10 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
     return { mx, my, tr: `transform="rotate(${rot.toFixed(1)} ${mx.toFixed(2)} ${my.toFixed(2)})"` };
   };
 
-  out.push(`<g clip-path="url(#frame)">`);
+  // Egyedi azonosító: egy dokumentumban (pl. a munkarészek nyomtatásakor) több rajz is lehet, és az
+  // azonos nevű vágókeretek közül a böngésző mindegyikre az elsőt alkalmazná.
+  const clipId = `frame-${kind}-${++clipCounter}`;
+  out.push(`<g clip-path="url(#${clipId})">`);
   // Környezet
   const own = new Set([...input.before, ...input.after].map((p) => p.hrsz));
   for (const p of input.background?.parcels ?? [])
@@ -750,7 +755,7 @@ export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: Pl
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}" font-family="Arial, Helvetica, sans-serif">` +
-    `<defs><clipPath id="frame"><rect x="${map.x}" y="${map.y.toFixed(2)}" width="${map.w}" height="${map.h.toFixed(2)}"/></clipPath></defs>` +
+    `<defs><clipPath id="${clipId}"><rect x="${map.x}" y="${map.y.toFixed(2)}" width="${map.w}" height="${map.h.toFixed(2)}"/></clipPath></defs>` +
     `<rect width="${W}" height="${H}" fill="#fff"/>${out.join('')}</svg>`;
   return {
     svg,
