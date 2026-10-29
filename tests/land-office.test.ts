@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeText, mergeRegistered, mtextPlain, parseDxfEntities, readCadastralDxf, readRegisteredAreas, readZip } from '../src/core/land-office';
+import { decodeText, mergeRegistered, mtextPlain, parseDxfEntities, readCadastralDxf, readRegisteredAreas, readSettlement, readZip } from '../src/core/land-office';
 
 /**
  * A földhivatali adatszolgáltatás csomagja: ingatlan-nyilvántartási térkép DXF-ben (BHP, BHP_SZ, HRSZ,
@@ -164,5 +164,14 @@ describe('ZIP', () => {
 
   it('nem ZIP állomány', async () => {
     await expect(readZip(new ArrayBuffer(40))).rejects.toThrow(/Nem ZIP/);
+  });
+});
+
+describe('földkönyvi kivonat fejléce', () => {
+  it('a település és a fekvés', () => {
+    const text = ['*'.repeat(40), ' 1234 KISVÁROS   BELTERÜLET ', '*'.repeat(40), '  HRSZ    JEL'].join('\r\n');
+    expect(readSettlement(text)).toEqual({ telepules: 'Kisváros', fekves: 'Belterület' });
+    expect(readSettlement(' 0042 ALSÓ-HEGYVÁROS  KÜLTERÜLET')).toEqual({ telepules: 'Alsó-Hegyváros', fekves: 'Külterület' });
+    expect(readSettlement('nincs fejléc')).toBeNull();
   });
 });

@@ -18,6 +18,9 @@ példa kipróbálható.
 
 *Geodéziai számítások / Beállítások* – az előlapon add meg a vállalkozásod nevét, a munkaszámot, a
 települést, a fekvést (belterület / külterület) és a dátumot. Ezek kerülnek minden rajz fejlécébe.
+Ugyanezek a mezők a *Változási vázrajz* munkalap **Munka adatai** részének tetején is megvannak
+(a két hely ugyanazt az adatot mutatja). A települést és a fekvést a földkönyvi kivonatból a program
+magától kitölti, ha még üres.
 
 A *Változási vázrajz* munkalap **Vázrajz és jegyzékek** részében add meg a saját adataidat:
 székhely, földmérő igazolvány száma, IRF minősítés száma, a készítés helye. Ezeket a böngésző

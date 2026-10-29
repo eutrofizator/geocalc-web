@@ -265,6 +265,17 @@ export function readRegisteredAreas(text: string): RegisteredParcel[] {
   return out;
 }
 
+/**
+ * A földkönyvi kivonat fejlécéből a település és a fekvés (pl. „ 1234 KISVÁROS   BELTERÜLET”):
+ * a településnév nagy kezdőbetűvel, a többi kisbetűvel.
+ */
+export function readSettlement(text: string): { telepules: string; fekves: string } | null {
+  const m = text.match(/^\s*\d{4}\s+(\S.*?)\s{2,}(BELTERÜLET|KÜLTERÜLET|ZÁRTKERT)\s*$/mu);
+  if (!m) return null;
+  const cap = (w: string) => w.charAt(0).toLocaleUpperCase('hu') + w.slice(1).toLocaleLowerCase('hu');
+  return { telepules: m[1]!.trim().split(/(\s+|-)/).map((w) => (/^[\s-]+$/.test(w) ? w : cap(w))).join(''), fekves: cap(m[2]!) };
+}
+
 /** Több szöveges kimenet összevonása: helyrajzi számonként egy rekord (a geometriát tartalmazó az erősebb). */
 export function mergeRegistered(lists: RegisteredParcel[][]): RegisteredParcel[] {
   const out = new Map<string, RegisteredParcel>();

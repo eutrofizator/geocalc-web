@@ -5,7 +5,7 @@ import { sectionsToText } from './core/format';
 import { parseMeasured } from './core/boundary-check';
 import { mergePointLines, parseGnssText, splitByKnown } from './core/gnss';
 import { writeLst } from './core/lst';
-import { decodeText, mergeRegistered, readCadastralDxf, readRegisteredAreas, readZip, type CadastralMap, type RegisteredParcel } from './core/land-office';
+import { decodeText, mergeRegistered, readCadastralDxf, readRegisteredAreas, readSettlement, readZip, type CadastralMap, type RegisteredParcel } from './core/land-office';
 import { polygonArea } from './core/geometry';
 import {
   ANNEX_SCALES,
@@ -35,7 +35,8 @@ import {
   type PlanInput,
   type PlanMeta,
 } from './core/plan';
-import { getMeta } from './report-view';
+import { DEFAULT_META } from './core/report';
+import { getMeta, onMeta, setMeta } from './report-view';
 import { JOBS, JOB_LIST, landUseCode, landUseName, type JobKind } from './core/jobs';
 import { subStatement } from './core/subparcels';
 import { SYMBOLS } from './core/symbols';
@@ -388,11 +389,39 @@ export function initParcelView(): void {
     workInputs.set(key, i);
     gWork.append(labelled(label, i));
   }
+  // A rajzok fejlécének adatai: ugyanazok, mint a Geodéziai számítások / Beállítások (előlap) mezői.
+  const META_FIELDS: [keyof ReturnType<typeof getMeta>, string, string][] = [
+    ['keszitette', 'Készítő (földmérő vagy vállalkozás neve)', 'pl. Minta Geodézia Kft.'],
+    ['msz', 'Munkaszám', 'pl. 2026/41'],
+    ['telepules', 'Település', 'pl. Kisváros'],
+    ['fekves', 'Fekvés', 'Belterület / Külterület / Zártkert'],
+    ['datum', 'Dátum', 'pl. 2026.10.29.'],
+  ];
+  const metaInputs = new Map<string, HTMLInputElement>();
+  const gMeta = el('div', 'grid3');
+  for (const [key, label, ph] of META_FIELDS) {
+    const i = input(`pc-meta-${key}`, ph);
+    i.value = getMeta()[key];
+    i.addEventListener('input', () => setMeta({ [key]: i.value }));
+    metaInputs.set(key, i);
+    gMeta.append(labelled(label, i));
+  }
+  onMeta(() => {
+    for (const [key] of META_FIELDS) {
+      const i = metaInputs.get(key)!;
+      if (i !== document.activeElement && i.value !== getMeta()[key]) i.value = getMeta()[key];
+    }
+    // A rajzok fejléce azonnal frissül.
+    run();
+  });
   const workDetails = el('details', 'settings');
   const owners = area('pc-owners', 4);
   owners.placeholder = ['# név ; lakcím ; hrsz', 'Kiss Anna ; 1111 Kisváros, Fő u. 1. ; 124', 'Nagy Béla ; 1111 Kisváros, Fő u. 3. ; 125'].join('\n');
   workDetails.append(
     el('summary', undefined, 'Munka adatai (adatigénylés, műszaki leírás, kérelem, jegyzőkönyv)'),
+    el('p', 'hint', 'A rajzok fejlécébe és lábrészébe kerül (ugyanaz, mint a Beállítások / előlap mezői):'),
+    gMeta,
+    el('p', 'hint', 'A dokumentumokba (adatigénylő lap, műszaki leírás, záradékolási kérelem, jegyzőkönyvek, értesítés) kerül:'),
     gWork,
     labelled('Tulajdonosok (név ; lakcím ; hrsz) – az értesítéshez és a helyszíni jegyzőkönyvhöz', owners),
     el('p', 'hint', 'Az érintett földrészlet tulajdonosa az, akinek a hrsz-a a munka földrészletei között van; a többiek szomszédok. Tulajdonosonként külön értesítés készül.'),
@@ -748,7 +777,18 @@ export function initParcelView(): void {
     const nbInput = workInputs.get('szomszedok');
     if (nbInput && neighbours.length > 0 && !nbInput.value.trim()) nbInput.value = neighbours.join(', ');
     const used = new Set([...work.flatMap((p) => p.ring), ...subs.flatMap((x) => x.ring), ...buildings.flatMap((b) => b.ring)]);
-    coords.value = ['# pontszám  Y  X  (DAT)', ...d.points.filter((p) => used.has(p.id)).map((p) => `${p.id}  ${p.y.toFixed(2)}  ${p.x.toFixed(2)}`)].join(
+    // A pontkód a T_OBJ_ATTRAC rekord utolsó négyjegyű mezője; a magasság a T_PONT pont_H mezője (0 = nincs).
+    const codeOf = (id: string) => [...(d.pointRecords.get(id)?.ac ?? []).slice(4)].reverse().find((v) => /^\d{4}$/.test(v.trim()))?.trim() ?? '';
+    const heightOf = (id: string) => {
+      const h = Number(d.pointRecords.get(id)?.pont[3] ?? '');
+      return Number.isFinite(h) && h !== 0 ? h.toFixed(2) : '-';
+    };
+    const pointLine = (p: NamedPt) => {
+      const code = codeOf(p.id);
+      const h = heightOf(p.id);
+      return `${p.id}  ${p.y.toFixed(2)}  ${p.x.toFixed(2)}` + (code || h !== '-' ? `  ${h}${code ? `  ${code}` : ''}` : '');
+    };
+    coords.value = ['# pontszám  Y  X  [M  pontkód]  (DAT)', ...d.points.filter((p) => used.has(p.id)).map(pointLine)].join(
       '\n',
     );
     before.value = ['# hrsz ; tulajdoni lapi terület [m²] ; pontok (DAT)', ...work.map((p) => `${p.hrsz} ; ${areaOf(p) ?? ''} ; ${p.ring.join(' ')}`)].join(
@@ -782,6 +822,12 @@ export function initParcelView(): void {
       ];
       run();
       return;
+    }
+    // A földkönyvi kivonat fejlécéből a település és a fekvés, ha még nincs megadva.
+    const place = texts.filter((t) => /\.txt$/i.test(t.name)).map((t) => readSettlement(t.text)).find((x) => x !== null);
+    if (place) {
+      const m = getMeta();
+      setMeta({ telepules: m.telepules.trim() || place.telepules, fekves: m.fekves.trim() && m.fekves !== DEFAULT_META.fekves ? m.fekves : place.fekves });
     }
     const dxfFile = texts.find((t) => /\.dxf$/i.test(t.name));
     const datFiles = texts.filter((t) => /\.dat$/i.test(t.name));
