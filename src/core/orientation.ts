@@ -109,6 +109,14 @@ export function orientStations(rows: RawObs[], refs: Map<string, NamedPt>, known
     let source: StationOrientation['source'] = 'known';
     let scale: number | undefined;
     const free = freeStation(toRef, refs);
+    // Névütközés: a koordináták között ilyen pontszámmal egészen más pont áll (pl. épületsarok).
+    if (st && free && Math.hypot(free.y - st.y, free.x - st.x) > 0.5) {
+      issues.push({
+        level: 'warning',
+        message: `Álláspont ${g.id}: a koordináták között a(z) ${g.id} pontszám más pontot jelöl (${Math.hypot(free.y - st.y, free.x - st.x).toFixed(2)} m-re a mérésből számolt állásponttól) – az álláspontot szabad álláspontként számolom. Érdemes az egyiket átnevezni.`,
+      });
+      st = null;
+    }
     const freeCheck = st && free ? { dy: free.y - st.y, dx: free.x - st.x } : undefined;
     if (freeCheck && Math.hypot(freeCheck.dy, freeCheck.dx) > 0.01)
       issues.push({
@@ -136,7 +144,9 @@ export function orientStations(rows: RawObs[], refs: Map<string, NamedPt>, known
       const h = horiz(o);
       return { id: o.id, hz: o.hz!, bearing: bearing(s, p), z: norm(first[i]!), v, e: (v / 3600 / RHO) * dist * 1000, dist, dd: h === null ? null : h - dist };
     });
-    const m0 = out.length >= 2 ? Math.sqrt(out.reduce((a, r) => a + r.v * r.v, 0) / (out.length - 1)) : null;
+    // Fölös mérés: ismert álláspontnál n − 1, szabad álláspontnál (a helyzet is ismeretlen) n − 2.
+    const dof = out.length - (source === 'free' ? 2 : 1);
+    const m0 = dof >= 1 ? Math.sqrt(out.reduce((a, r) => a + r.v * r.v, 0) / dof) : null;
     const points: PolarPoint[] = [];
     for (const o of obs) {
       if (toRef.includes(o)) continue;
@@ -152,7 +162,7 @@ export function orientStations(rows: RawObs[], refs: Map<string, NamedPt>, known
       level: 'info',
       message:
         `Tájékozás – álláspont ${g.id} (${source === 'known' ? 'ismert' : 'szabad álláspont'}): ${out.length} tájékozó irány, ` +
-        `középhiba ${m0 === null ? '–' : `± ${m0.toFixed(1)}″`}, legnagyobb lineáris eltérés ${Math.max(...out.map((r) => Math.abs(r.e))).toFixed(1)} mm; ${points.length} részletpont.`,
+        `középhiba ${m0 === null ? '– (nincs fölös mérés)' : `± ${m0.toFixed(1)}″`}, legnagyobb lineáris eltérés ${Math.max(...out.map((r) => Math.abs(r.e))).toFixed(1)} mm; ${points.length} részletpont.`,
     });
     stations.push({ station: g.id, source, y: s.y, x: s.x, z, m0, rows: out, ...(scale !== undefined ? { scale } : {}), ...(freeCheck ? { freeCheck } : {}), points });
   }

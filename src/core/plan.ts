@@ -33,6 +33,8 @@ export interface PointAttrs {
   code: string;
   /** Alappont (a sor végén „AP” jel, pl. GNSS-szel meghatározott felmérési alappont). */
   base?: boolean;
+  /** A nyers mérésből szabad álláspontként számolt álláspont („SZA” jel). */
+  free?: boolean;
 }
 
 /** A koordinátasorok 4. (magasság) és 5. (pontkód) oszlopa – pl. az ITR koordinátajegyzék formája. */
@@ -46,7 +48,8 @@ export function parsePointAttrs(text: string): Map<string, PointAttrs> {
     const m = f[3] !== undefined && /^-?\d+([.,]\d+)?$/.test(f[3]) ? Number(f[3].replace(',', '.')) : null;
     const code = f[4] !== undefined && /^\d{4}$/.test(f[4]) ? f[4] : '';
     const base = f.slice(3).some((v) => v.toUpperCase() === 'AP');
-    out.set(f[0]!, { m, code, ...(base ? { base } : {}) });
+    const free = f.slice(3).some((v) => v.toUpperCase() === 'SZA');
+    out.set(f[0]!, { m, code, ...(base ? { base } : {}), ...(free ? { free } : {}) });
   }
   return out;
 }
@@ -431,8 +434,8 @@ export interface PlanRender {
 
 export function renderPlan(kind: 'change' | 'sketch', input: PlanInput, meta: PlanMeta, opts: PlanOptions = {}): PlanRender {
   const tpl = opts.template ?? DEFAULT_TEMPLATES[kind];
-  // Az alappontok a mérési (kitűzési) vázlaton látszanak.
-  const bases = kind === 'sketch' ? (input.bases ?? []) : [];
+  // A felhasznált alappontok (pl. GNSS) a jelükkel és a nevükkel a rajzon.
+  const bases = input.bases ?? [];
   const W = 210;
   const H = 297;
   const M = 12;
@@ -963,7 +966,7 @@ export function planEntities(kind: 'change' | 'sketch', input: PlanInput, scale:
     e.push({ type: 'text', layer: 'pointNo', at: { y: p.y + mm, x: p.x + mm }, text: p.id, height: 1.5 });
   }
   const baseSym = findSymbol('felmérési alappont');
-  for (const b of kind === 'sketch' ? (input.bases ?? []) : []) {
+  for (const b of input.bases ?? []) {
     if (baseSym)
       for (const p of symbolPaths(baseSym, 0))
         e.push({ type: 'polyline', layer: 'symbol', pts: p.pts.map(([u, v]) => ({ y: b.y + u * mm, x: b.x + v * mm })), closed: p.closed });

@@ -50,6 +50,14 @@ describe('tájékozás', () => {
     expect(s.points[0]!.y).toBeCloseTo(P.y, 6);
   });
 
+  it('névütközés: a koordináták között ugyanilyen pontszámú más pont (épületsarok) – szabad álláspont', () => {
+    const corner = { id: '101', y: S.y + 7, x: S.x - 4 };
+    const { stations, issues } = orientStations(rows, refs, new Map([...refs, [corner.id, corner]]));
+    expect(stations[0]!.source).toBe('free');
+    expect(stations[0]!.y).toBeCloseTo(S.y, 2);
+    expect(issues.some((i) => i.level === 'warning' && /más pontot jelöl/.test(i.message))).toBe(true);
+  });
+
   it('eltérő álláspont-koordinátánál figyelmeztet', () => {
     const shifted = { ...S, y: S.y + 0.02 };
     const { issues } = orientStations(rows, refs, new Map([...refs, [S.id, shifted]]));

@@ -392,7 +392,7 @@ function orientationPages(list: StationOrientation[], formatAngle: (deg: number)
       return (
         `<h2>Tájékozás – álláspont: ${esc(s.station)} (Y = ${s.y.toFixed(3)}, X = ${s.x.toFixed(3)}; ${src})</h2>` +
         `<table class="grid"><tr><th>Irányzott pont</th><th>Hz</th><th>Irányszög δ</th><th>Tájékozási szög z</th><th>v [″]</th><th>e [mm]</th><th>Távolság [m]</th><th>Δt [m]</th></tr>${rows}</table>` +
-        `<p class="note">Tájékozási szög (középérték): z = ${formatAngle(s.z)}; a tájékozás középhibája: ${s.m0 === null ? '– (egy tájékozó irány)' : `± ${s.m0.toFixed(1)}″`}. v = z − z<sub>i</sub>; e = v · távolság; Δt = mért − koordinátákból számított távolság.</p>` +
+        `<p class="note">Tájékozási szög (középérték): z = ${formatAngle(s.z)}; a tájékozás középhibája: ${s.m0 === null ? '– (nincs fölös mérés)' : `± ${s.m0.toFixed(1)}″`}. v = z − z<sub>i</sub>; e = v · távolság; Δt = mért − koordinátákból számított távolság.</p>` +
         check +
         (pts
           ? `<h2>Részletpontok számítása – álláspont: ${esc(s.station)} (poláris pontok)</h2><table class="grid"><tr><th>Psz</th><th>Y [m]</th><th>X [m]</th><th>Távolság [m]</th><th>dY [m]</th><th>dX [m]</th></tr>${pts}</table><p class="note">dY, dX: a számított mínusz a meglévő koordináta (ha a pont szerepel a koordináták között).</p>`

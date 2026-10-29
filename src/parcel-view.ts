@@ -3,7 +3,7 @@ import { checkBoundary, type Area, type CheckOptions, type MapKind, type PointOr
 import { CHANGE_KINDS, feesSection, type ChangeKind } from './core/fees';
 import { sectionsToText } from './core/format';
 import { parseMeasured } from './core/boundary-check';
-import { farPoints, mergePointLines, parseGnssText, splitByKnown } from './core/gnss';
+import { baseName, farPoints, mergePointLines, parseGnssText, splitByKnown } from './core/gnss';
 import { orientStations } from './core/orientation';
 import { writeLst } from './core/lst';
 import { decodeText, mergeRegistered, readCadastralDxf, readRegisteredAreas, readSettlement, readZip, type CadastralMap, type RegisteredParcel } from './core/land-office';
@@ -976,10 +976,36 @@ export function initParcelView(): void {
   /** A nyers mérés tájékozása: az alappontokra (ha nincsenek, a többi ismert pontra) mért irányokból. */
   function orientation() {
     if (!raw) return null;
-    const known = parsePoints(coords.value).points;
+    const all = parsePoints(coords.value).points;
+    const attrs = parsePointAttrs(coords.value);
+    // A korábban szabad álláspontként számolt (SZA jelű) álláspont nem ismert pont: mindig újra számolódik.
+    const known = new Map([...all].filter(([id]) => !attrs.get(id)?.free));
     const bases = basePoints();
     const refs = bases.length > 0 ? new Map(bases.map((b) => [b.id, b])) : known;
     return orientStations(recordRows(raw), refs, known);
+  }
+
+  /**
+   * A nyers mérésből számolt koordináták átvétele: a szabad álláspontok és a poláris részletpontok,
+   * amelyek pontszáma (utótag nélkül) még nem szerepel a Koordináták között. Ismételt mérésnél az első.
+   */
+  function takeComputed(): Issue[] {
+    const o = orientation();
+    if (!o) return [];
+    const have = new Set(parsePoints(coords.value).points.keys());
+    const lines: string[] = [];
+    const add = (id: string, y: number, x: number, tag = '') => {
+      if (have.has(id)) return;
+      have.add(id);
+      lines.push(`${id} ${y.toFixed(3)} ${x.toFixed(3)}${tag ? ` - ${tag}` : ''}`);
+    };
+    for (const s of o.stations) {
+      if (s.source === 'free') add(s.station, s.y, s.x, 'SZA');
+      for (const p of s.points) if (baseName(p.id) === p.id || /_\d+$/.test(p.id)) add(baseName(p.id), p.y, p.x);
+    }
+    if (lines.length === 0) return [];
+    coords.value = [coords.value.replace(/\s+$/, ''), '# a nyers mérésből számolt pontok (tájékozás az alappontokra)', ...lines].join('\n');
+    return [{ level: 'info', message: `A nyers mérésből ${lines.length} számított pont került a Koordináták közé (${lines.map((l) => l.split(' ')[0]).join(', ')}).` }];
   }
 
   /** Az alappontok: a Koordináták mező „AP” jelű sorai. */
@@ -1687,7 +1713,7 @@ export function initParcelView(): void {
       return;
     }
     raw = { name: f.name, text };
-    datNotes = [{ level: 'info', message: `Nyers mérés: ${f.name} – a mérési jegyzőkönyv a csomagba kerül.` }];
+    datNotes = [{ level: 'info', message: `Nyers mérés: ${f.name} – a mérési jegyzőkönyv a csomagba kerül.` }, ...takeComputed()];
     showRaw();
     run();
   });
@@ -1789,6 +1815,8 @@ export function initParcelView(): void {
         };
       }),
       ...g.issues,
+      // Ha a nyers mérés már be van töltve, az új alappontokkal a számított pontok is átvehetők.
+      ...takeComputed(),
     ];
     run();
   }
