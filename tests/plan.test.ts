@@ -64,6 +64,24 @@ describe('címkoordináták', () => {
     expect(generateAddressPoints([{ hrsz: '123/1', ring }], 'C')).toEqual([{ id: 'C1', hrsz: '123/1', y: 650010, x: 240013, code: '5411' }]);
   });
 
+  it('a földrészlet és az épület meglévő címkoordinátája is marad (két pont egy hrsz-en)', () => {
+    const ring = [
+      { y: 650000, x: 240000 },
+      { y: 650020, x: 240000 },
+      { y: 650020, x: 240025 },
+      { y: 650000, x: 240025 },
+    ];
+    const existing = [
+      { code: '5411', y: 650003, x: 240002 },
+      { code: '5411', y: 650012, x: 240015 },
+    ];
+    expect(generateAddressPoints([{ hrsz: '123', ring }, { hrsz: '124', ring: ring.map((q) => ({ y: q.y + 20, x: q.x })) }], 'C', 1, existing)).toEqual([
+      { id: 'C1', hrsz: '123', y: 650003, x: 240002, code: '5411' },
+      { id: 'C2', hrsz: '123', y: 650012, x: 240015, code: '5411' },
+      { id: 'C3', hrsz: '124', y: 650030, x: 240013, code: '5411' },
+    ]);
+  });
+
   it('a földrészletbe eső meglévő (DAT) címkoordináta marad, a kódjával együtt', () => {
     const ring = [
       { y: 650000, x: 240000 },

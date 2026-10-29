@@ -105,6 +105,17 @@ export function polygonArea(pts: Pt[]): number {
   return Math.abs(sum) / 2;
 }
 
+/** A pont a sokszögön belül van-e (sugárkövetés). */
+export function pointInRing(p: Pt, ring: Pt[]): boolean {
+  let c = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i]!;
+    const b = ring[j]!;
+    if (a.x > p.x !== b.x > p.x && p.y < ((b.y - a.y) * (p.x - a.x)) / (b.x - a.x) + a.y) c = !c;
+  }
+  return c;
+}
+
 /** Kitűzési méretek: a K→V alapvonalra vonatkozó abszcissza (a) és ordináta (b, balra pozitív). */
 export function baseOffsets(k: Pt, v: Pt, p: Pt): { a: number; b: number } {
   const t = distance(k, v);

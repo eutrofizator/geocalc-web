@@ -4,7 +4,7 @@ import type { DxfEntity } from './dxf-writer';
 import type { LayerKey } from './layers';
 import type { FooterItem, JobKind, PlanTemplate } from './jobs';
 import { fix } from './format';
-import { distance, polygonArea, type Pt } from './geometry';
+import { distance, pointInRing, polygonArea, type Pt } from './geometry';
 import type { NamedPt } from './parcel';
 import { symbolPaths } from './symbols';
 import type { Row, Section } from './types';
@@ -113,24 +113,16 @@ export function generateAddressPoints(
   parcels: { hrsz: string; ring: Pt[] }[],
   prefix: string,
   first = 1,
-  /** A földhivatali DAT meglévő címkoordinátái: a földrészletbe eső marad (pl. épületfeltüntetésnél). */
+  /** A földhivatali DAT meglévő címkoordinátái: a földrészletbe esők mind maradnak (a földrészleté és az épületeké is). */
   existing: { code: string; y: number; x: number }[] = [],
 ): AddressPoint[] {
-  return parcels.map((p, i) => {
-    const old = existing.find((e) => insideRing(e, p.ring));
-    const c = old ?? interiorPoint(p.ring);
-    return { id: `${prefix}${first + i}`, hrsz: p.hrsz, y: Math.round(c.y), x: Math.round(c.x), code: old?.code ?? '5411' };
-  });
-}
-
-function insideRing(p: Pt, ring: Pt[]): boolean {
-  let c = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const a = ring[i]!;
-    const b = ring[j]!;
-    if (a.x > p.x !== b.x > p.x && p.y < ((b.y - a.y) * (p.x - a.x)) / (b.x - a.x) + a.y) c = !c;
+  const out: AddressPoint[] = [];
+  for (const p of parcels) {
+    const own = existing.filter((e) => pointInRing(e, p.ring));
+    const list = own.length > 0 ? own : [{ ...interiorPoint(p.ring), code: '5411' }];
+    for (const c of list) out.push({ id: `${prefix}${first + out.length}`, hrsz: p.hrsz, y: Math.round(c.y), x: Math.round(c.x), code: c.code });
   }
-  return c;
+  return out;
 }
 
 export function addressSection(points: AddressPoint[]): Section {

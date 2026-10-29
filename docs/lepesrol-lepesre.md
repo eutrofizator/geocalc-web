@@ -118,8 +118,10 @@ szomszédai), `foldm_foldk-…-szomsz.txt` (földkönyvi kivonat) és egy PDF. E
 - a **tulajdoni lapi terület a földkönyvi kivonatból** jön. Ha a DAT-ban tárolt terület ettől eltér
   (pl. 500 m² a földkönyvben, 506 m² a DAT-ban), a program figyelmeztet, és a tulajdoni lapival
   számol;
-- a DAT-ban lévő **meglévő címkoordináta** (T_OBJ_ATTRAD) megmarad: a változás utáni földrészletbe
-  eső régi címkoordinátát veszi át, csak ahol nincs, ott generál újat;
+- a DAT-ban lévő **meglévő címkoordináták** (T_OBJ_ATTRAD) megmaradnak: a változás utáni
+  földrészletbe eső összes régi címkoordinátát átveszi – a földrészletét és az épületekét is (egy
+  hrsz-en így kettő vagy több is lehet) –, csak ahol egy sincs, ott generál újat. A DAT-ba
+  visszaírva az épületbe eső címkoordináta az épület, a többi a földrészlet geokódpontja lesz;
 - a közös határponttal érintkező földrészletek a *Szomszédos hrsz-ek* mezőbe kerülnek (ha üres) – a
   kitűzési jegyzőkönyvhöz és az értesítésekhez.
 

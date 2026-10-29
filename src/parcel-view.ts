@@ -1265,7 +1265,7 @@ export function initParcelView(): void {
       pointRecords: dat?.data.pointRecords,
       subs: subs.map((r) => ({ hrsz: r.hrsz, letter: r.letter, useCode: landUseCode(r.use), area: r.area, ring: r.ring })),
       buildings,
-      addresses: plAddr.checked ? new Map(addressPoints().map((a) => [a.hrsz, a])) : undefined,
+      addresses: plAddr.checked ? addressPoints() : undefined,
     });
     return { name: `${base}_valtozas`, text };
   }

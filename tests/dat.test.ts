@@ -128,12 +128,24 @@ describe('visszaírás (az ITR 5 DAT kimenetének szerkezete)', () => {
   it('a földrészlet geokódpontja a megadott címkoordináta', () => {
     const parcels = [{ hrsz: '123/1', area: 251, ring: ring('101', 'U1', 'U2', '4') }];
     const withAddr = parseDatTables(
-      writeDat(parcels, { name: 'c', date: new Date(2026, 9, 25), addresses: new Map([['123/1', { y: 650005, x: 240012 }]]) }),
+      writeDat(parcels, { name: 'c', date: new Date(2026, 9, 25), addresses: [{ y: 650005, x: 240012 }] }),
     );
     const bd = withAddr.tables.get('T_OBJ_ATTRBD') ?? withAddr.tables.get('T_OBJ_ATTRBC')!;
     const pontId = bd[0]!.at(-1)!;
     const pont = withAddr.tables.get('T_PONT')!.find((r) => r[0] === pontId)!;
     expect([pont[1], pont[2]]).toEqual(['240012', '650005']);
+  });
+
+  it('az épület geokódpontja az épületbe eső, a földrészleté az épületen kívüli címkoordináta', () => {
+    const P = (id: string, y: number, x: number) => ({ id, y, x });
+    const parcels = [{ hrsz: '123', area: 500, ring: [P('1', 650000, 240000), P('2', 650020, 240000), P('3', 650020, 240025), P('4', 650000, 240025)] }];
+    const buildings = [{ hrsz: '123', code: 'CA01', ring: [P('E1', 650010, 240010), P('E2', 650016, 240010), P('E3', 650016, 240018), P('E4', 650010, 240018)] }];
+    const t = parseDatTables(
+      writeDat(parcels, { name: 'c', date: new Date(2026, 9, 29), buildings, addresses: [{ y: 650012, x: 240014 }, { y: 650003, x: 240002 }] }),
+    );
+    const at = (id: string) => t.tables.get('T_PONT')!.find((r) => r[0] === id)!.slice(1, 3);
+    expect(at(t.tables.get('T_OBJ_ATTRBD')![0]!.at(-1)!)).toEqual(['240002', '650003']);
+    expect(at(t.tables.get('T_OBJ_ATTRCA')![0]!.at(-1)!)).toEqual(['240014', '650012']);
   });
 
   it('az ITR címrekordja, CR LF sorvég, CTRL-Z nélkül', () => {
