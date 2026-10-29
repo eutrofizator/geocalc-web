@@ -127,6 +127,15 @@ describe('vázrajz', () => {
     address: [{ id: 'C1', hrsz: '100/1', y: 650006, x: 240013, code: '5411' }],
   };
 
+  it('a lábrészben a készítő és a minőséget tanúsító neve', () => {
+    const tan = { ...meta, tanusito: 'Nagy Béla' };
+    const change = renderPlan('change', input, tan, { template: JOBS.subdivision.plan, job: 'subdivision' }).svg;
+    expect(change).toContain('Minta Földmérő Kft.');
+    expect(change).toMatch(/Minőséget tanúsító: \.+ {2}Nagy Béla/);
+    const setout = renderPlan('change', input, meta, { template: JOBS.setout.plan, job: 'setout' }).svg;
+    expect(setout).toMatch(/Készítő és minőséget tanúsító: \.+ {2}Minta Földmérő Kft\./);
+  });
+
   it('a szabványos méretarány a keretbe fér', () => {
     expect(chooseScale(46, 29, 190, 150)).toBe(250);
     expect(chooseScale(400, 300, 190, 150)).toBe(4000);

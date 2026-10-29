@@ -937,8 +937,11 @@ export function initParcelView(): void {
 
   function planMeta(): PlanMeta {
     const m = getMeta();
+    const work = (k: WorkKey) => workInputs.get(k)!.value.trim();
     return {
-      keszito: m.keszitette,
+      // A készítő: az előlap „Készítő” mezője, ha üres, a munkát végzők közül az első.
+      keszito: m.keszitette.trim() || (work('vegzok').split(/[,;]/)[0] ?? '').trim(),
+      tanusito: work('minosegtanusito'),
       szekhely: plSzekhely.value,
       munkaszam: m.msz,
       telepules: m.telepules,

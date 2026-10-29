@@ -155,6 +155,8 @@ export interface PlanMeta {
   /** A készítés helye és ideje. */
   hely: string;
   datum: string;
+  /** A minőséget tanúsító földmérő neve (ha üres, a készítő tanúsít). */
+  tanusito?: string;
 }
 
 export interface PlanParcel {
@@ -819,12 +821,12 @@ function footerSvg(out: string[], t: TextFn, items: FooterItem[], x: number, y0:
         y += 11;
         break;
       case 'cert':
-        t(x, y, 'Minőséget tanúsító: .......................................', 2.8, it);
+        t(x, y, `Minőséget tanúsító: .......................................  ${meta.tanusito ?? ''}`, 2.8, it);
         t(x + 22, y + 4, `Ing.rend.min.sz.: ${meta.minosites}`, 2.6, it);
         y += 11;
         break;
       case 'makercert':
-        t(x, y, 'Készítő és minőséget tanúsító: .............................', 2.8, it);
+        t(x, y, `Készítő és minőséget tanúsító: .............................  ${meta.tanusito || meta.keszito}`, 2.8, it);
         t(x + 30, y + 4, `Ing.rend.min.sz.: ${meta.minosites}`, 2.6, it);
         y += 11;
         break;
